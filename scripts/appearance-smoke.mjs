@@ -86,7 +86,7 @@ try {
           await page.evaluate(() =>
             [
               ...document.querySelectorAll(
-                '.workspace-nav, .viewer-toolbar, .map-toolbar, .session-data',
+                '.topbar, .viewer-toolbar, .map-toolbar, .session-data',
               ),
             ].every(
               (e) =>

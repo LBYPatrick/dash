@@ -6,6 +6,10 @@ All notable changes to Dash are documented here using Keep a Changelog.
 
 ### Changed
 
+- Give the top bar one continuous background, reduce its vertical height, and flatten its navigation/device/utility controls.
+
+- Remove decorative control/panel outlines and selected-tab borders; use fills and depth for separation, with focus indicators reserved for keyboard navigation.
+
 - Reduce excessive corner rounding, correct text and control contrast in both themes, and reserve scrollbar gutters to prevent layout shifts between views.
 
 - Restyle Dash with glass controls, floating viewer chrome, optical edge highlights, system typography, sliding selections and reversible sheet/menu transitions, including accessibility fallbacks.

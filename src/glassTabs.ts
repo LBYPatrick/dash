@@ -5,6 +5,8 @@ const cleanup = new WeakMap<HTMLElement, () => void>();
 export const vGlassTabs: ObjectDirective<HTMLElement> = {
   mounted(element) {
     element.classList.add('glass-tabs');
+    // Place the initial selection immediately; morph only after interaction.
+    element.dataset.keyboard = '';
     const update = () => {
       const active = element.querySelector<HTMLElement>(
         ':scope > button.selected, :scope > button.chosen, :scope > label.selected',

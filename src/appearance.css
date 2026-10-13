@@ -6,9 +6,9 @@
   --ink: #182831;
   --muted: #465b67;
   --green: #205f46;
-  --line: #708694;
+  --line: #d7e1e6;
   --glass-fill: #ffffffed;
-  --glass-edge: #708694;
+  --glass-edge: transparent;
   --selection: #e0ede5;
 }
 html {
@@ -26,9 +26,9 @@ html {
   --ink: #edf3f7;
   --muted: #b3c3cf;
   --green: #a4e8cd;
-  --line: #6c8594;
+  --line: #31424d;
   --glass-fill: #1d2a34f2;
-  --glass-edge: #6c8594;
+  --glass-edge: transparent;
   --selection: #304c40;
   --glass-shadow: 0 8px 24px #0002, inset 0 1px 0 #ffffff10;
   color: var(--ink);
@@ -504,7 +504,6 @@ select:focus-visible,
 .workspace-nav button.chosen,
 .segmented > button.selected,
 .theme-options > label.selected {
-  border-color: var(--green);
   font-weight: 650;
 }
 #app .player :is(p, small, h2, h3, .muted) {
@@ -542,4 +541,154 @@ select:focus-visible,
   background: var(--surface-raised);
   color: var(--ink);
   border-color: var(--line);
+}
+
+/* Surfaces separate by fill and depth. Borders do not frame every control. */
+#app
+  :is(
+    .workspace-nav,
+    .segmented,
+    .device-switcher,
+    .icon-button,
+    .search,
+    .session-actions > summary,
+    .map-toolbar,
+    .button,
+    .viewer-card,
+    .viewer-toolbar,
+    .session-data,
+    .stat-grid > div,
+    .drive-row,
+    .file-card,
+    .modal,
+    .navigation-drawer,
+    .session-action-menu,
+    .toast,
+    .welcome-preview,
+    .floating-note,
+    .source-picker select,
+    .address-input,
+    .range-fields input,
+    .range-fields select,
+    .live-settings,
+    .live-settings input,
+    .live-settings select,
+    .simulation-banner select,
+    .player-error
+  ) {
+  border-color: transparent;
+}
+#app :is(.workspace-nav button, .segmented > button, .theme-options > label) {
+  border-color: transparent;
+}
+#app .sidebar {
+  border-right-color: transparent;
+}
+#app .search:focus-within {
+  outline: none;
+}
+:root[data-interaction='keyboard'] #app .search:focus-within {
+  outline: 2px solid var(--green);
+  outline-offset: 2px;
+}
+:root[data-interaction='pointer']
+  #app
+  :is(
+    button,
+    a,
+    summary,
+    input,
+    select,
+    .media-resize-handle,
+    .theme-options > label,
+    .switch-track
+  ) {
+  outline: none;
+}
+:root[data-interaction='pointer']
+  #app
+  .theme-options
+  > label:has(input:focus-visible),
+:root[data-interaction='pointer']
+  #app
+  .settings-switch
+  input:focus-visible
+  + .switch-track {
+  outline: none;
+}
+/* A single compact app bar carries the navigation and utility controls. */
+:root {
+  --topbar-height: 56px;
+}
+#app .topbar {
+  height: var(--topbar-height);
+  background: var(--glass-fill);
+  border-bottom: 0;
+  box-shadow: 0 1px 10px #10263206;
+}
+.workspace {
+  min-height: calc(100svh - var(--topbar-height));
+}
+.sidebar {
+  height: calc(100svh - var(--topbar-height));
+}
+#app .topbar :is(.workspace-nav, .device-switcher, .icon-button) {
+  background: transparent;
+  box-shadow: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+#app .topbar .workspace-nav {
+  padding: 0;
+}
+#app .topbar .workspace-nav button {
+  min-height: 36px;
+  padding-block: 6px;
+}
+#app .topbar .device-switcher {
+  min-height: 36px;
+  padding-block: 6px;
+}
+#app .topbar .icon-button {
+  width: 36px;
+  height: 36px;
+}
+#app .topbar .header-actions {
+  gap: 8px;
+}
+#app .topbar .local-badge {
+  display: none;
+}
+@media (hover: hover) and (pointer: fine) {
+  #app .topbar :is(.device-switcher, .icon-button):hover {
+    background: var(--surface-subtle);
+  }
+}
+@media (max-width: 900px) {
+  :root {
+    --topbar-height: 52px;
+  }
+  #app .topbar .icon-button {
+    width: 44px;
+    height: 44px;
+  }
+  #app .topbar .header-actions {
+    gap: 2px;
+  }
+}
+@media (max-width: 900px) and (max-height: 500px) {
+  :root {
+    --topbar-height: 44px;
+  }
+  #app .topbar .icon-button {
+    width: 40px;
+    height: 40px;
+  }
+}
+
+#app .session-data {
+  box-shadow: 0 6px 22px #10263208;
+}
+#app :is(.modal, .navigation-drawer, .session-action-menu) {
+  box-shadow: 0 16px 50px #10263228;
 }
