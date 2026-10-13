@@ -26,8 +26,8 @@ const cameras = computed(() =>
 );
 function open(selectedFormat?: 'zip' | 'mp4' | 'mcap') {
   if (selectedFormat) format.value = selectedFormat;
-  start.value = props.current;
-  end.value = props.current;
+  start.value = 0;
+  end.value = props.drive.segments.length - 1;
   camera.value =
     cameras.value.find((file) => file.name === 'qcamera.ts')?.name ||
     cameras.value[0]?.name ||

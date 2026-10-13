@@ -2,7 +2,7 @@
 
 ## Requirements
 
-The target needs Linux ARM64 (typical device architecture; the installer checks `uname -m`), systemd, unified cgroup v2 exposing `cpu`, `memory`, and `pids`, FFmpeg in the service PATH, a `comma` user/group, and read access to recordings and firmware params. Dash writes only its cache and the managed live-stream flag/ownership marker. It requires writable `/data/dash`, `/data/params`, and permission to install a unit into `/etc/systemd/system`.
+The target needs Linux ARM64 (typical device architecture; the installer checks `uname -m`), systemd, unified cgroup v2 exposing `cpu`, `memory`, and `pids`, FFmpeg and ffprobe in the service PATH, a `comma` user/group, and read access to recordings and firmware params. Dash writes only its cache and the managed live-stream flag/ownership marker. It requires writable `/data/dash`, `/data/params`, and permission to install a unit into `/etc/systemd/system`.
 
 Enable device SSH and configure your key using the [official device connection instructions](https://docs.comma.ai/how-to/connect-to-comma/). The device hotspot address is commonly `192.168.43.1`; use the address shown by your actual network. SSH and the HTTP interface must be reachable from the client. There is no internet or account requirement after installation.
 
@@ -12,6 +12,7 @@ Do not assume every AGNOS release has the required resource controllers. Check:
 cat /sys/fs/cgroup/cgroup.controllers
 systemctl --version
 command -v ffmpeg
+command -v ffprobe
 ffmpeg -hide_banner -encoders | grep libx264
 ```
 
@@ -56,7 +57,15 @@ The unit sets CPUQuota 50%, CPUWeight 10, Nice 15, MemoryHigh 256 MiB, MemoryMax
 
 The smaller Go memory target and sampled FFmpeg RSS limit are additional safeguards, not substitutes for kernel limits. Memory exhaustion can terminate Dash; it is not possible to guarantee that arbitrary input never causes a process OOM. The aggregate hard limit bounds Dash's memory consumption. Only one indexing segment, conversion, export, or Dash live session can own the compute slot.
 
-Thumbnails and metadata are indexed while parked; inventory scans recur every 15 seconds and reuse unchanged size/mtime fingerprints. Low RAM or a state transition cancels ongoing work. Export input/output is limited to 8 GiB with free-space checks; incomplete results are deleted, completed exports expire after an hour, and orphan cleanup runs while parked. Preview input and generated output are bounded to 256 MiB per segment and require 2 GiB free storage. Long or unusual files may need original-file downloads instead. Rebuild affects the index, never source recordings. Bookmarks do not protect recordings from firmware retention.
+Video durations, thumbnails, and metadata are indexed while parked; inventory scans recur every 15 seconds and reuse unchanged size/mtime fingerprints. Low RAM or a state transition cancels ongoing work. Export input/output is limited to 8 GiB with free-space checks; incomplete results are deleted, completed exports expire after an hour, and orphan cleanup runs while parked. Preview input and generated output are bounded to 256 MiB per segment and require 2 GiB free storage. Long or unusual files may need original-file downloads instead. Rebuild affects the index, never source recordings. Bookmarks do not protect recordings from firmware retention.
+
+## Continuous recording playback
+
+Dash exposes a VOD HLS playlist for each recording/camera. The seek bar covers all available camera files; file boundaries are handled internally with HLS discontinuities. No whole-recording conversion or in-memory concatenation is required. Indexed durations come from ffprobe; raw HEVC uses logger’s 20 fps timebase. Missing or unreadable camera files are omitted, so playback time covers available footage rather than filling gaps with invented frames.
+
+The road preview streams original H.264 transport-stream files directly. High-resolution HEVC feeds are converted into cached H.264 transport-stream chunks on demand using the same parked-only, single-worker, CPU/memory/disk policy as other previews. Existing cached chunks and original road footage remain readable onroad. Incomplete timeline indexing pauses playback until parked indexing finishes. Browser native HLS is used when available; otherwise HLS.js loads lazily with a 15-second forward-buffer setting, 15-second back buffer, and 32 MiB buffer target. This target is a client buffering heuristic, not a hard browser memory limit. See the [HLS.js API](https://github.com/video-dev/hls.js/blob/master/docs/API.md) and [ffprobe documentation](https://ffmpeg.org/ffprobe.html).
+
+The single-camera player uses one continuous native seek bar. Multiple feeds use one shared seek bar and correct drift relative to the first feed. Camera gaps and different available footage can affect alignment; this is not sensor-timestamp synchronization. Exports default to the full recording, with optional file-part ranges in the export dialog.
 
 ## Local HTTPS and PWA installation
 

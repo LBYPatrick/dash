@@ -24,14 +24,16 @@ var segmentPattern = regexp.MustCompile(`^([a-zA-Z0-9_-]+--[a-zA-Z0-9_-]+)--([0-
 var cameras = map[string]bool{"qcamera.ts": true, "fcamera.hevc": true, "ecamera.hevc": true, "dcamera.hevc": true}
 
 type FileInfo struct {
-	Name  string `json:"name"`
-	Size  int64  `json:"size"`
-	Mtime int64  `json:"mtime"`
+	Duration float64 `json:"duration,omitempty"`
+	Name     string  `json:"name"`
+	Size     int64   `json:"size"`
+	Mtime    int64   `json:"mtime"`
 }
 type IndexedSegment struct {
-	Metadata  telemetry.Metadata `json:"metadata"`
-	Thumbnail string             `json:"thumbnail,omitempty"`
-	Files     []FileInfo         `json:"files"`
+	MediaVersion int                `json:"mediaVersion,omitempty"`
+	Metadata     telemetry.Metadata `json:"metadata"`
+	Thumbnail    string             `json:"thumbnail,omitempty"`
+	Files        []FileInfo         `json:"files"`
 }
 type IndexStatus struct {
 	Running   bool   `json:"running"`
@@ -286,7 +288,7 @@ func (i *Index) scanSegment(ctx context.Context, name string, generation uint64)
 		if err != nil || !info.Mode().IsRegular() {
 			continue
 		}
-		entry.Files = append(entry.Files, FileInfo{child.Name(), info.Size(), info.ModTime().UnixNano()})
+		entry.Files = append(entry.Files, FileInfo{Name: child.Name(), Size: info.Size(), Mtime: info.ModTime().UnixNano()})
 	}
 	sort.Slice(entry.Files, func(a, b int) bool { return entry.Files[a].Name < entry.Files[b].Name })
 	inventory, _ := json.Marshal(entry.Files)
@@ -295,12 +297,34 @@ func (i *Index) scanSegment(ctx context.Context, name string, generation uint64)
 	var oldHash, oldRaw string
 	_ = i.db.QueryRow("SELECT fingerprint,entry FROM segments WHERE name=?", name).Scan(&oldHash, &oldRaw)
 	var old IndexedSegment
-	if oldHash == fingerprint && json.Unmarshal([]byte(oldRaw), &old) == nil && old.Metadata.Status != "error" {
+	if oldHash == fingerprint && json.Unmarshal([]byte(oldRaw), &old) == nil && old.Metadata.Status != "error" && old.MediaVersion == 1 {
 		if old.Thumbnail == "" {
 			return nil
 		}
 		if _, err := os.Stat(filepath.Join(i.cache, filepath.Base(old.Thumbnail))); err == nil {
 			return nil
+		}
+	}
+	entry.MediaVersion = 1
+	for n, file := range entry.Files {
+		if !cameras[file.Name] || file.Size > 256<<20 {
+			continue
+		}
+		if oldHash == fingerprint && old.MediaVersion == 1 {
+			for _, previous := range old.Files {
+				if previous.Name == file.Name {
+					entry.Files[n].Duration = previous.Duration
+					break
+				}
+			}
+			continue
+		}
+		duration, err := videoDuration(ctx, filepath.Join(folder, file.Name))
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
+		if err == nil {
+			entry.Files[n].Duration = duration
 		}
 	}
 	var qlog, camera string

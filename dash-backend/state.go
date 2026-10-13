@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"golang.org/x/sys/unix"
+	"io"
 	"log"
 	"os"
 	"os/exec"
@@ -53,19 +54,23 @@ func parkedContext(parent context.Context, state StateReader) (context.Context, 
 	return ctx, cancel
 }
 func runFFmpeg(ctx context.Context, args ...string) error {
+	return runMediaCommand(ctx, "ffmpeg", nil, append([]string{"-hide_banner", "-loglevel", "error", "-nostdin", "-y", "-max_alloc", "33554432", "-threads", "1", "-filter_threads", "1"}, args...)...)
+}
+func runMediaCommand(ctx context.Context, binary string, stdout io.Writer, args ...string) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	command := exec.CommandContext(ctx, "ffmpeg", append([]string{"-hide_banner", "-loglevel", "error", "-nostdin", "-y", "-max_alloc", "33554432", "-threads", "1", "-filter_threads", "1"}, args...)...)
+	command := exec.CommandContext(ctx, binary, args...)
+	command.Stdout = stdout
 	var stderr limitedBuffer
 	command.Stderr = &stderr
 	if err := command.Start(); err != nil {
 		return err
 	}
 	started := time.Now()
-	log.Printf("ffmpeg started pid=%d", command.Process.Pid)
+	log.Printf("%s started pid=%d", binary, command.Process.Pid)
 	defer func() {
-		log.Printf("ffmpeg finished pid=%d duration=%s canceled=%t", command.Process.Pid, time.Since(started).Round(time.Millisecond), ctx.Err() != nil)
+		log.Printf("%s finished pid=%d duration=%s canceled=%t", binary, command.Process.Pid, time.Since(started).Round(time.Millisecond), ctx.Err() != nil)
 	}()
 	if runtime.GOOS == "linux" {
 		_ = unix.Setpriority(unix.PRIO_PROCESS, command.Process.Pid, 15)
@@ -93,7 +98,7 @@ func runFFmpeg(ctx context.Context, args ...string) error {
 		if ctx.Err() != nil {
 			return errors.New("processing stopped: canceled or vehicle no longer confirmed parked")
 		}
-		return errors.New("ffmpeg failed or exceeded memory budget: " + stderr.String())
+		return errors.New(binary + " failed or exceeded memory budget: " + stderr.String())
 	}
 	return nil
 }

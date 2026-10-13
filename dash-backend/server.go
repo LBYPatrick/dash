@@ -143,6 +143,8 @@ func (s *Server) getAPI(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		writeJSON(w, 200, result)
+	case "/api/playlist":
+		s.playlist(w, r)
 	case "/api/video":
 		s.video(w, r)
 	default:
@@ -243,14 +245,26 @@ func (s *Server) video(w http.ResponseWriter, r *http.Request) {
 		fail(w, 400, errors.New("preview segment missing or exceeds 256 MiB"))
 		return
 	}
+	transport := r.URL.Query().Get("container") == "ts"
+	if transport {
+		w.Header().Set("Content-Type", "video/mp2t")
+	}
+	if transport && strings.HasSuffix(file, ".ts") {
+		http.ServeFile(w, r, file)
+		return
+	}
 	codec := "copy"
 	if r.URL.Query().Get("codec") == "h264" {
 		codec = "h264"
 	}
-	hash := sha256.Sum256([]byte(fmt.Sprintf("%s:%d:%d:%s", file, info.Size(), info.ModTime().UnixNano(), codec)))
+	hash := sha256.Sum256([]byte(fmt.Sprintf("%s:%d:%d:%s:%t", file, info.Size(), info.ModTime().UnixNano(), codec, transport)))
 	folder := filepath.Join(s.index.cache, "previews")
 	_ = os.MkdirAll(folder, 0700)
-	target := filepath.Join(folder, fmt.Sprintf("%x.mp4", hash))
+	extension := ".mp4"
+	if transport {
+		extension = ".ts"
+	}
+	target := filepath.Join(folder, fmt.Sprintf("%x%s", hash, extension))
 	if _, err := os.Stat(target); err != nil {
 		if s.index.state() != "parked" {
 			fail(w, 409, errors.New("preview preparation requires confirmed parked state"))
@@ -273,7 +287,7 @@ func (s *Server) video(w http.ResponseWriter, r *http.Request) {
 				fail(w, 507, errors.New("preview preparation requires 2 GiB free space"))
 				return
 			}
-			partial := target + ".partial.mp4"
+			partial := target + ".partial" + extension
 			defer os.Remove(partial)
 			args := []string{}
 			if strings.HasSuffix(file, ".hevc") {
@@ -284,11 +298,17 @@ func (s *Server) video(w http.ResponseWriter, r *http.Request) {
 				args = append(args, "-c:v", "libx264", "-threads", "1", "-preset", "ultrafast", "-crf", "25", "-vf", "scale='min(1280,iw)':-2", "-pix_fmt", "yuv420p")
 			} else {
 				args = append(args, "-c:v", "copy")
-				if strings.HasSuffix(file, ".hevc") {
+				if strings.HasSuffix(file, ".hevc") && !transport {
 					args = append(args, "-tag:v", "hvc1")
 				}
 			}
-			args = append(args, "-fs", "268435456", "-movflags", "+faststart", partial)
+			args = append(args, "-fs", "268435456")
+			if transport {
+				args = append(args, "-f", "mpegts")
+			} else {
+				args = append(args, "-movflags", "+faststart")
+			}
+			args = append(args, partial)
 			if err := runFFmpeg(ctx, args...); err != nil {
 				fail(w, 422, err)
 				return

@@ -15,8 +15,8 @@ for DASH_CONTROLLER in cpu memory pids; do
     exit 1
   fi
 done
-if ! command -v ffmpeg >/dev/null || ! command -v systemctl >/dev/null; then
-  echo 'Installation requires ffmpeg and systemd.'
+if ! command -v ffmpeg >/dev/null || ! command -v ffprobe >/dev/null || ! command -v systemctl >/dev/null; then
+  echo 'Installation requires ffmpeg, ffprobe and systemd.'
   exit 1
 fi
 id comma >/dev/null

@@ -24,6 +24,7 @@ done
 command -v systemctl >/dev/null
 command -v systemd-analyze >/dev/null
 command -v ffmpeg >/dev/null
+command -v ffprobe >/dev/null
 ffmpeg -hide_banner -encoders 2>/dev/null | grep -F libx264 >/dev/null
 id comma >/dev/null
 sudo -n true

@@ -6,6 +6,9 @@ All notable changes to Dash are documented here using Keep a Changelog.
 
 ### Changed
 
+- Replace segment-based playback with continuous HLS recording timelines and one shared timeline for multiple feeds.
+- Default exports to the full recording and index video durations with parked-only ffprobe workers.
+
 - Load OpenStreetMap backgrounds automatically when a GPS route is displayed.
 
 ### Added

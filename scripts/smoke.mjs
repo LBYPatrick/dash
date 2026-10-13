@@ -39,6 +39,51 @@ try {
   await page.waitForFunction(
     () => document.querySelector('video')?.readyState >= 1,
   );
+  await page.waitForFunction(
+    () => Math.abs(document.querySelector('video').duration - 16) < 0.2,
+  );
+  assert.equal(await page.getByLabel('Choose recording segment').count(), 0);
+  await page.locator('video').evaluate(async (video) => {
+    video.currentTime = 7.8;
+    await video.play();
+  });
+  await page.waitForFunction(
+    () => document.querySelector('video').currentTime > 8.5,
+  );
+  await page.locator('video').evaluate((video) => video.pause());
+  await page.locator('video').evaluate((video) => {
+    video.currentTime = 12;
+  });
+  await page.waitForFunction(
+    () =>
+      document.querySelector('video').currentTime >= 12 &&
+      document.querySelector('video').readyState >= 2,
+  );
+  await page.locator('video').evaluate((video) => {
+    video.currentTime = 3;
+  });
+  await page
+    .getByLabel('Camera', { exact: true })
+    .selectOption({ label: 'fcamera.hevc' });
+  await page.waitForFunction(() => {
+    const video = document.querySelector('video');
+    return (
+      video.readyState >= 2 &&
+      Math.abs(video.duration - 4) < 0.2 &&
+      Math.abs(video.currentTime - 3) < 0.2
+    );
+  });
+  await page
+    .getByLabel('Camera', { exact: true })
+    .selectOption({ label: 'qcamera.ts' });
+  await page.waitForFunction(() => {
+    const video = document.querySelector('video');
+    return (
+      video.readyState >= 2 &&
+      Math.abs(video.duration - 16) < 0.2 &&
+      Math.abs(video.currentTime - 3) < 0.2
+    );
+  });
   await page.getByRole('heading', { name: 'Metadata', exact: true }).waitFor();
   await page.locator('.map-canvas').waitFor();
   await page
@@ -82,13 +127,16 @@ try {
   await page
     .getByRole('button', { name: 'Multiple feeds', exact: true })
     .click();
-  await page.getByLabel('H.264 compatibility').check();
   await page.getByRole('button', { name: 'Load selected feeds' }).click();
   await page.waitForFunction(
     () => {
       const videos = [...document.querySelectorAll('.feed-grid video')];
       return (
-        videos.length === 2 && videos.every((video) => video.readyState >= 1)
+        videos.length === 2 &&
+        videos.every(
+          (video) =>
+            video.readyState >= 2 && Math.abs(video.duration - 4) < 0.2,
+        )
       );
     },
     { timeout: 60000 },
@@ -100,6 +148,18 @@ try {
     ),
   );
   await page.getByRole('button', { name: 'Pause feeds together' }).click();
+  await page
+    .getByLabel('Recording timeline', { exact: true })
+    .evaluate((input) => {
+      input.value = '2.5';
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+  await page.waitForFunction(() =>
+    [...document.querySelectorAll('.feed-grid video')].every(
+      (video) => video.currentTime >= 2.45 && video.readyState >= 2,
+    ),
+  );
+
   await page.screenshot({
     path: '.artifacts/multiple-feeds.png',
     fullPage: true,
@@ -237,7 +297,7 @@ try {
   await context.setOffline(false);
   assert.deepEqual(errors, []);
   console.log(
-    'Browser smoke passed: playback, metadata/map, bookmarks/search, overview, two feeds, ZIP/MP4/MCAP downloads, diagnostic download, live unsupported state, onroad lockout, mobile navigation, offline PWA shell.',
+    'Browser smoke passed: continuous playback/seeking across file boundaries, metadata/map, bookmarks/search, overview, two feeds, ZIP/MP4/MCAP downloads, diagnostic download, live unsupported state, onroad lockout, mobile navigation, offline PWA shell.',
   );
 } finally {
   await setDriving(simulation ? 'unknown' : 'parked');

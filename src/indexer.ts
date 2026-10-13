@@ -189,3 +189,7 @@ export function distanceKm(points: Position[]): number {
   }
   return distance;
 }
+
+export function recordingAddress(drive: string, camera: string): string {
+  return `/api/playlist?${new URLSearchParams({ drive, camera })}`;
+}

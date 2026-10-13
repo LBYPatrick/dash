@@ -43,7 +43,7 @@ import {
   backendOrigin,
   startIndexing,
   stopIndexing,
-  videoAddress,
+  recordingAddress,
   distanceKm,
 } from './indexer';
 import {
@@ -259,7 +259,10 @@ async function loadFiles() {
     const preview =
       listing.files.find((file) => file.name === 'qcamera.ts') ||
       playable.value[0];
-    selectedSource.value = preview ? videoAddress(preview) || preview.url : '';
+    selectedSource.value =
+      preview && active.value
+        ? recordingAddress(active.value.id, preview.name)
+        : '';
   } catch (error) {
     if (!request.signal.aborted) fileError.value = (error as Error).message;
   } finally {
@@ -385,10 +388,6 @@ async function openConnection() {
 function cancelConnection() {
   connectionRequest?.abort();
   busy.value = false;
-}
-function nextSegment() {
-  if (active.value && segmentIndex.value < active.value.segments.length - 1)
-    segmentIndex.value++;
 }
 function updateOnline() {
   online.value = navigator.onLine;
@@ -801,8 +800,7 @@ onBeforeUnmount(() => {
               </div>
               <h1>{{ dateLabel(active.date) }}</h1>
               <p>
-                {{ timeLabel(active.date) }} <span>·</span>
-                {{ active.segments.length }} recorded segments
+                {{ timeLabel(active.date) }}
                 <span v-if="!active.dated">· File timestamp</span>
               </p>
             </div>
@@ -957,7 +955,12 @@ onBeforeUnmount(() => {
                   Multiple feeds
                 </button>
               </div>
-              <MultiFeed v-if="multiple" :files="files" :sample="demo" />
+              <MultiFeed
+                v-if="multiple"
+                :files="files"
+                :sample="demo"
+                :drive-id="active.id"
+              />
               <div v-if="!multiple" class="viewer-card">
                 <div class="viewer-toolbar">
                   <span
@@ -967,11 +970,15 @@ onBeforeUnmount(() => {
                     }}</span
                   ><label v-if="playable.length > 1" class="source-picker"
                     >Camera
-                    <select v-model="selectedSource">
+                    <select v-model="selectedSource" aria-label="Camera">
                       <option
                         v-for="file in playable"
                         :key="file.url"
-                        :value="videoAddress(file) || file.url"
+                        :value="
+                          demo
+                            ? file.url
+                            : recordingAddress(active.id, file.name)
+                        "
                       >
                         {{ file.name }}
                       </option>
@@ -1000,76 +1007,10 @@ onBeforeUnmount(() => {
                 </div>
                 <RecordingPlayer
                   v-else
-                  :key="segment?.url"
+                  :key="active.id"
                   :source="selectedSource || undefined"
                   :sample="demo"
-                  @ended="nextSegment"
                 />
-                <div class="segment-controls">
-                  <div>
-                    <span class="eyebrow">SEGMENT</span
-                    ><strong
-                      >{{ (segment?.index ?? 0) + 1 }}
-                      <span
-                        >/ {{ (active.segments.at(-1)?.index ?? 0) + 1 }}</span
-                      ></strong
-                    >
-                  </div>
-                  <label class="segment-slider"
-                    ><span class="sr-only">Choose recording segment</span
-                    ><input
-                      v-model.number="segmentIndex"
-                      type="range"
-                      min="0"
-                      :max="active.segments.length - 1"
-                      step="1"
-                      :disabled="active.segments.length < 2"
-                      :aria-valuetext="`Segment ${(segment?.index ?? 0) + 1}`"
-                  /></label>
-                  <div class="segment-buttons">
-                    <button
-                      class="icon-button"
-                      aria-label="Previous segment"
-                      :disabled="segmentIndex === 0"
-                      @click="segmentIndex--"
-                    >
-                      <ChevronLeft :size="20" /></button
-                    ><button
-                      class="icon-button"
-                      aria-label="Next segment"
-                      :disabled="segmentIndex === active.segments.length - 1"
-                      @click="nextSegment"
-                    >
-                      <ChevronRight :size="20" />
-                    </button>
-                  </div>
-                </div>
-              </div>
-              <div class="below-viewer">
-                <span
-                  ><ListVideo :size="14" /> Use the timeline to select a
-                  segment.</span
-                ><span>{{
-                  demo
-                    ? 'Same illustrated clip in each sample segment'
-                    : 'Segments are usually about one minute'
-                }}</span>
-              </div>
-              <div v-if="multiple && active" class="multi-segments">
-                <button
-                  class="button"
-                  :disabled="segmentIndex === 0"
-                  @click="segmentIndex--"
-                >
-                  <ChevronLeft :size="16" /> Previous</button
-                ><span>Segment {{ (segment?.index ?? 0) + 1 }}</span
-                ><button
-                  class="button"
-                  :disabled="segmentIndex === active.segments.length - 1"
-                  @click="nextSegment"
-                >
-                  Next <ChevronRight :size="16" />
-                </button>
               </div>
             </div>
             <aside class="session-data">
