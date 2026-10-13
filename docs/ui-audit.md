@@ -59,3 +59,13 @@ Playback motion is functional state indication: it reads the media clock with `r
 | Unknown distance appears as zero              | Accepted GPS-pair count in cached summaries; unavailable and partial values are explicit      | Separate missing metadata from a stationary recording                       |
 
 `make statistics-smoke` covers totals, metric/unit/group/range changes, deliberate selection vs inspection, arrow-key/Enter/Escape navigation, table controls, returning from a recording with its selection restored, bounded charts and lists, and light/dark phone/desktop accessibility. A separate browser-only 90-drive history tests partial/missing data and paging; it never creates recordings on a device. The dashboard reads ordinary index summaries and does not request GPS/sample arrays, exports or decoding jobs. D3's scale module is bundled with the lazy dashboard chunk. The existing single parked worker, sample budgets and systemd resource limits remain in force.
+
+## Library controls
+
+| Before                                                  | After                                                     | Why                                              |
+| ------------------------------------------------------- | --------------------------------------------------------- | ------------------------------------------------ |
+| Large filled All/Saved selector                         | Single Saved toggle, off for all drives                   | Removes a redundant choice and a heavy container |
+| Search, filter and sort compete as separate filled rows | Search first, then a quiet Saved/sort utility row         | Clear hierarchy with more space for recordings   |
+| Count badge and detached sort label                     | Plain filtered/total count; sort shows its current choice | Reduces noise while preserving context           |
+
+Search, saved filtering, empty-state recovery and sort keyboard behavior are verified by `make shelf-smoke`. Controls remain usable at the minimum sidebar width and keep larger touch targets on phones. Frequent filtering has immediate feedback without a positional animation; no new dependencies or backend work are needed.

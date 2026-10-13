@@ -263,7 +263,112 @@ dialog::backdrop {
   padding-top: 16px;
 }
 #app .sidebar-heading {
-  margin-top: 12px;
+  margin: 0 0 12px;
+  min-height: 32px;
+  gap: 8px;
+}
+#app .sidebar-heading h2 {
+  display: flex;
+  align-items: baseline;
+  min-width: 0;
+  white-space: nowrap;
+  margin: 0;
+}
+#app .sidebar-heading h2 > span {
+  margin-left: 8px;
+  padding: 0;
+  background: transparent;
+  border-radius: 0;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 400;
+  letter-spacing: 0;
+  font-variant-numeric: tabular-nums;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+#app .sidebar-heading > .icon-button {
+  flex: 0 0 32px;
+  width: 32px;
+  height: 32px;
+}
+#app .sidebar .search {
+  flex: 0 0 auto;
+  height: 36px;
+  margin: 0;
+  border: 0;
+  border-radius: 6px;
+  padding-inline: 10px;
+  color: var(--muted);
+}
+#app .sidebar .search input {
+  font-size: 13px;
+}
+#app .sidebar .search:focus-within {
+  outline: none;
+  background: var(--fill-2);
+}
+#app .library-tools {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-shrink: 0;
+  margin: 4px 0 14px;
+}
+#app .saved-filter {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 32px;
+  padding: 4px 6px;
+  border-radius: 6px;
+  font-size: 12px;
+  color: var(--muted);
+}
+#app .saved-filter[aria-pressed='true'] {
+  color: var(--color-primary-text);
+  background: var(--fill-2);
+  font-weight: 550;
+}
+#app .library-tools .library-sort {
+  flex: 1;
+  width: auto;
+  max-width: 150px;
+}
+#app .library-tools .select-trigger {
+  justify-content: flex-end;
+  padding-inline: 6px;
+  min-height: 32px;
+  background: transparent;
+  font-size: 12px;
+  color: var(--muted);
+}
+#app .saved-filter:active {
+  background: var(--fill-2);
+}
+@media (hover: hover) and (pointer: fine) {
+  #app .saved-filter:hover,
+  #app .library-tools .select-trigger:hover {
+    background: var(--fill-3);
+  }
+}
+@media (max-width: 900px) {
+  #app .sidebar-heading > .icon-button {
+    width: 44px;
+    height: 44px;
+    flex-basis: 44px;
+  }
+  #app .sidebar .search {
+    height: 44px;
+  }
+  #app .sidebar .search input {
+    font-size: 16px;
+  }
+  #app .library-tools :is(.saved-filter, .select-trigger) {
+    min-height: 44px;
+  }
 }
 #app .sidebar-heading h2 {
   font-size: 17px;
@@ -293,7 +398,7 @@ dialog::backdrop {
   ) {
   box-shadow: none;
 }
-#app .sidebar :is(.search, .segmented) {
+#app .sidebar .search {
   background: var(--fill-3);
 }
 #app .sidebar .drive-row.active {

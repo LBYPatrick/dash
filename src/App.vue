@@ -643,7 +643,14 @@ onBeforeUnmount(() => {
       <aside class="sidebar">
         <div class="sidebar-heading">
           <h2>
-            Your drives<span>{{ drives.length }}</span>
+            Your drives<span
+              :aria-label="`${visibleDrives.length} of ${drives.length} drives`"
+              >{{
+                query || filter === 'saved'
+                  ? `${visibleDrives.length} / ${drives.length}`
+                  : drives.length
+              }}</span
+            >
           </h2>
           <button
             class="icon-button"
@@ -654,19 +661,6 @@ onBeforeUnmount(() => {
             "
           >
             <RefreshCw :size="17" :class="{ spinning: busy }" />
-          </button>
-        </div>
-        <div v-glass-tabs class="segmented">
-          <button
-            :class="{ selected: filter === 'all' }"
-            @click="filter = 'all'"
-          >
-            All drives</button
-          ><button
-            :class="{ selected: filter === 'saved' }"
-            @click="filter = 'saved'"
-          >
-            <Bookmark :size="13" /> Saved
           </button>
         </div>
         <label class="search"
@@ -682,9 +676,30 @@ onBeforeUnmount(() => {
             Check connection <ArrowRight :size="14" />
           </button>
         </div>
-        <label class="sort-picker"
-          >Sort by<SelectMenu
+        <div
+          class="library-tools"
+          role="group"
+          aria-label="Drive list controls"
+        >
+          <button
+            type="button"
+            class="saved-filter"
+            aria-label="Saved drives only"
+            :aria-pressed="filter === 'saved'"
+            :title="
+              filter === 'saved' ? 'Show all drives' : 'Show saved drives only'
+            "
+            @click="filter = filter === 'saved' ? 'all' : 'saved'"
+          >
+            <Bookmark
+              :size="14"
+              :fill="filter === 'saved' ? 'currentColor' : 'none'"
+            />
+            Saved
+          </button>
+          <SelectMenu
             v-model="sort"
+            class="library-sort"
             aria-label="Sort drives"
             :options="
               [
@@ -693,7 +708,8 @@ onBeforeUnmount(() => {
                 { value: 'longest', label: 'Most segments' },
               ] as const
             "
-        /></label>
+          />
+        </div>
         <div class="drive-scroll">
           <div v-for="group in groups" :key="group.label" class="drive-group">
             <h3>{{ group.label }}</h3>

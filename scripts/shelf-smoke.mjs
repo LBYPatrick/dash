@@ -119,6 +119,38 @@ try {
   await page.getByRole('heading', { name: 'No matching drives' }).waitFor();
   await audit('empty search recovery');
   await search.fill('');
+  const saved = page.getByRole('button', {
+    name: 'Saved drives only',
+    exact: true,
+  });
+  await saved.click();
+  assert.equal(await saved.getAttribute('aria-pressed'), 'true');
+  await page
+    .getByRole('heading', { name: 'A place for your favorites' })
+    .waitFor();
+  await audit('saved filter and empty recovery');
+  await page
+    .getByRole('button', { name: 'Show all drives', exact: true })
+    .click();
+  assert.equal(await saved.getAttribute('aria-pressed'), 'false');
+  await saved.focus();
+  await page.keyboard.press('Space');
+  assert.equal(await saved.getAttribute('aria-pressed'), 'true');
+  await page.keyboard.press('Space');
+  assert.equal(await saved.getAttribute('aria-pressed'), 'false');
+  const sidebarResize = page.getByRole('separator', {
+    name: 'Resize recording sidebar',
+  });
+  await sidebarResize.focus();
+  await page.keyboard.press('Home');
+  assert(
+    await page
+      .locator('.library-tools')
+      .evaluate((e) => e.scrollWidth <= e.clientWidth),
+    'Library controls must fit the minimum sidebar width',
+  );
+  await page.screenshot({ path: '.artifacts/library-controls-narrow.png' });
+  await page.keyboard.press('Enter');
   // Sort menus reopen reliably after both mouse and keyboard selections.
   const sort = page.getByRole('combobox', { name: /Sort/ });
   await sort.click();
