@@ -692,3 +692,23 @@ select:focus-visible,
 #app :is(.modal, .navigation-drawer, .session-action-menu) {
   box-shadow: 0 16px 50px #10263228;
 }
+/* The dark library is one structural surface, rather than framed widgets. */
+:root[data-theme='dark'] #app .sidebar {
+  background: var(--surface-raised);
+}
+:root[data-theme='dark'] #app .sidebar :is(.search, .segmented) {
+  background: var(--surface-subtle);
+  box-shadow: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+:root[data-theme='dark'] #app .sidebar .icon-button {
+  background: transparent;
+  box-shadow: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+:root[data-theme='dark'] #app .sidebar .drive-row.active {
+  background: var(--selection);
+  box-shadow: none;
+}

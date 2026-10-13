@@ -6,6 +6,8 @@ All notable changes to Dash are documented here using Keep a Changelog.
 
 ### Changed
 
+- Flatten the dark-mode library sidebar into a continuous surface, removing remaining inset highlights from search, filters and selected drives.
+
 - Give the top bar one continuous background, reduce its vertical height, and flatten its navigation/device/utility controls.
 
 - Remove decorative control/panel outlines and selected-tab borders; use fills and depth for separation, with focus indicators reserved for keyboard navigation.
