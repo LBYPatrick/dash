@@ -210,7 +210,7 @@ try {
   await closeSettings();
   assert.deepEqual(errors, []);
   console.log(
-    'Appearance smoke passed: light/dark contrast audits across settings, viewer, overview, live, actions, files, export, device, help and mobile; opaque/no-blur performance mode; persistence, live System theme, cross-tab sync and stable scrollbar gutters.',
+    'Appearance smoke passed: light/dark contrast audits across settings, viewer, overview, live, actions, files, export, device, help and mobile; opaque/no-blur performance mode; persistence, live System theme, cross-tab sync and stable window geometry across tabs.',
   );
 } finally {
   await browser.close();

@@ -347,9 +347,6 @@ dialog::backdrop {
 #app .shelf-sheet-close {
   background: transparent;
 }
-#app .shelf-sheet-body {
-  scrollbar-gutter: stable;
-}
 #app .shelf-sheet .modal-inner {
   padding: 0;
 }
@@ -428,7 +425,6 @@ dialog::backdrop {
   color: var(--ink);
   box-shadow: var(--elev-popover);
   overflow-y: auto;
-  scrollbar-gutter: stable;
   opacity: 0;
   transform: scale(0.96);
   transition:
@@ -635,7 +631,6 @@ body,
   max-width: none;
   min-height: 0;
   overflow-y: auto;
-  scrollbar-gutter: stable;
 }
 #app .workspace > .session-view {
   overflow: hidden;
@@ -668,4 +663,36 @@ body,
   background: var(--danger-fill);
   color: var(--danger-text);
   border: 0;
+}
+
+/* Shelf's scrollbars: no reserved strip on surfaces that do not scroll.
+   Fixed window chrome keeps its width across tabs; only overflowing content
+   gets a narrow, transparent track. */
+* {
+  scrollbar-gutter: auto;
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(
+      in oklab,
+      var(--color-base-content) 22%,
+      transparent
+    )
+    transparent;
+}
+::-webkit-scrollbar {
+  width: 9px;
+  height: 9px;
+}
+::-webkit-scrollbar-track,
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: color-mix(in oklab, var(--color-base-content) 20%, transparent);
+  border-radius: 6px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in oklab, var(--color-base-content) 34%, transparent);
+  background-clip: content-box;
 }

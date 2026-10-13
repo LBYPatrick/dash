@@ -11,14 +11,6 @@
   --glass-edge: transparent;
   --selection: #e0ede5;
 }
-html {
-  overflow-y: auto;
-  scrollbar-gutter: stable;
-}
-.drive-scroll,
-.modal {
-  scrollbar-gutter: stable;
-}
 :root[data-theme='dark'] {
   --surface: #111b22;
   --surface-raised: #1d2a34;

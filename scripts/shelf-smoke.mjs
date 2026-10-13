@@ -135,6 +135,30 @@ try {
   ]) {
     await page.getByRole('button', { name: trigger, exact: true }).click();
     await audit(`${title} sheet`);
+    // Non-scrolling sheets must not reserve scrollbar space on the panel
+    // or body. The measured content should have equal horizontal padding.
+    const geometry = await page.locator('.shelf-sheet').evaluate((panel) => {
+      const body = panel.querySelector('.panel__body');
+      const content = panel.querySelector('.panel__measure');
+      const box = panel.getBoundingClientRect(),
+        inner = content.getBoundingClientRect();
+      return {
+        panelGap: panel.offsetWidth - panel.clientWidth,
+        bodyGap: body.offsetWidth - body.clientWidth,
+        left: inner.left - box.left,
+        right: box.right - inner.right,
+        overflowing: body.scrollHeight > body.clientHeight + 1,
+      };
+    });
+    assert.equal(geometry.panelGap, 0, `${title}: phantom panel gutter`);
+    if (!geometry.overflowing) {
+      assert.equal(geometry.bodyGap, 0, `${title}: phantom body gutter`);
+      assert(
+        Math.abs(geometry.left - geometry.right) < 1,
+        `${title}: asymmetric content padding`,
+      );
+    }
+
     await page.getByRole('button', { name: close, exact: true }).click();
   }
   // Compact landscape keeps actions in the top layer, close buttons visible,
