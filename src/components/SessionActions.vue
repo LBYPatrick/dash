@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { useDismiss } from '../vendor/shelf/useDismiss';
 import { nextTick, onBeforeUnmount, ref, useId } from 'vue';
 import { MoreHorizontal } from '../icons';
 const trigger = ref<HTMLButtonElement>();
@@ -75,6 +76,7 @@ async function keyboard(event: KeyboardEvent) {
       buttons.length
   ]?.focus();
 }
+useDismiss(opened, close);
 onBeforeUnmount(detach);
 defineExpose({ close });
 </script>

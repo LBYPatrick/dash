@@ -7,3 +7,6 @@ dist
 **/dash-backend/dash-backend
 **/*.pem
 **/*.key
+
+.env
+.env.*

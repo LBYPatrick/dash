@@ -1,6 +1,7 @@
 <script setup lang="ts" generic="T extends string | number">
 // Shelf-style anchored list. Native popover puts it above clipping ancestors
 // and lets Escape dismiss the menu before its containing modal sheet.
+import { useDismiss } from '../vendor/shelf/useDismiss';
 import { computed, nextTick, onBeforeUnmount, ref, useId } from 'vue';
 import { Check, ChevronDown } from '../icons';
 const props = defineProps<{
@@ -54,7 +55,8 @@ async function show() {
   opened.value = true;
   anchorObserver?.disconnect();
   anchorObserver = new ResizeObserver(position);
-  const container = trigger.value?.closest('dialog') || trigger.value;
+  const container =
+    trigger.value?.closest('dialog, [role="dialog"]') || trigger.value;
   if (container) anchorObserver.observe(container);
   window.addEventListener('resize', position);
   window.addEventListener('scroll', position, true);
@@ -143,6 +145,7 @@ function keys(event: KeyboardEvent) {
     }
   }
 }
+useDismiss(opened, hide);
 onBeforeUnmount(() => {
   detach();
   clearTimeout(timer);

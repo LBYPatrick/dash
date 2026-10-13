@@ -26,9 +26,11 @@ try {
   await page.getByRole('heading', { name: 'Your drives' }).waitFor();
   async function settled() {
     await page.waitForFunction(() =>
-      [...document.querySelectorAll('dialog[open], :popover-open')].every(
-        (e) => +getComputedStyle(e).opacity >= 0.999,
-      ),
+      [
+        ...document.querySelectorAll(
+          'dialog[open], .scrim, [role="dialog"], :popover-open',
+        ),
+      ].every((e) => +getComputedStyle(e).opacity >= 0.999),
     );
     // Sheet height can still be moving after its entrance opacity has settled.
     await page.waitForTimeout(310);

@@ -5,5 +5,7 @@ dist/
 dash-backend/dash-backend
 dash-backend/cache/
 .env
+.env.*
+!.env.example
 *.key
 *.pem

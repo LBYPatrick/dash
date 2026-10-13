@@ -4,7 +4,13 @@ All notable changes to Dash are documented here using Keep a Changelog.
 
 ## [Unreleased]
 
+### Security
+
+- Remove the embedded browser map token from source and local Git history; use ignored `.env` configuration and credential-free OpenStreetMap defaults. Exclude env files from Docker build contexts.
+
 ### Changed
+
+- Reuse Shelf’s popup widget and dismissal stack directly; remove the page-wide scrollbar strip and keep scrolling inside content panes.
 
 - Fix map fallback reentrancy during theme changes and keep library recordings reachable in short landscape windows.
 

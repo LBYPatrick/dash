@@ -39,7 +39,7 @@ try {
     await page.waitForFunction(() =>
       [
         ...document.querySelectorAll(
-          'dialog[open], .session-action-menu:popover-open, .menulist:popover-open',
+          'dialog[open], .scrim, [role="dialog"], .session-action-menu:popover-open, .menulist:popover-open',
         ),
       ].every((element) => Number(getComputedStyle(element).opacity) >= 0.999),
     );
@@ -117,6 +117,12 @@ try {
           'Light sidebar and topbar must use distinct surfaces',
         );
       const stable = await page.locator('.topbar').boundingBox();
+      assert.equal(stable.x, 0);
+      assert.equal(
+        stable.width,
+        await page.evaluate(() => innerWidth),
+        'No page-wide scrollbar gap beside window chrome',
+      );
       for (const view of ['Overview', 'Live', 'Recordings']) {
         await page.getByRole('button', { name: view, exact: true }).click();
         const bounds = await page.locator('.topbar').boundingBox();

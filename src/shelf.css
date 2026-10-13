@@ -25,6 +25,11 @@
   --radius-card: 12px;
   --radius-popover: 12px;
   --radius-sheet: 20px;
+  --gap: 8px;
+  --gap-loose: 14px;
+  --gap-section: 20px;
+  --hit-min: 28px;
+  --radius-pill: 8px;
   --ease-sheet: cubic-bezier(0.32, 0.72, 0, 1);
   --t-press: 140ms;
   --t-hover: 180ms;
@@ -313,58 +318,20 @@ dialog::backdrop {
   box-shadow: var(--elev-popover);
   border-radius: var(--radius-popover);
 }
+/* The popup itself is Shelf's vendored widget, including its scoped CSS. */
 #app .shelf-sheet {
-  width: min(34rem, calc(100vw - 32px));
   max-width: none;
-  max-height: min(92dvh, max(80dvh, 480px));
   padding: 0;
   border: 0;
-  border-radius: var(--radius-sheet);
-  overflow: hidden;
   background: var(--color-base-100);
+  color: var(--ink);
   box-shadow: var(--elev-sheet);
-  opacity: 0;
-  transform: translateY(-12px) scale(0.97);
-  transition:
-    height var(--t-panel) var(--ease-sheet),
-    transform var(--t-sheet) var(--ease-sheet),
-    opacity var(--t-pop) var(--ease-out),
-    display var(--t-sheet) allow-discrete,
-    overlay var(--t-sheet) allow-discrete;
 }
-#app .shelf-sheet--wide {
-  width: min(48rem, calc(100vw - 32px));
-}
-#app .shelf-sheet[open] {
-  display: flex;
-  flex-direction: column;
-  opacity: 1;
-  transform: none;
-}
-#app .shelf-sheet::backdrop,
-#app .navigation-drawer::backdrop {
+#app .scrim {
   background: #0003;
-  backdrop-filter: none;
-  opacity: 0;
-  transition:
-    opacity var(--t-pop) var(--ease-out),
-    overlay var(--t-sheet) allow-discrete,
-    display var(--t-sheet) allow-discrete;
 }
-#app .shelf-sheet[open]::backdrop,
-#app .navigation-drawer[open]::backdrop {
-  opacity: 1;
-}
-:root[data-theme='dark'] #app .shelf-sheet::backdrop,
-:root[data-theme='dark'] #app .navigation-drawer::backdrop {
+:root[data-theme='dark'] #app .scrim {
   background: #00000061;
-}
-#app .shelf-sheet-head {
-  flex: 0 0 auto;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 14px 20px;
 }
 #app .shelf-sheet-head h2 {
   margin: 0;
@@ -374,28 +341,10 @@ dialog::backdrop {
   letter-spacing: -0.011em;
 }
 #app .shelf-sheet-close {
-  margin-left: auto;
-  width: 28px;
-  height: 28px;
-  padding: 0;
-  display: grid;
-  place-items: center;
   background: transparent;
-  color: var(--muted);
-  border-radius: 8px;
 }
 #app .shelf-sheet-body {
-  flex: 1;
-  min-height: 0;
-  padding: 0 20px 20px;
-  overflow-y: hidden;
   scrollbar-gutter: stable;
-}
-#app .shelf-sheet-body--scrolls {
-  overflow-y: auto;
-}
-#app .shelf-sheet-measure {
-  display: flow-root;
 }
 #app .shelf-sheet .modal-inner {
   padding: 0;
@@ -508,16 +457,6 @@ dialog::backdrop {
 .menulist-option svg {
   flex-shrink: 0;
   color: var(--color-primary-text);
-}
-@starting-style {
-  #app .shelf-sheet[open] {
-    opacity: 0;
-    transform: translateY(-12px) scale(0.97);
-  }
-  .menulist:popover-open {
-    opacity: 0;
-    transform: scale(0.96);
-  }
 }
 @media (hover: hover) and (pointer: fine) {
   #app
@@ -654,4 +593,68 @@ dialog::backdrop {
   #app .sidebar-heading {
     margin-top: 0;
   }
+}
+
+/* Only content panes scroll. Window chrome occupies the entire viewport,
+   without reserving a page-wide strip beside it. */
+html {
+  overflow: hidden;
+  scrollbar-gutter: auto;
+}
+body,
+#app {
+  height: 100dvh;
+  overflow: hidden;
+}
+#app .app-shell {
+  height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+#app .app-shell > .topbar,
+#app .app-shell > .simulation-banner {
+  flex-shrink: 0;
+}
+#app .app-shell > .workspace {
+  max-width: none;
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  overflow: hidden;
+}
+#app .workspace > .sidebar {
+  height: 100%;
+  min-height: 0;
+}
+#app .workspace > .detail {
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-gutter: stable;
+}
+#app .workspace > .session-view {
+  overflow: hidden;
+  scrollbar-gutter: auto;
+}
+#app .app-shell > .welcome {
+  min-height: 0;
+  overflow-y: auto;
+}
+:root[data-performance='true']
+  #app
+  :is(
+    .sheet-enter-active,
+    .sheet-leave-active,
+    .sheet-enter-active .panel,
+    .sheet-leave-active .panel
+  ),
+:root[data-interaction='keyboard']
+  #app
+  :is(
+    .sheet-enter-active,
+    .sheet-leave-active,
+    .sheet-enter-active .panel,
+    .sheet-leave-active .panel
+  ) {
+  transition: none !important;
 }

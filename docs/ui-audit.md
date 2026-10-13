@@ -1,6 +1,6 @@
 # Shelf interface audit
 
-Dash uses Shelf's neutral palette, tonal fills, compact typography, control radii, blue accent, icon grid and motion vocabulary. The browser uses solid panel surfaces in place of Shelf's operating-system window material. Sheets and menus are opaque in both themes. Adapted source is credited in [LICENSES/Shelf.txt](../LICENSES/Shelf.txt). Shelf's React/Tauri dependencies do not benefit this Vue PWA; its icons were adapted directly, removing the Lucide runtime dependency.
+Dash uses Shelf's neutral palette, tonal fills, compact typography, control radii, blue accent, icon grid and motion vocabulary. The browser uses solid panel surfaces in place of Shelf's operating-system window material. Sheets and menus are opaque in both themes. Adapted source is credited in [LICENSES/Shelf.txt](../LICENSES/Shelf.txt). Shelf’s sheet widget and dismissal stack are vendored directly with a small Dash API adapter; see [source provenance](../src/vendor/shelf/README.md). Its Electron and translation runtime are not needed. Its icons were adapted directly, removing the Lucide runtime dependency.
 
 ## Component review
 
@@ -25,10 +25,10 @@ Dash uses Shelf's neutral palette, tonal fills, compact typography, control radi
 ## Flow review and evidence
 
 - Connecting and switching devices share the same sheet. Backend error messages stay in context; local same-origin serving and sample exploration remain available.
-- Library search, sorting, bookmarks, overview and live navigation retain stable scrollbar gutters. Theme changes preserve layout and update existing maps.
+- Library search, sorting, bookmarks, overview and live navigation retain stable scrollbar gutters inside content panes. Window chrome spans the full viewport without a page-wide gutter. Theme changes preserve layout and update existing maps.
 - A session shows one camera and the map/metadata side by side. Mobile uses Video / Map & data panels. The session viewport never scrolls; long popup content scrolls inside its body with the close button visible.
-- Actions return focus to their trigger before opening a sheet. Escape first closes a nested selector, then the sheet; dismissal restores opener focus. Native dialogs supply modal focus trapping and inertness.
-- Sheets grow around their centre when options or status change, and cap their height to the viewport. Menus position above/below their anchor and live in the browser top layer.
+- Actions return focus to their trigger before opening a sheet. Escape first closes a nested selector, then the sheet; dismissal restores opener focus. Shelf’s sheet supplies modal focus trapping and return; its shared dismissal stack handles nested overlays.
+- Sheets grow around their centre when options or status change, and cap their height to the viewport. Menus position above/below their anchor and use the browser top layer for anchored menus. Sheets use Shelf’s portal and transition lifecycle.
 - Exports discover all available session parts on the backend, sort numerically and ignore supplied subsets. Raw video is an uncompressed ZIP of the selected camera's unchanged original parts, preserving boundaries and filenames. ZIP and MCAP contain every available asset; MP4 joins the selected camera. A missing camera part fails explicitly rather than quietly delivering a partial session. The 8 GiB limit fails the full-session export instead of suggesting a range.
 - Parked state is still required to prepare exports or stream live video. Diagnostics downloads remain available independently of heavy processing. Existing backend race/cancellation tests verify processing gates; UI restyling does not change them.
 

@@ -381,21 +381,6 @@ a:focus-visible {
     inset 0 1px 0 #fff,
     inset 0 -1px 0 #fff7;
 }
-.modal {
-  border-radius: 28px;
-  opacity: 0;
-  transform: scale(0.96);
-  transition:
-    opacity 250ms var(--ease-out),
-    transform 250ms var(--ease-out),
-    display 250ms allow-discrete,
-    overlay 250ms allow-discrete;
-}
-.modal[open] {
-  opacity: 1;
-  transform: scale(1);
-}
-.modal:not([open]),
 .navigation-drawer:not([open]) {
   pointer-events: none;
 }
@@ -530,10 +515,6 @@ a:focus-visible {
   border-color: #fff;
 }
 @starting-style {
-  .modal[open] {
-    opacity: 0;
-    transform: scale(0.96);
-  }
   .navigation-drawer[open] {
     opacity: 0;
     transform: translateX(-24px);
