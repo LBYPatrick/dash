@@ -2,6 +2,9 @@
 import { useDismiss } from '../vendor/shelf/useDismiss';
 import { nextTick, onBeforeUnmount, ref, useId } from 'vue';
 import { MoreHorizontal } from '../icons';
+const props = withDefaults(defineProps<{ label?: string }>(), {
+  label: 'Session actions',
+});
 const trigger = ref<HTMLButtonElement>();
 const menu = ref<HTMLDivElement>();
 const menuId = useId();
@@ -86,7 +89,7 @@ defineExpose({ close });
       ref="trigger"
       type="button"
       class="icon-button"
-      aria-label="Session actions"
+      :aria-label="props.label"
       aria-haspopup="true"
       :aria-expanded="opened"
       :popovertarget="menuId"

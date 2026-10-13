@@ -3,6 +3,7 @@ export interface Entry {
   url: string;
   size: number;
   modified: number;
+  duration?: number;
 }
 export interface Listing {
   directories: Entry[];

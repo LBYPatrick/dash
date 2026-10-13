@@ -9,7 +9,41 @@ import {
 import { mapboxToken, mapStyleForTheme } from '../map';
 import { resolvedTheme } from '../appearance';
 import type { Position } from '../indexer';
-const props = defineProps<{ points: Position[] }>();
+const props = defineProps<{ points: Position[]; position?: Position }>();
+const following = defineModel<boolean>('following', { required: true });
+function updatePosition() {
+  const source = map?.getSource('playback-position') as
+    GeoJSONSource | undefined;
+  if (!source) return;
+  source.setData({
+    type: 'FeatureCollection',
+    features: props.position
+      ? [
+          {
+            type: 'Feature',
+            properties: {},
+            geometry: {
+              type: 'Point',
+              coordinates: [props.position.longitude, props.position.latitude],
+            },
+          },
+        ]
+      : [],
+  });
+  if (following.value && props.position)
+    map?.jumpTo({
+      center: [props.position.longitude, props.position.latitude],
+      zoom: Math.max(map.getZoom(), 16),
+    });
+}
+function follow() {
+  following.value = true;
+  updatePosition();
+}
+watch(() => props.position, updatePosition);
+watch(following, (value) => {
+  if (value) updatePosition();
+});
 const container = ref<HTMLDivElement>();
 const unavailable = ref(false);
 let map: Map | undefined;
@@ -17,7 +51,8 @@ let observer: ResizeObserver;
 let fallback = false;
 let styleGeneration = 0;
 let fitted = false;
-function fitRoute() {
+function fitRoute(user = false) {
+  if (user) following.value = false;
   if (
     !map ||
     !props.points.length ||
@@ -72,6 +107,7 @@ onMounted(() => {
     dragRotate: false,
     attributionControl: false,
   });
+  map.on('dragstart', () => (following.value = false));
   map.touchZoomRotate.disableRotation();
   map.scrollZoom.disable();
   map.addControl(new AttributionControl({ compact: true }), 'bottom-right');
@@ -150,11 +186,30 @@ onMounted(() => {
         'line-width': 3,
       },
     });
+    map.addSource('playback-position', {
+      type: 'geojson',
+      data: { type: 'FeatureCollection', features: [] },
+    });
+    map.addLayer({
+      id: 'playback-marker',
+      type: 'circle',
+      source: 'playback-position',
+      paint: {
+        'circle-radius': 6,
+        'circle-color': '#006ac6',
+        'circle-stroke-color': '#fff',
+        'circle-stroke-width': 2,
+      },
+    });
     draw(false);
+    updatePosition();
   });
   observer = new ResizeObserver(() => {
     map?.resize();
-    if (!fitted) fitRoute();
+    if (!fitted) {
+      fitRoute();
+      updatePosition();
+    }
   });
   observer.observe(container.value!);
   fitRoute();
@@ -189,16 +244,41 @@ onBeforeUnmount(() => {
       ref="container"
       class="map-canvas"
       aria-label="Recorded GPS route"
+      @pointerdown="following = false"
+      @wheel="following = false"
+      @keydown="following = false"
     ></div>
     <div class="map-toolbar" role="group" aria-label="Map controls">
-      <button type="button" aria-label="Zoom in" @click="map?.zoomIn()">
+      <button
+        type="button"
+        aria-label="Zoom in"
+        @click="
+          following = false;
+          map?.zoomIn();
+        "
+      >
         +
       </button>
-      <button type="button" aria-label="Zoom out" @click="map?.zoomOut()">
+      <button
+        type="button"
+        aria-label="Zoom out"
+        @click="
+          following = false;
+          map?.zoomOut();
+        "
+      >
         −
       </button>
+      <button
+        type="button"
+        :aria-pressed="following"
+        :disabled="!position"
+        @click="follow"
+      >
+        Follow
+      </button>
       <span class="map-toolbar-divider"></span>
-      <button type="button" :disabled="!points.length" @click="fitRoute">
+      <button type="button" :disabled="!points.length" @click="fitRoute(true)">
         Full route
       </button>
     </div>

@@ -696,3 +696,238 @@ body,
   background: color-mix(in oklab, var(--color-base-content) 34%, transparent);
   background-clip: content-box;
 }
+/* Shared resize affordances keep the sidebar and viewer panels consistent. */
+@media (min-width: 901px) {
+  #app .workspace {
+    position: relative;
+    grid-template-columns: var(--sidebar-width, 320px) minmax(0, 1fr);
+  }
+  #app .workspace[data-sidebar-resetting] {
+    transition: grid-template-columns var(--t-panel) var(--ease-sheet);
+  }
+  #app .workspace[data-sidebar-resetting] .sidebar-resize-handle {
+    transition: left var(--t-panel) var(--ease-sheet);
+  }
+}
+#app .sidebar-resize-handle {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: calc(var(--sidebar-width, 320px) - 6px);
+  width: 12px;
+  z-index: 5;
+  cursor: col-resize;
+  touch-action: none;
+}
+#app .sidebar-resize-handle span {
+  position: absolute;
+  width: 2px;
+  height: 40px;
+  left: 5px;
+  top: 50%;
+  transform: translateY(-50%);
+  border-radius: 2px;
+  background: var(--muted);
+  opacity: 0.35;
+}
+#app .sidebar-resize-handle:hover span,
+#app .sidebar-resize-handle:focus-visible span {
+  opacity: 1;
+  background: var(--color-primary);
+}
+#app .sidebar-resize-handle:focus-visible {
+  outline: none;
+  background: var(--fill-3);
+}
+#app .session-layout[data-resetting] {
+  transition: grid-template-columns var(--t-panel) var(--ease-sheet);
+}
+#app .session-data {
+  padding: 0;
+  border: 0;
+}
+#app .map-toolbar button[aria-pressed='true'] {
+  background: var(--fill-1);
+  color: var(--color-primary-text);
+}
+#app .player:has(.enhanced-controls) {
+  display: flex;
+  flex-direction: column;
+}
+#app .player:has(.enhanced-controls) video {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  height: 0;
+}
+#app .enhanced-controls {
+  flex: 0 0 auto;
+  background: var(--color-base-100);
+  color: var(--ink);
+  padding: 6px 10px 8px;
+}
+#app .playback-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+#app .playback-toolbar .selectmenu {
+  width: 70px;
+  flex: 0 0 70px;
+  margin-left: auto;
+}
+#app .player-control {
+  min-height: 28px;
+  padding: 4px 7px;
+  border-radius: var(--radius-control);
+  color: var(--ink);
+  white-space: nowrap;
+}
+#app .player-control:hover {
+  background: var(--fill-3);
+}
+#app .timestamp-button {
+  font-variant-numeric: tabular-nums;
+}
+#app .timestamp-form {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  gap: 4px;
+}
+#app .timestamp-form input {
+  width: 100%;
+  min-width: 0;
+  max-width: 140px;
+  background: var(--fill-3);
+  color: var(--ink);
+  border: 0;
+  border-radius: 8px;
+  padding: 5px 7px;
+  font-variant-numeric: tabular-nums;
+}
+#app .video-timeline {
+  display: flex;
+  align-items: center;
+  height: 20px;
+}
+#app .video-timeline input {
+  width: 100%;
+  accent-color: var(--color-primary);
+  cursor: pointer;
+}
+#app .snapshot-strip {
+  display: flex;
+  gap: 4px;
+  height: 48px;
+  overflow: hidden;
+  margin-bottom: 6px;
+}
+#app .snapshot-strip button {
+  flex: 1;
+  min-width: 0;
+  position: relative;
+  border-radius: 6px;
+  overflow: hidden;
+  background: var(--fill-3);
+}
+#app .snapshot-strip img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+#app .snapshot-strip button span {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: #000b;
+  color: #fff;
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+}
+#app .engagement-row {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  font-size: 12px;
+  min-height: 24px;
+}
+#app .enhanced-controls .inline-error {
+  margin: 4px 0 0;
+  padding: 5px 8px;
+}
+#app .player:fullscreen {
+  height: 100%;
+  aspect-ratio: auto;
+}
+@media (max-width: 900px) {
+  #app .sidebar-resize-handle {
+    display: none;
+  }
+  #app .playback-toolbar {
+    flex-wrap: wrap;
+  }
+  #app .playback-toolbar .select-trigger {
+    min-height: 32px;
+  }
+  #app .player-control {
+    min-height: 32px;
+  }
+  #app .timestamp-form input {
+    font-size: 16px;
+  }
+  #app .fullscreen-control {
+    display: none;
+  }
+  #app .session-data {
+    padding: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  #app .workspace[data-sidebar-resetting],
+  #app .workspace[data-sidebar-resetting] .sidebar-resize-handle,
+  #app .session-layout[data-resetting] {
+    transition: none;
+  }
+}
+:root[data-performance='true'] #app .workspace[data-sidebar-resetting],
+:root[data-interaction='keyboard'] #app .workspace[data-sidebar-resetting],
+:root[data-performance='true'] #app .session-layout[data-resetting],
+:root[data-interaction='keyboard'] #app .session-layout[data-resetting] {
+  transition: none;
+}
+#app .engagement-track {
+  display: block;
+  width: 100%;
+  height: 8px;
+  margin-top: 2px;
+  background: var(--fill-3);
+  border-radius: 3px;
+}
+#app .engagement-engaged {
+  fill: #216b4e;
+}
+#app .engagement-overriding {
+  fill: #767f85;
+}
+#app .engagement-disengaged {
+  fill: #2a65ac;
+}
+:root[data-theme='dark'] #app .engagement-engaged {
+  fill: #6fd4ab;
+}
+:root[data-theme='dark'] #app .engagement-disengaged {
+  fill: #87c5ff;
+}
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  border: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}

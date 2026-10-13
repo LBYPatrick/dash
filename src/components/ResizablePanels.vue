@@ -11,6 +11,8 @@ const ratio = ref(
 const panels = ref<HTMLDivElement>();
 const available = ref(760);
 const dragging = ref(false);
+const resetting = ref(false);
+let resetTimer: ReturnType<typeof setTimeout>;
 const usable = computed(() => Math.max(1, available.value - 24));
 const minimum = computed(() => Math.min(320, usable.value * 0.6));
 const maximum = computed(() => Math.max(minimum.value, usable.value - 220));
@@ -28,6 +30,8 @@ function persist() {
 function start(event: PointerEvent) {
   if (!event.isPrimary || event.button !== 0) return;
   event.preventDefault();
+  clearTimeout(resetTimer);
+  resetting.value = false;
   drag = { x: event.clientX, width: width.value, pointer: event.pointerId };
   dragging.value = true;
   (event.currentTarget as HTMLElement).setPointerCapture(event.pointerId);
@@ -43,6 +47,9 @@ function finish(event: PointerEvent) {
   dragging.value = false;
 }
 function reset() {
+  clearTimeout(resetTimer);
+  resetting.value = true;
+  resetTimer = setTimeout(() => (resetting.value = false), 300);
   ratio.value = 0.7;
   persist();
 }
@@ -74,13 +81,17 @@ onMounted(() => {
   available.value = panels.value!.getBoundingClientRect().width;
   observer.observe(panels.value!);
 });
-onBeforeUnmount(() => observer?.disconnect());
+onBeforeUnmount(() => {
+  clearTimeout(resetTimer);
+  observer?.disconnect();
+});
 </script>
 <template>
   <div
     ref="panels"
     class="session-layout"
     :data-resizing="dragging || undefined"
+    :data-resetting="resetting || undefined"
     :style="{ '--video-panel-width': `${width}px` }"
   >
     <slot name="video"></slot>

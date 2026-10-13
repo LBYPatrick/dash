@@ -40,6 +40,8 @@ All notable changes to Dash are documented here using Keep a Changelog.
 
 ### Added
 
+- Add a persistent resizable recording sidebar with animated reset, balanced viewer padding, playback-follow maps, timestamp entry, speed control, and optional cached snapshot/recorded engagement rows.
+
 - Adopt Shelf’s palette, icons, compact chrome, opaque menus and content-sized animated sheets across every view; add component/flow accessibility checks.
 - Export every available session part for MP4, ZIP and MCAP, and add an unchanged raw-camera ZIP download; remove range selectors.
 

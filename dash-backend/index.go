@@ -30,10 +30,11 @@ type FileInfo struct {
 	Mtime    int64   `json:"mtime"`
 }
 type IndexedSegment struct {
-	MediaVersion int                `json:"mediaVersion,omitempty"`
-	Metadata     telemetry.Metadata `json:"metadata"`
-	Thumbnail    string             `json:"thumbnail,omitempty"`
-	Files        []FileInfo         `json:"files"`
+	TelemetryVersion int                `json:"telemetryVersion,omitempty"`
+	MediaVersion     int                `json:"mediaVersion,omitempty"`
+	Metadata         telemetry.Metadata `json:"metadata"`
+	Thumbnail        string             `json:"thumbnail,omitempty"`
+	Files            []FileInfo         `json:"files"`
 }
 type IndexStatus struct {
 	Running   bool   `json:"running"`
@@ -129,6 +130,7 @@ func (i *Index) snapshot() (IndexSnapshot, error) {
 		}
 		entry.Metadata.Points = nil
 		entry.Metadata.Speeds = nil
+		entry.Metadata.Engagement = nil
 		result.Segments[name] = entry
 	}
 	return result, rows.Err()
@@ -297,7 +299,7 @@ func (i *Index) scanSegment(ctx context.Context, name string, generation uint64)
 	var oldHash, oldRaw string
 	_ = i.db.QueryRow("SELECT fingerprint,entry FROM segments WHERE name=?", name).Scan(&oldHash, &oldRaw)
 	var old IndexedSegment
-	if oldHash == fingerprint && json.Unmarshal([]byte(oldRaw), &old) == nil && old.Metadata.Status != "error" && old.MediaVersion == 1 {
+	if oldHash == fingerprint && json.Unmarshal([]byte(oldRaw), &old) == nil && old.Metadata.Status != "error" && old.MediaVersion == 1 && old.TelemetryVersion == 2 {
 		if old.Thumbnail == "" {
 			return nil
 		}
@@ -306,6 +308,7 @@ func (i *Index) scanSegment(ctx context.Context, name string, generation uint64)
 		}
 	}
 	entry.MediaVersion = 1
+	entry.TelemetryVersion = 2
 	for n, file := range entry.Files {
 		if !cameras[file.Name] || file.Size > 256<<20 {
 			continue
@@ -369,6 +372,7 @@ func (i *Index) scanSegment(ctx context.Context, name string, generation uint64)
 	}
 	entry.Metadata.Points = nil
 	entry.Metadata.Speeds = nil
+	entry.Metadata.Engagement = nil
 	summary, err := json.Marshal(entry)
 	if err != nil {
 		return err
@@ -408,8 +412,8 @@ func (i *Index) driveMetadata(drive string) (map[string]IndexedSegment, error) {
 		if err := json.Unmarshal([]byte(raw), &entry); err != nil {
 			return nil, err
 		}
-		if len(entry.Metadata.Points) > 0 || len(entry.Metadata.Speeds) > 0 {
-			count += len(entry.Metadata.Points) + len(entry.Metadata.Speeds)
+		if len(entry.Metadata.Points) > 0 || len(entry.Metadata.Speeds) > 0 || len(entry.Metadata.Engagement) > 0 {
+			count += len(entry.Metadata.Points) + len(entry.Metadata.Speeds) + len(entry.Metadata.Engagement)
 		}
 		if count > 50000 {
 			return nil, errors.New("drive metadata exceeds interactive sample budget")

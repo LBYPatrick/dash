@@ -47,3 +47,6 @@ export const Film = icon('film');
 export const Radio = icon('radio');
 export const Video = icon('video');
 export const Square = icon('stop');
+
+export const Play = icon('play');
+export const Pause = icon('pause');

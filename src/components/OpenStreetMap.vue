@@ -6,13 +6,50 @@ import {
   polyline,
   latLngBounds,
   control,
+  circleMarker,
+  type CircleMarker,
   type Map,
   type Polyline,
 } from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { resolvedTheme } from '../appearance';
 import type { Position } from '../indexer';
-const props = defineProps<{ points: Position[] }>();
+const props = defineProps<{ points: Position[]; position?: Position }>();
+const following = defineModel<boolean>('following', { required: true });
+let marker: CircleMarker | undefined;
+function updatePosition() {
+  if (!map || !props.position) {
+    if (marker) {
+      marker.remove();
+      marker = undefined;
+    }
+    return;
+  }
+  const point: [number, number] = [
+    props.position.latitude,
+    props.position.longitude,
+  ];
+  if (!marker)
+    marker = circleMarker(point, {
+      radius: 6,
+      color: '#fff',
+      weight: 2,
+      fillColor: '#006ac6',
+      fillOpacity: 1,
+      interactive: false,
+    }).addTo(map);
+  else marker.setLatLng(point);
+  if (following.value)
+    map.setView(point, Math.max(map.getZoom(), 16), { animate: false });
+}
+function follow() {
+  following.value = true;
+  updatePosition();
+}
+watch(() => props.position, updatePosition);
+watch(following, (value) => {
+  if (value) updatePosition();
+});
 const container = ref<HTMLDivElement>();
 const unavailable = ref(false);
 let map: Map | undefined;
@@ -22,7 +59,8 @@ let observer: ResizeObserver;
 let fitted = false;
 const coordinates = () =>
   props.points.map((p) => [p.latitude, p.longitude] as [number, number]);
-function fitRoute() {
+function fitRoute(user = false) {
+  if (user) following.value = false;
   if (
     !map ||
     !props.points.length ||
@@ -78,9 +116,14 @@ onMounted(() => {
     map,
   );
   draw();
+  updatePosition();
+  map.on('dragstart', () => (following.value = false));
   observer = new ResizeObserver(() => {
     map?.invalidateSize({ animate: false, pan: false });
-    if (!fitted) fitRoute();
+    if (!fitted) {
+      fitRoute();
+      updatePosition();
+    }
   });
   observer.observe(container.value!);
 });
@@ -105,16 +148,41 @@ onBeforeUnmount(() => {
       class="map-canvas"
       role="region"
       aria-label="Recorded GPS route"
+      @pointerdown="following = false"
+      @wheel="following = false"
+      @keydown="following = false"
     ></div>
     <div class="map-toolbar" role="group" aria-label="Map controls">
-      <button type="button" aria-label="Zoom in" @click="map?.zoomIn()">
+      <button
+        type="button"
+        aria-label="Zoom in"
+        @click="
+          following = false;
+          map?.zoomIn();
+        "
+      >
         +
       </button>
-      <button type="button" aria-label="Zoom out" @click="map?.zoomOut()">
+      <button
+        type="button"
+        aria-label="Zoom out"
+        @click="
+          following = false;
+          map?.zoomOut();
+        "
+      >
         −
       </button>
+      <button
+        type="button"
+        :aria-pressed="following"
+        :disabled="!position"
+        @click="follow"
+      >
+        Follow
+      </button>
       <span class="map-toolbar-divider"></span>
-      <button type="button" :disabled="!points.length" @click="fitRoute">
+      <button type="button" :disabled="!points.length" @click="fitRoute(true)">
         Full route
       </button>
     </div>

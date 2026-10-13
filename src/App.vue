@@ -39,6 +39,9 @@ import SelectMenu from './components/SelectMenu.vue';
 import SessionActions from './components/SessionActions.vue';
 import RecordingPlayer from './components/RecordingPlayer.vue';
 import ResizablePanels from './components/ResizablePanels.vue';
+import SidebarResize from './components/SidebarResize.vue';
+const sidebarWidth = ref(320);
+const sidebarResetting = ref(false);
 import ExportDialog from './components/ExportDialog.vue';
 const TripMap = defineAsyncComponent(() => import('./components/TripMap.vue'));
 import WorkspaceNavigation from './components/WorkspaceNavigation.vue';
@@ -63,6 +66,13 @@ import {
   type Entry,
 } from './library';
 import { demoDrives, demoFiles } from './demo';
+import {
+  timelinePositions,
+  positionAt,
+  type TimelineSegment,
+} from './viewerTimeline';
+const playbackTime = ref(0);
+const playbackDuration = ref(0);
 import { readStored, writeStored } from './storage';
 
 const appOrigin = location.origin;
@@ -89,6 +99,42 @@ const drivePoints = computed(() =>
     ) || []
   ).sort((a, b) => a.time - b.time),
 );
+const timelineSegments = computed<TimelineSegment[]>(() => {
+  let offset = 0;
+  const camera = selectedSource.value
+    ? new URL(selectedSource.value, location.origin).searchParams.get(
+        'camera',
+      ) || 'qcamera.ts'
+    : 'qcamera.ts';
+  return (active.value?.segments || []).flatMap((segment) => {
+    const entry = indexEntries.value[segment.url];
+    if (
+      !demo.value &&
+      entry &&
+      !entry.files.some((file) => file.name === camera)
+    )
+      return [];
+    const duration =
+      entry?.files.find((file) => file.name === camera)?.duration ||
+      entry?.metadata?.duration ||
+      (demo.value ? 8 : 60);
+    const part = {
+      start: offset,
+      duration,
+      thumbnail: entry?.thumbnail,
+      metadata: entry?.metadata,
+    };
+    offset += duration;
+    return [part];
+  });
+});
+const timedPositions = computed(() =>
+  timelinePositions(timelineSegments.value),
+);
+const playbackPosition = computed(() =>
+  positionAt(timedPositions.value, playbackTime.value),
+);
+
 const driveMetadata = computed(
   () =>
     active.value?.segments
@@ -287,6 +333,10 @@ async function loadFiles() {
   }
 }
 watch([activeId, segmentIndex], loadFiles);
+watch(activeId, () => {
+  playbackTime.value = 0;
+  playbackDuration.value = 0;
+});
 let metadataRequest: AbortController | undefined;
 async function loadMetadata() {
   metadataRequest?.abort();
@@ -570,7 +620,13 @@ onBeforeUnmount(() => {
       </div>
     </main>
 
-    <main v-else class="workspace" :class="{ 'show-detail': mobileDetail }">
+    <main
+      v-else
+      class="workspace"
+      :class="{ 'show-detail': mobileDetail }"
+      :style="{ '--sidebar-width': `${sidebarWidth}px` }"
+      :data-sidebar-resetting="sidebarResetting || undefined"
+    >
       <aside class="sidebar">
         <div class="sidebar-heading">
           <h2>
@@ -723,7 +779,10 @@ onBeforeUnmount(() => {
           >
         </div>
       </aside>
-
+      <SidebarResize
+        v-model="sidebarWidth"
+        v-model:resetting="sidebarResetting"
+      />
       <section
         class="detail"
         :class="{ 'session-view': view === 'drives' && !!active }"
@@ -1007,6 +1066,13 @@ onBeforeUnmount(() => {
                     :key="active.id"
                     :source="selectedSource || undefined"
                     :sample="demo"
+                    :segments="timelineSegments"
+                    @timeupdate="
+                      (time, duration) => {
+                        playbackTime = time;
+                        playbackDuration = duration;
+                      }
+                    "
                   />
                 </div>
               </div>
@@ -1060,7 +1126,12 @@ onBeforeUnmount(() => {
                       }}</strong>
                     </div>
                   </div>
-                  <TripMap v-if="drivePoints.length" :points="drivePoints" />
+                  <TripMap
+                    :key="active.id"
+                    v-if="drivePoints.length"
+                    :points="drivePoints"
+                    :position="playbackPosition"
+                  />
                   <p v-else class="muted">
                     No valid GPS fixes in the indexed logs.
                   </p>

@@ -179,6 +179,7 @@ try {
   await page.keyboard.press('Home');
   assert((await page.locator('.session-video').boundingBox()).width >= 319);
   await divider.dblclick();
+  await page.waitForTimeout(320);
   assert(
     Math.abs(
       (await page.locator('.session-video').boundingBox()).width -

@@ -52,6 +52,7 @@ const PATHS: Record<string, string> = {
   structure: 'M3.5 3.5h9v3h-9zM3.5 9.5h9v3h-9z',
   diagram: 'M3 3h4v4H3zM9 9h4v4H9zM7 5h2v4h4',
   download: 'M8 3v7M5 7.5L8 10.5l3-3M3.5 13h9',
+  pause: 'M5.5 3.5v9M10.5 3.5v9',
   play: 'M5 3.5l7 4.5-7 4.5z',
   stop: 'M4.5 4.5h7v7h-7z',
   check: 'M3.5 8.5L6.5 11.5L12.5 4.5',

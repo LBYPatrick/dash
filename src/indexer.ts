@@ -12,6 +12,8 @@ export interface Telemetry {
   status: string;
   reason?: string;
   duration?: number;
+  startMonotonic?: number;
+  engagement?: { time: number; enabled: boolean; active: boolean }[];
   distanceKm?: number;
   points?: Position[];
   speeds?: { time: number; speed: number; steeringAngle?: number }[];
@@ -36,7 +38,7 @@ export interface BackendIndex {
   segments: Record<
     string,
     {
-      files: { name: string; size: number; mtime: number }[];
+      files: { name: string; size: number; mtime: number; duration?: number }[];
       thumbnail?: string;
       metadata: Telemetry;
     }
@@ -123,6 +125,7 @@ export async function startIndexing(
               ...indexed.metadata,
               points: indexEntries.value[segment.url]?.metadata?.points,
               speeds: indexEntries.value[segment.url]?.metadata?.speeds,
+              engagement: indexEntries.value[segment.url]?.metadata?.engagement,
             },
             thumbnail: indexed.thumbnail
               ? new URL(indexed.thumbnail, origin).href
@@ -130,6 +133,7 @@ export async function startIndexing(
             files: indexed.files.map((file) => ({
               name: file.name,
               size: file.size,
+              duration: file.duration,
               modified: file.mtime / 1e6,
               url: new URL(encodeURIComponent(file.name), segment.url).href,
             })),

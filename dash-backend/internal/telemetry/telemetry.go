@@ -31,15 +31,22 @@ type VehicleState struct {
 	BrakePressed  bool    `json:"brakePressed"`
 	GasPressed    bool    `json:"gasPressed"`
 }
+type Engagement struct {
+	Time    float64 `json:"time"`
+	Enabled bool    `json:"enabled"`
+	Active  bool    `json:"active"`
+}
 type Metadata struct {
-	Status     string         `json:"status"`
-	Reason     string         `json:"reason,omitempty"`
-	Duration   float64        `json:"duration"`
-	DistanceKM float64        `json:"distanceKm"`
-	Points     []Position     `json:"points,omitempty"`
-	Speeds     []VehicleState `json:"speeds,omitempty"`
-	Car        string         `json:"car,omitempty"`
-	Version    string         `json:"version,omitempty"`
+	StartMonotonic float64        `json:"startMonotonic"`
+	Engagement     []Engagement   `json:"engagement,omitempty"`
+	Status         string         `json:"status"`
+	Reason         string         `json:"reason,omitempty"`
+	Duration       float64        `json:"duration"`
+	DistanceKM     float64        `json:"distanceKm"`
+	Points         []Position     `json:"points,omitempty"`
+	Speeds         []VehicleState `json:"speeds,omitempty"`
+	Car            string         `json:"car,omitempty"`
+	Version        string         `json:"version,omitempty"`
 }
 type contextReader struct {
 	ctx    context.Context
@@ -123,10 +130,19 @@ func Decode(ctx context.Context, filename string) (Metadata, error) {
 		if !value.IsValid() {
 			continue
 		}
-		if len(result.Points) > 7200 || len(result.Speeds) > 7200 {
+		if len(result.Points) > 7200 || len(result.Speeds) > 7200 || len(result.Engagement) > 7200 {
 			return result, errors.New("segment exceeds telemetry sample budget")
 		}
 		switch kind {
+		case 128: // Event.selfdriveState @130 (valid is the second non-union field).
+			if event.Bit(80) || value.Size().DataSize < 3 {
+				continue
+			}
+			sample := Engagement{mono, value.Bit(16), value.Bit(17)}
+			if len(result.Engagement) == 0 || mono-result.Engagement[len(result.Engagement)-1].Time >= 1 || sample.Enabled != result.Engagement[len(result.Engagement)-1].Enabled || sample.Active != result.Engagement[len(result.Engagement)-1].Active {
+				result.Engagement = append(result.Engagement, sample)
+			}
+
 		case 20, 47: // gpsLocation, gpsLocationExternal
 			if event.Bit(80) {
 				continue
@@ -168,6 +184,7 @@ func Decode(ctx context.Context, filename string) (Metadata, error) {
 	if count == 0 {
 		return result, errors.New("qlog contains no cereal events")
 	}
+	result.StartMonotonic = first
 	result.Duration = math.Max(0, last-first)
 	for i := 1; i < len(result.Points); i++ {
 		a, b := result.Points[i-1], result.Points[i]
