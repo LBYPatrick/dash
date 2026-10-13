@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { onBeforeUnmount, ref, watch } from 'vue';
-import { Radio, Video, Square, Download } from 'lucide-vue-next';
+import { Radio, Video, Square, Download } from '../icons';
+import SelectMenu from './SelectMenu.vue';
 import { indexStatus } from '../indexer';
 import { saveBlob } from '../media';
 const endpoint = '/api/stream';
@@ -214,15 +215,15 @@ onBeforeUnmount(() => {
     </p>
     <div class="live-settings">
       <label
-        >Camera<select
+        >Camera<SelectMenu
           v-model="camera"
-          class="address-input"
+          aria-label="Live camera"
           :disabled="busy || connected"
-        >
-          <option value="road">Road</option>
-          <option value="wideRoad">Wide road</option>
-          <option value="driver">Driver</option>
-        </select></label
+          :options="[
+            { value: 'road', label: 'Road' },
+            { value: 'wideRoad', label: 'Wide road' },
+            { value: 'driver', label: 'Driver' },
+          ]" /></label
       ><button
         class="button primary"
         :disabled="indexStatus.driving !== 'parked'"

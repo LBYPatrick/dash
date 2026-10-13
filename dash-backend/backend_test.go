@@ -402,3 +402,90 @@ func TestLiveOwnershipCleanup(t *testing.T) {
 		t.Fatal("ownership survived cleanup")
 	}
 }
+
+func TestExportsAlwaysResolveCompleteSession(t *testing.T) {
+	index, _ := fixtureIndex(t)
+	// Lexical order differs from chronological order; include a gap to verify
+	// all available parts are included without asking the user for ranges.
+	for _, part := range []string{"0", "2", "10"} {
+		folder := filepath.Join(index.root, fixtureDrive+"--"+part)
+		if err := os.MkdirAll(folder, 0700); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(folder, "qcamera.ts"), []byte("original-"+part), 0600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	manager, err := newExports(context.Background(), index)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, format := range []string{"zip", "raw", "mcap"} {
+		job, err := manager.submit(ExportRequest{Drive: fixtureDrive, Segments: []int{2}, Format: format, Camera: "qcamera.ts"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		job = waitExport(t, manager, job.ID)
+		if format == "mcap" {
+			file, err := os.Open(job.output)
+			if err != nil {
+				t.Fatal(err)
+			}
+			reader, err := mcap.NewReader(file)
+			if err != nil {
+				t.Fatal(err)
+			}
+			info, err := reader.Info()
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(info.AttachmentIndexes) != 4 {
+				t.Fatal("MCAP omitted session assets")
+			}
+			file.Close()
+			continue
+		}
+		archive, err := zip.OpenReader(job.output)
+		if err != nil {
+			t.Fatal(err)
+		}
+		manifest, err := archive.File[0].Open()
+		if err != nil {
+			t.Fatal(err)
+		}
+		var request ExportRequest
+		if err := json.NewDecoder(manifest).Decode(&request); err != nil {
+			t.Fatal(err)
+		}
+		manifest.Close()
+		if len(request.Segments) != 3 || request.Segments[0] != 0 || request.Segments[1] != 2 || request.Segments[2] != 10 {
+			t.Fatal("incomplete or unordered manifest", request.Segments)
+		}
+		originals := 0
+		for _, entry := range archive.File {
+			if !strings.HasSuffix(entry.Name, "/qcamera.ts") {
+				continue
+			}
+			original, err := entry.Open()
+			if err != nil {
+				t.Fatal(err)
+			}
+			content, err := io.ReadAll(original)
+			original.Close()
+			if err != nil {
+				t.Fatal(err)
+			}
+			if string(content) != "original-"+strings.Split(entry.Name, "/")[0] {
+				t.Fatal("raw video modified")
+			}
+			originals++
+		}
+		if originals != 3 {
+			t.Fatal("missing camera parts")
+		}
+		if format == "raw" && (len(archive.File) != 4 || !strings.HasSuffix(job.Name, "-raw-video.zip")) {
+			t.Fatal("raw archive includes non-camera data or wrong extension")
+		}
+		archive.Close()
+	}
+}

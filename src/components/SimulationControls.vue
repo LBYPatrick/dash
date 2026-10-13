@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
+import SelectMenu from './SelectMenu.vue';
 const enabled = ref(false);
 const state = ref('unknown');
 const busy = ref(false);
@@ -14,8 +15,7 @@ onMounted(async () => {
     /* No simulator on a disconnected sample library. */
   }
 });
-async function change(event: Event) {
-  const requested = (event.target as HTMLSelectElement).value;
+async function change(requested: string) {
   busy.value = true;
   error.value = '';
   try {
@@ -42,12 +42,17 @@ async function change(event: Event) {
     </div>
     <label
       >Simulated state
-      <select :value="state" :disabled="busy" @change="change">
-        <option value="parked">Parked</option>
-        <option value="onroad">Onroad</option>
-        <option value="unknown">Unknown</option>
-      </select></label
-    >
+      <SelectMenu
+        :model-value="state"
+        aria-label="Simulated state"
+        :disabled="busy"
+        :options="[
+          { value: 'parked', label: 'Parked' },
+          { value: 'onroad', label: 'Onroad' },
+          { value: 'unknown', label: 'Unknown' },
+        ]"
+        @update:model-value="change"
+    /></label>
     <span v-if="error" role="alert">{{ error }}</span>
   </aside>
 </template>

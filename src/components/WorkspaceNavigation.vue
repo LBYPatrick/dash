@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { vGlassTabs } from '../glassTabs';
-import { HardDrive, ChevronDown } from 'lucide-vue-next';
+import { HardDrive, ChevronDown } from '../icons';
 defineProps<{ view: 'drives' | 'overview' | 'live'; deviceName: string }>();
 defineEmits<{ navigate: [view: 'drives' | 'overview' | 'live']; device: [] }>();
 const destinations = [

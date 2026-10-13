@@ -1,33 +1,35 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref } from 'vue';
-import { Download, LoaderCircle, X } from 'lucide-vue-next';
+import { computed, onBeforeUnmount, ref, watch } from 'vue';
+import { Download, LoaderCircle } from '../icons';
+import Sheet from './Sheet.vue';
+import SelectMenu from './SelectMenu.vue';
 import type { Drive, Entry } from '../library';
 import { indexStatus } from '../indexer';
 const props = defineProps<{
   drive: Drive;
-  current: number;
   files: Entry[];
   sample: boolean;
 }>();
-const dialog = ref<HTMLDialogElement>();
-const format = ref<'zip' | 'mp4' | 'mcap'>('zip');
-const start = ref(0),
-  end = ref(0),
-  camera = ref('qcamera.ts'),
+const dialog = ref<InstanceType<typeof Sheet>>();
+const format = ref<'zip' | 'mp4' | 'mcap' | 'raw'>('zip');
+const camera = ref('qcamera.ts'),
   h264 = ref(false);
 const status = ref(''),
   error = ref(''),
   busy = ref(false),
   download = ref('');
+watch([format, camera, h264], () => {
+  download.value = '';
+  status.value = '';
+  error.value = '';
+});
 let jobId = '';
 let controller: AbortController | undefined;
 const cameras = computed(() =>
   props.files.filter((file) => /\.(hevc|ts)$/.test(file.name)),
 );
-function open(selectedFormat?: 'zip' | 'mp4' | 'mcap') {
+function open(selectedFormat?: 'zip' | 'mp4' | 'mcap' | 'raw') {
   if (selectedFormat) format.value = selectedFormat;
-  start.value = 0;
-  end.value = props.drive.segments.length - 1;
   camera.value =
     cameras.value.find((file) => file.name === 'qcamera.ts')?.name ||
     cameras.value[0]?.name ||
@@ -46,10 +48,6 @@ function cancel() {
     }).catch(() => {});
   busy.value = false;
 }
-function close() {
-  cancel();
-  dialog.value?.close();
-}
 async function run() {
   busy.value = true;
   error.value = '';
@@ -63,9 +61,6 @@ async function run() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         drive: props.drive.id,
-        segments: props.drive.segments
-          .slice(start.value, end.value + 1)
-          .map((segment) => segment.index),
         format: format.value,
         camera: camera.value,
         h264: h264.value,
@@ -110,77 +105,51 @@ onBeforeUnmount(cancel);
 defineExpose({ open });
 </script>
 <template>
-  <dialog ref="dialog" class="modal" @cancel="cancel">
+  <Sheet
+    ref="dialog"
+    title="Export recordings"
+    close-label="Close export"
+    @cancel="cancel"
+    @close="cancel"
+  >
     <div class="modal-inner">
-      <button
-        class="icon-button modal-close"
-        aria-label="Close export"
-        @click="close"
-      >
-        <X :size="20" /></button
-      ><span class="modal-icon"><Download :size="25" /></span>
-      <div class="eyebrow">SELECT SEGMENTS AND FORMAT</div>
-      <h2>Export recordings</h2>
       <p>
-        dash-backend prepares your export on the device, while parked. Your
-        browser downloads the finished file.
+        All {{ drive.segments.length }} parts of this session are included. Your
+        device prepares the download while parked.
       </p>
       <form @submit.prevent="run">
         <label class="field-label" for="export-format">Format</label
-        ><select
+        ><SelectMenu
           id="export-format"
           v-model="format"
+          aria-label="Format"
           :disabled="busy"
-          class="address-input"
-        >
-          <option value="zip">ZIP · original cameras and logs</option>
-          <option value="mp4">MP4 · one continuous camera recording</option>
-          <option value="mcap">
-            MCAP · Dash telemetry + original attachments
-          </option>
-        </select>
-        <div class="range-fields">
-          <label
-            >From segment<select
-              v-model.number="start"
-              :disabled="busy || sample"
-            >
-              <option
-                v-for="(segment, i) in drive.segments"
-                :key="segment.index"
-                :value="i"
-              >
-                {{ segment.index + 1 }}
-              </option>
-            </select></label
-          ><label
-            >Through segment<select
-              v-model.number="end"
-              :disabled="busy || sample"
-            >
-              <option
-                v-for="(segment, i) in drive.segments"
-                :key="segment.index"
-                :value="i"
-                :disabled="i < start"
-              >
-                {{ segment.index + 1 }}
-              </option>
-            </select></label
-          >
-        </div>
-        <template v-if="format === 'mp4'"
+          :options="
+            [
+              { value: 'zip', label: 'ZIP · original cameras and logs' },
+              { value: 'mp4', label: 'MP4 · one continuous camera recording' },
+              {
+                value: 'raw',
+                label: 'Raw video · original camera parts (ZIP)',
+              },
+              {
+                value: 'mcap',
+                label: 'MCAP · Dash telemetry + original attachments',
+              },
+            ] as const
+          "
+        />
+        <template v-if="format === 'mp4' || format === 'raw'"
           ><label class="field-label" for="export-camera">Camera</label
-          ><select
+          ><SelectMenu
             id="export-camera"
             v-model="camera"
-            class="address-input"
+            aria-label="Export camera"
             :disabled="busy"
-          >
-            <option v-for="file in cameras" :key="file.name" :value="file.name">
-              {{ file.name }}
-            </option></select
-          ><label class="checkbox-field"
+            :options="
+              cameras.map((file) => ({ value: file.name, label: file.name }))
+            "
+          /><label v-if="format === 'mp4'" class="checkbox-field"
             ><input v-model="h264" type="checkbox" :disabled="busy" /> Convert
             to H.264 for wider compatibility (slower)</label
           ></template
@@ -215,8 +184,7 @@ defineExpose({ open });
             busy ||
             sample ||
             indexStatus.driving !== 'parked' ||
-            end < start ||
-            (format === 'mp4' && !camera)
+            ((format === 'mp4' || format === 'raw') && !camera)
           "
         >
           <LoaderCircle v-if="busy" class="spinning" :size="16" /><Download
@@ -233,5 +201,5 @@ defineExpose({ open });
         </button>
       </form>
     </div>
-  </dialog>
+  </Sheet>
 </template>

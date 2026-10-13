@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import { ref } from 'vue';
-import { Settings, Sun, Moon, Monitor, X } from 'lucide-vue-next';
+import Sheet from './Sheet.vue';
+import { Settings, Sun, Moon, Monitor } from '../icons';
 import { theme, performanceMode, preferencesSaved } from '../appearance';
 import { vGlassTabs } from '../glassTabs';
-const dialog = ref<HTMLDialogElement>();
+const dialog = ref<InstanceType<typeof Sheet>>();
 const themes = [
   { value: 'light', label: 'Light', icon: Sun },
   { value: 'dark', label: 'Dark', icon: Moon },
@@ -19,20 +20,13 @@ const themes = [
   >
     <Settings :size="19" />
   </button>
-  <dialog
+  <Sheet
     ref="dialog"
-    class="modal settings-popup"
-    aria-labelledby="settings-title"
+    title="Settings"
+    close-label="Close settings"
+    class="settings-popup"
   >
     <div class="modal-inner">
-      <button
-        class="icon-button modal-close"
-        aria-label="Close settings"
-        @click="dialog?.close()"
-      >
-        <X :size="20" />
-      </button>
-      <h2 id="settings-title">Settings</h2>
       <fieldset class="appearance-settings">
         <legend>Appearance</legend>
         <div v-glass-tabs class="segmented theme-options">
@@ -54,7 +48,7 @@ const themes = [
       <label class="performance-setting">
         <span
           ><strong>Performance mode</strong
-          ><small>Opaque surfaces, without glass or blur.</small></span
+          ><small>Opaque surfaces, fewer visual effects.</small></span
         >
         <span class="settings-switch"
           ><input
@@ -72,5 +66,5 @@ const themes = [
         Browser storage is unavailable. Preferences apply for this session.
       </p>
     </div>
-  </dialog>
+  </Sheet>
 </template>

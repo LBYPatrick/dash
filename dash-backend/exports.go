@@ -13,6 +13,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -104,13 +105,13 @@ func (e *ExportManager) cancelJob(id string) error {
 	return nil
 }
 func (e *ExportManager) collect(request ExportRequest) ([]ExportAsset, error) {
-	if request.Format != "zip" && request.Format != "mp4" && request.Format != "mcap" {
+	if request.Format != "zip" && request.Format != "mp4" && request.Format != "mcap" && request.Format != "raw" {
 		return nil, errors.New("unsupported export format")
 	}
 	if !segmentPattern.MatchString(request.Drive+"--0") || len(request.Segments) == 0 || len(request.Segments) > 10000 {
 		return nil, errors.New("invalid drive or segment range")
 	}
-	if request.Format == "mp4" && !cameras[request.Camera] {
+	if (request.Format == "mp4" || request.Format == "raw") && !cameras[request.Camera] {
 		return nil, errors.New("unknown camera")
 	}
 	segments := append([]int{}, request.Segments...)
@@ -133,7 +134,7 @@ func (e *ExportManager) collect(request ExportRequest) ([]ExportAsset, error) {
 		}
 		found := false
 		for _, file := range files {
-			if file.IsDir() || (request.Format == "mp4" && file.Name() != request.Camera) {
+			if file.IsDir() || ((request.Format == "mp4" || request.Format == "raw") && file.Name() != request.Camera) {
 				continue
 			}
 			path, err := safePath(e.index.root, filepath.Join(name, file.Name()))
@@ -151,19 +152,12 @@ func (e *ExportManager) collect(request ExportRequest) ([]ExportAsset, error) {
 			return nil, errors.New("selected segment has no matching recordings")
 		}
 	}
-	if request.Format == "mp4" {
-		for i := 1; i < len(assets); i++ {
-			if assets[i].Segment != assets[i-1].Segment+1 {
-				return nil, errors.New("camera has a segment gap; choose a continuous range")
-			}
-		}
-	}
 	var size int64
 	for _, asset := range assets {
 		size += asset.Size
 	}
 	if size > maxExportBytes {
-		return nil, errors.New("export exceeds 8 GiB; choose a smaller range")
+		return nil, errors.New("complete session exceeds the 8 GiB export limit")
 	}
 	var disk unix.Statfs_t
 	if err := unix.Statfs(e.folder, &disk); err == nil && uint64(disk.Bavail)*uint64(disk.Bsize) < uint64(size*2+(1<<30)) {
@@ -175,6 +169,28 @@ func (e *ExportManager) submit(request ExportRequest) (ExportJob, error) {
 	if e.index.state() != "parked" {
 		return ExportJob{}, errors.New("exports require confirmed parked state")
 	}
+	// Resolve the full session from disk, never from a stale browser inventory
+	// or a caller-provided range. Keep numeric ordering for video and telemetry.
+	if !segmentPattern.MatchString(request.Drive + "--0") {
+		return ExportJob{}, errors.New("invalid session")
+	}
+	inventory, err := os.ReadDir(e.index.root)
+	if err != nil {
+		return ExportJob{}, err
+	}
+	request.Segments = nil
+	for _, folder := range inventory {
+		match := segmentPattern.FindStringSubmatch(folder.Name())
+		if !folder.IsDir() || len(match) != 3 || match[1] != request.Drive {
+			continue
+		}
+		number, err := strconv.Atoi(match[2])
+		if err != nil {
+			return ExportJob{}, errors.New("invalid session part")
+		}
+		request.Segments = append(request.Segments, number)
+	}
+	sort.Ints(request.Segments)
 	assets, err := e.collect(request)
 	if err != nil {
 		return ExportJob{}, err
@@ -192,7 +208,13 @@ func (e *ExportManager) submit(request ExportRequest) (ExportJob, error) {
 	}
 	id := hex.EncodeToString(bytes)
 	ctx, cancel := parkedContext(e.rootContext, e.index.state)
-	job := &ExportJob{ID: id, Status: "queued", Message: "Queued", Format: request.Format, Name: request.Drive + "." + request.Format, Created: time.Now().Unix(), output: filepath.Join(e.folder, id+"."+request.Format), cancel: cancel}
+	extension := request.Format
+	name := request.Drive + "." + extension
+	if request.Format == "raw" {
+		extension = "zip"
+		name = request.Drive + "-raw-video.zip"
+	}
+	job := &ExportJob{ID: id, Status: "queued", Message: "Queued", Format: request.Format, Name: name, Created: time.Now().Unix(), output: filepath.Join(e.folder, id+"."+extension), cancel: cancel}
 	e.jobs[id] = job
 	go e.run(ctx, job, request, assets)
 	return *job, nil
@@ -207,7 +229,7 @@ func (e *ExportManager) run(ctx context.Context, job *ExportJob, request ExportR
 	}
 	defer release()
 	switch request.Format {
-	case "zip":
+	case "zip", "raw":
 		err = e.zip(ctx, job, request, assets)
 	case "mp4":
 		err = e.mp4(ctx, job, request, assets)

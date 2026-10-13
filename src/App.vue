@@ -31,9 +31,12 @@ import {
   Unplug,
   Wifi,
   X,
-} from 'lucide-vue-next';
+} from './icons';
 import { vGlassTabs } from './glassTabs';
 import SettingsPopup from './components/SettingsPopup.vue';
+import Sheet from './components/Sheet.vue';
+import SelectMenu from './components/SelectMenu.vue';
+import SessionActions from './components/SessionActions.vue';
 import RecordingPlayer from './components/RecordingPlayer.vue';
 import ResizablePanels from './components/ResizablePanels.vue';
 import ExportDialog from './components/ExportDialog.vue';
@@ -144,11 +147,11 @@ const notice = ref('');
 const query = ref('');
 const filter = ref<'all' | 'saved'>('all');
 const mobileDetail = ref(false);
-const connectionDialog = ref<HTMLDialogElement>();
-const helpDialog = ref<HTMLDialogElement>();
+const connectionDialog = ref<InstanceType<typeof Sheet>>();
+const helpDialog = ref<InstanceType<typeof Sheet>>();
 const sessionPane = ref<'video' | 'data'>('video');
-const actionMenu = ref<HTMLDetailsElement>();
-const originalFilesDialog = ref<HTMLDialogElement>();
+const actionMenu = ref<InstanceType<typeof SessionActions>>();
+const originalFilesDialog = ref<InstanceType<typeof Sheet>>();
 const storedBookmarks = readStored<unknown>('dash.bookmarks', []);
 const bookmarks = ref<string[]>(
   Array.isArray(storedBookmarks)
@@ -406,18 +409,12 @@ function cancelConnection() {
 function updateOnline() {
   online.value = navigator.onLine;
 }
-function closeSessionMenu(event: MouseEvent) {
-  if (actionMenu.value && !actionMenu.value.contains(event.target as Node))
-    actionMenu.value.removeAttribute('open');
-}
 onMounted(() => {
-  document.addEventListener('click', closeSessionMenu);
   void connect();
   window.addEventListener('online', updateOnline);
   window.addEventListener('offline', updateOnline);
 });
 onBeforeUnmount(() => {
-  document.removeEventListener('click', closeSessionMenu);
   metadataRequest?.abort();
   stopIndexing();
   connectionRequest?.abort();
@@ -509,7 +506,7 @@ onBeforeUnmount(() => {
           Your recordings, straight from your comma device.<br
             class="desktop-only"
           />
-          Browse camera footage and export selected segments.
+          Browse camera footage and export complete sessions.
         </p>
         <button class="button primary large" @click="connect">
           {{ busy ? 'Connecting…' : 'Open your device' }}
@@ -605,12 +602,17 @@ onBeforeUnmount(() => {
           </button>
         </div>
         <label class="sort-picker"
-          >Sort by<select v-model="sort">
-            <option value="newest">Newest first</option>
-            <option value="oldest">Oldest first</option>
-            <option value="longest">Most segments</option>
-          </select></label
-        >
+          >Sort by<SelectMenu
+            v-model="sort"
+            aria-label="Sort drives"
+            :options="
+              [
+                { value: 'newest', label: 'Newest first' },
+                { value: 'oldest', label: 'Oldest first' },
+                { value: 'longest', label: 'Most segments' },
+              ] as const
+            "
+        /></label>
         <div class="drive-scroll">
           <div v-for="group in groups" :key="group.label" class="drive-group">
             <h3>{{ group.label }}</h3>
@@ -816,80 +818,74 @@ onBeforeUnmount(() => {
                 <span v-if="!active.dated">· File timestamp</span>
               </p>
             </div>
-            <details
-              ref="actionMenu"
-              class="session-actions"
-              @keydown.esc="actionMenu?.removeAttribute('open')"
-            >
-              <summary aria-label="Session actions">
-                <MoreHorizontal :size="22" />
-              </summary>
-              <div class="session-action-menu">
-                <button
-                  @click="
-                    exportDialog?.open('mp4');
-                    actionMenu?.removeAttribute('open');
-                  "
-                >
-                  Download MP4
-                </button>
-                <button
-                  @click="
-                    exportDialog?.open('mcap');
-                    actionMenu?.removeAttribute('open');
-                  "
-                >
-                  Download MCAP
-                </button>
-                <button
-                  @click="
-                    exportDialog?.open('zip');
-                    actionMenu?.removeAttribute('open');
-                  "
-                >
-                  Download ZIP
-                </button>
-                <button
-                  @click="
-                    originalFilesDialog?.showModal();
-                    actionMenu?.removeAttribute('open');
-                  "
-                >
-                  Original files
-                </button>
-                <button
-                  @click="
-                    saveDrive();
-                    actionMenu?.removeAttribute('open');
-                  "
-                >
-                  {{
-                    isSaved(active.id) ? 'Remove bookmark' : 'Bookmark drive'
-                  }}
-                </button>
-              </div>
-            </details>
+            <SessionActions ref="actionMenu">
+              <button
+                @click="
+                  actionMenu?.close();
+                  exportDialog?.open('mp4');
+                "
+              >
+                Download MP4
+              </button>
+              <button
+                @click="
+                  actionMenu?.close();
+                  exportDialog?.open('mcap');
+                "
+              >
+                Download MCAP
+              </button>
+              <button
+                @click="
+                  actionMenu?.close();
+                  exportDialog?.open('raw');
+                "
+              >
+                Download raw video
+              </button>
+              <button
+                @click="
+                  actionMenu?.close();
+                  exportDialog?.open('zip');
+                "
+              >
+                Download ZIP
+              </button>
+              <button
+                @click="
+                  actionMenu?.close();
+                  originalFilesDialog?.showModal();
+                "
+              >
+                Original files
+              </button>
+              <button
+                @click="
+                  saveDrive();
+                  actionMenu?.close();
+                "
+              >
+                {{ isSaved(active.id) ? 'Remove bookmark' : 'Bookmark drive' }}
+              </button>
+            </SessionActions>
           </div>
           <ExportDialog
             ref="exportDialog"
             :drive="active"
-            :current="segmentIndex"
             :files="files"
             :sample="demo"
           />
-          <dialog ref="originalFilesDialog" class="modal session-info-dialog">
+          <Sheet
+            ref="originalFilesDialog"
+            title="Original files"
+            close-label="Close original files"
+            wide
+            class="session-info-dialog"
+          >
             <div class="modal-inner">
-              <button
-                class="icon-button modal-close"
-                aria-label="Close original files"
-                @click="originalFilesDialog?.close()"
-              >
-                <X :size="20" />
-              </button>
               <section class="files-section">
                 <div class="section-heading">
                   <div>
-                    <h2>Original files</h2>
                     <p>
                       Files from segment {{ (segment?.index ?? 0) + 1 }}.
                       Download directly to your device.
@@ -930,7 +926,7 @@ onBeforeUnmount(() => {
                 Download files to keep a copy.
               </p>
             </div>
-          </dialog>
+          </Sheet>
           <div
             v-glass-tabs
             class="session-mobile-tabs segmented"
@@ -961,19 +957,17 @@ onBeforeUnmount(() => {
                       }}</span
                     ><label v-if="playable.length > 1" class="source-picker"
                       >Camera
-                      <select v-model="selectedSource" aria-label="Camera">
-                        <option
-                          v-for="file in playable"
-                          :key="file.url"
-                          :value="
-                            demo
+                      <SelectMenu
+                        v-model="selectedSource"
+                        aria-label="Camera"
+                        :options="
+                          playable.map((file) => ({
+                            value: demo
                               ? file.url
-                              : recordingAddress(active.id, file.name)
-                          "
-                        >
-                          {{ file.name }}
-                        </option>
-                      </select></label
+                              : recordingAddress(activeId, file.name),
+                            label: file.name,
+                          }))
+                        " /></label
                     ><span v-else class="muted">{{
                       demo
                         ? 'Illustration'
@@ -988,7 +982,7 @@ onBeforeUnmount(() => {
                     role="status"
                   >
                     <LoaderCircle class="spinning" :size="28" /><span
-                      >Loading this segment…</span
+                      >Loading recording…</span
                     >
                   </div>
                   <div v-else-if="fileError" class="player loading-player">
@@ -1090,17 +1084,15 @@ onBeforeUnmount(() => {
       </section>
     </main>
 
-    <dialog ref="connectionDialog" class="modal" @close="cancelConnection">
+    <Sheet
+      ref="connectionDialog"
+      title="Device settings"
+      close-label="Close device settings"
+      @close="cancelConnection"
+    >
       <div class="modal-inner">
-        <button
-          class="icon-button modal-close"
-          aria-label="Close device settings"
-          @click="connectionDialog?.close()"
-        >
-          <X :size="20" /></button
-        ><span class="modal-icon"><HardDrive :size="26" /></span>
         <div class="eyebrow">DASH BACKEND</div>
-        <h2>Device settings</h2>
+
         <p>
           Dash is served by dash-backend on your device. Join its hotspot or
           local network and open the same address to reconnect.
@@ -1135,19 +1127,10 @@ onBeforeUnmount(() => {
         </button>
         <DiagnosticsDownload :available="!!backendOrigin" />
       </div>
-    </dialog>
+    </Sheet>
 
-    <dialog ref="helpDialog" class="modal">
+    <Sheet ref="helpDialog" title="Help" close-label="Close help">
       <div class="modal-inner">
-        <button
-          class="icon-button modal-close"
-          aria-label="Close help"
-          @click="helpDialog?.close()"
-        >
-          <X :size="20" /></button
-        ><span class="modal-icon"><Monitor :size="26" /></span>
-        <div class="eyebrow">DASH HELP</div>
-        <h2>Help</h2>
         <p>
           Dash reads recordings through dash-backend on your device. There are
           no accounts, uploads, or analytics.
@@ -1175,7 +1158,7 @@ onBeforeUnmount(() => {
           Got it <Check :size="17" />
         </button>
       </div>
-    </dialog>
+    </Sheet>
     <Transition name="toast">
       <div v-if="notice" class="toast" role="status">
         <Check :size="17" />{{ notice }}

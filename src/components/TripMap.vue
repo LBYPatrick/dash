@@ -15,6 +15,7 @@ const unavailable = ref(false);
 let map: Map | undefined;
 let observer: ResizeObserver;
 let fallback = false;
+let styleGeneration = 0;
 function fitRoute() {
   if (!map || !props.points.length) return;
   const bounds = new LngLatBounds();
@@ -64,10 +65,22 @@ onMounted(() => {
   map.scrollZoom.disable();
   map.addControl(new AttributionControl({ compact: true }), 'bottom-right');
   map.on('error', () => {
+    const current = map;
+    const generation = styleGeneration;
+    if (!current) return;
     unavailable.value = true;
-    if (!fallback && !map?.getSource('route')) {
+    // Changing styles synchronously inside a Mapbox error callback can
+    // invalidate the style while its own update is still running.
+    queueMicrotask(() => {
+      if (
+        map !== current ||
+        generation !== styleGeneration ||
+        fallback ||
+        current.getSource('route')
+      )
+        return;
       fallback = true;
-      map?.setStyle({
+      current.setStyle({
         version: 8,
         sources: {},
         layers: [
@@ -81,9 +94,10 @@ onMounted(() => {
           },
         ],
       });
-    }
+    });
   });
   map.on('style.load', () => {
+    if (!map) return;
     unavailable.value = fallback;
     // Keep route-map labels readable against either basemap.
     for (const layer of map!.getStyle()?.layers || []) {
@@ -138,13 +152,17 @@ watch(
   () => draw(),
 );
 watch(resolvedTheme, (theme) => {
+  styleGeneration++;
   fallback = false;
   unavailable.value = false;
   map?.setStyle(mapStyleForTheme(theme));
 });
 onBeforeUnmount(() => {
   observer?.disconnect();
-  map?.remove();
+  const previous = map;
+  map = undefined;
+  styleGeneration++;
+  previous?.remove();
 });
 </script>
 <template>

@@ -490,7 +490,7 @@ svg {
   background: #edf2e9;
   border-color: #dce5d6;
 }
-.drive-row > .lucide {
+.drive-row > .shelf-icon {
   margin-left: auto;
   color: #9aa795;
 }
@@ -785,7 +785,7 @@ svg {
   font-size: 9px;
   color: #929b8f;
 }
-.file-card > .lucide {
+.file-card > .shelf-icon {
   color: #7e8a78;
 }
 .file-icon {

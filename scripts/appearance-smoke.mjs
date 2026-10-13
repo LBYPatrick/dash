@@ -39,7 +39,7 @@ try {
     await page.waitForFunction(() =>
       [
         ...document.querySelectorAll(
-          'dialog[open], details[open] .session-action-menu',
+          'dialog[open], .session-action-menu:popover-open, .menulist:popover-open',
         ),
       ].every((element) => Number(getComputedStyle(element).opacity) >= 0.999),
     );
@@ -94,6 +94,27 @@ try {
                 !getComputedStyle(e).backgroundColor.startsWith('rgba'),
             ),
           ),
+        );
+      assert(
+        await page
+          .locator('.detail')
+          .evaluate((e) => getComputedStyle(e).borderTopLeftRadius === '0px'),
+      );
+      assert(
+        await page
+          .locator('.session-data')
+          .evaluate((e) => getComputedStyle(e).borderTopLeftRadius === '0px'),
+      );
+      if (theme === 'Light')
+        assert(
+          await page.evaluate(
+            () =>
+              getComputedStyle(document.querySelector('.topbar'))
+                .backgroundColor !==
+              getComputedStyle(document.querySelector('.sidebar'))
+                .backgroundColor,
+          ),
+          'Light sidebar and topbar must use distinct surfaces',
         );
       const stable = await page.locator('.topbar').boundingBox();
       for (const view of ['Overview', 'Live', 'Recordings']) {

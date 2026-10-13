@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, onBeforeUnmount } from 'vue';
-import { Download, LoaderCircle } from 'lucide-vue-next';
+import { Download, LoaderCircle } from '../icons';
 const props = defineProps<{ available: boolean }>();
 const busy = ref(false);
 const error = ref('');

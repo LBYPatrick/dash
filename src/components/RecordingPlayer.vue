@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, watch, onMounted, onBeforeUnmount } from 'vue';
-import { Film, CircleAlert } from 'lucide-vue-next';
+import { Film, CircleAlert } from '../icons';
 import type Hls from 'hls.js';
 const props = withDefaults(
   defineProps<{ source?: string; sample?: boolean; controls?: boolean }>(),

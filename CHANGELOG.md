@@ -6,6 +6,8 @@ All notable changes to Dash are documented here using Keep a Changelog.
 
 ### Changed
 
+- Fix map fallback reentrancy during theme changes and keep library recordings reachable in short landscape windows.
+
 - Flatten the dark-mode library sidebar into a continuous surface, removing remaining inset highlights from search, filters and selected drives.
 
 - Give the top bar one continuous background, reduce its vertical height, and flatten its navigation/device/utility controls.
@@ -25,6 +27,9 @@ All notable changes to Dash are documented here using Keep a Changelog.
 - Move Overview, Recordings, Live and device switching into the desktop top bar and a mobile side drawer.
 
 ### Added
+
+- Adopt Shelf’s palette, icons, compact chrome, opaque menus and content-sized animated sheets across every view; add component/flow accessibility checks.
+- Export every available session part for MP4, ZIP and MCAP, and add an unchanged raw-camera ZIP download; remove range selectors.
 
 - Add saved Light / Dark / System appearance settings and an opaque performance mode that removes glass and blur, with matching route-map themes and contrast audits.
 

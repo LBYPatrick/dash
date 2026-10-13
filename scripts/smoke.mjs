@@ -64,9 +64,8 @@ try {
   await page.locator('video').evaluate((video) => {
     video.currentTime = 3;
   });
-  await page
-    .getByLabel('Camera', { exact: true })
-    .selectOption({ label: 'fcamera.hevc' });
+  await page.getByRole('combobox', { name: 'Camera', exact: true }).click();
+  await page.getByRole('option', { name: 'fcamera.hevc', exact: true }).click();
   await page.waitForFunction(() => {
     const video = document.querySelector('video');
     return (
@@ -75,9 +74,8 @@ try {
       Math.abs(video.currentTime - 3) < 0.2
     );
   });
-  await page
-    .getByLabel('Camera', { exact: true })
-    .selectOption({ label: 'qcamera.ts' });
+  await page.getByRole('combobox', { name: 'Camera', exact: true }).click();
+  await page.getByRole('option', { name: 'qcamera.ts', exact: true }).click();
   await page.waitForFunction(() => {
     const video = document.querySelector('video');
     return (
@@ -185,17 +183,34 @@ try {
     ) < 2,
   );
   await page.screenshot({ path: '.artifacts/resizable-panels.png' });
-  for (const format of ['zip', 'mp4', 'mcap']) {
+  for (const format of ['zip', 'mp4', 'raw', 'mcap']) {
     await page.getByLabel('Session actions', { exact: true }).click();
     await page
       .getByRole('button', {
-        name: `Download ${format.toUpperCase()}`,
+        name:
+          format === 'raw'
+            ? 'Download raw video'
+            : `Download ${format.toUpperCase()}`,
         exact: true,
       })
       .click();
     assert.equal(
-      await page.getByLabel('Format', { exact: true }).inputValue(),
-      format,
+      await page
+        .getByRole('combobox', { name: 'Format', exact: true })
+        .innerText(),
+      format === 'zip'
+        ? 'ZIP · original cameras and logs'
+        : format === 'mp4'
+          ? 'MP4 · one continuous camera recording'
+          : format === 'raw'
+            ? 'Raw video · original camera parts (ZIP)'
+            : 'MCAP · Dash telemetry + original attachments',
+    );
+    assert.equal(
+      await page
+        .getByRole('combobox', { name: /From segment|Through segment/ })
+        .count(),
+      0,
     );
     await page
       .getByRole('button', { name: 'Export recording', exact: true })
@@ -209,6 +224,25 @@ try {
       link.click(),
     ]);
     await download.saveAs(`.artifacts/smoke.${format}`);
+    if (format === 'raw')
+      assert(download.suggestedFilename().endsWith('-raw-video.zip'));
+    if (format === 'mp4') {
+      await page.getByRole('combobox', { name: 'Format', exact: true }).click();
+      await page
+        .getByRole('option', {
+          name: 'Raw video · original camera parts (ZIP)',
+          exact: true,
+        })
+        .click();
+      assert.equal(
+        await page
+          .getByRole('link', { name: 'Download RAW', exact: true })
+          .count(),
+        0,
+        'Changing options must not relabel an old download',
+      );
+    }
+
     await page.getByRole('button', { name: 'Close export' }).click();
   }
   await page
@@ -347,7 +381,7 @@ try {
   await context.setOffline(false);
   assert.deepEqual(errors, []);
   console.log(
-    'Browser smoke passed: continuous playback/seeking across file boundaries, metadata/map, bookmarks/search, overview, single camera switching, persistent resizable panels, ZIP/MP4/MCAP downloads, diagnostic download, live unsupported state, onroad lockout, mobile navigation, offline PWA shell.',
+    'Browser smoke passed: continuous playback/seeking across file boundaries, metadata/map, bookmarks/search, overview, single camera switching, persistent resizable panels, full-session ZIP/MP4/raw/MCAP downloads, diagnostic download, live unsupported state, onroad lockout, mobile navigation, offline PWA shell.',
   );
 } finally {
   await setDriving(simulation ? 'unknown' : 'parked');
