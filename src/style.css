@@ -1365,26 +1365,6 @@ svg {
   display: flex;
   gap: 8px;
 }
-.view-mode {
-  max-width: 270px;
-  margin: 0 0 15px;
-}
-.single-hidden {
-  display: none;
-}
-.multi-feed {
-  background: white;
-  border: 1px solid var(--line);
-  padding: 15px;
-  border-radius: 10px;
-}
-.feed-options,
-.feed-actions {
-  display: flex;
-  align-items: center;
-  gap: 15px;
-  flex-wrap: wrap;
-}
 .checkbox-field {
   display: flex;
   gap: 7px;
@@ -1395,28 +1375,6 @@ svg {
 }
 .checkbox-field input {
   accent-color: var(--green);
-}
-.feed-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-  gap: 10px;
-}
-.feed-label {
-  font-size: 10px;
-  padding: 12px 0;
-  color: var(--muted);
-}
-.feed-hint {
-  font-size: 10px;
-  color: var(--muted);
-  margin: 15px 0 0;
-}
-.multi-segments {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin: 20px 0;
-  font-size: 11px;
 }
 .range-fields {
   display: grid;
@@ -1624,9 +1582,6 @@ svg {
   .live-actions > span {
     width: 100%;
   }
-  .feed-grid {
-    grid-template-columns: 1fr;
-  }
   .overview h1,
   .live-view h1 {
     font-size: 30px;
@@ -1698,46 +1653,6 @@ svg {
   flex-shrink: 0;
   margin: 8px 0 0;
 }
-.session-view .multi-feed {
-  flex: 1;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  padding: 12px;
-}
-.session-view .feed-options,
-.session-view .feed-actions {
-  flex-shrink: 0;
-  gap: 10px;
-}
-.session-view .feed-grid {
-  flex: 1;
-  min-height: 0;
-  grid-auto-rows: minmax(0, 1fr);
-}
-.session-view .feed-grid > div {
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-}
-.session-view .feed-grid .player {
-  flex: 1;
-  min-height: 0;
-  aspect-ratio: auto;
-}
-.session-view .feed-label {
-  flex-shrink: 0;
-}
-.session-view .feed-hint {
-  margin: 0;
-  font-size: 10px;
-  flex-shrink: 0;
-}
-.session-view .multi-segments {
-  flex-shrink: 0;
-  margin-top: 8px;
-}
 .session-info-dialog {
   max-width: 680px;
 }
@@ -1787,28 +1702,6 @@ svg {
   .session-view .viewer-toolbar {
     padding: 8px 10px;
   }
-  .session-view .feed-hint {
-    display: none;
-  }
-  .session-view .multi-feed {
-    gap: 6px;
-    padding: 8px;
-  }
-  .session-view .feed-options {
-    font-size: 10px;
-    gap: 6px;
-  }
-  .session-view .feed-actions {
-    margin: 0;
-    gap: 6px;
-  }
-  .session-view .feed-actions .button {
-    padding: 7px 9px;
-    font-size: 10px;
-  }
-  .session-view .feed-actions .checkbox-field {
-    font-size: 10px;
-  }
   .session-info-dialog .file-grid {
     grid-template-columns: 1fr;
   }
@@ -1836,9 +1729,6 @@ svg {
   }
   .session-view .segment-controls {
     padding: 6px 10px;
-  }
-  .session-view .feed-hint {
-    display: none;
   }
 }
 .session-actions {
@@ -1891,8 +1781,8 @@ svg {
 }
 .session-layout {
   display: grid;
-  grid-template-columns: minmax(0, 1.9fr) minmax(240px, 1fr);
-  gap: 18px;
+  grid-template-columns: var(--video-panel-width) 0 minmax(0, 1fr);
+  gap: 12px;
   flex: 1;
   min-height: 0;
 }
@@ -1901,10 +1791,6 @@ svg {
   flex-direction: column;
   min-height: 0;
   min-width: 0;
-}
-.session-video .view-mode {
-  flex-shrink: 0;
-  margin-bottom: 10px;
 }
 .session-data {
   min-height: 0;
@@ -2056,12 +1942,6 @@ svg {
     margin-bottom: 6px;
   }
   .session-mobile-tabs button {
-    padding: 6px;
-  }
-  .session-video .view-mode {
-    margin-bottom: 6px;
-  }
-  .session-video .view-mode button {
     padding: 6px;
   }
   .session-actions > summary {
@@ -2290,4 +2170,58 @@ svg {
   padding-inline: 12px;
   min-height: 44px;
   white-space: nowrap;
+}
+
+.session-layout[data-resizing] {
+  cursor: col-resize;
+  user-select: none;
+}
+.media-resize-handle {
+  position: relative;
+  width: 12px;
+  left: -6px;
+  z-index: 4;
+  cursor: col-resize;
+  touch-action: none;
+  user-select: none;
+  outline: none;
+}
+.media-resize-handle span {
+  position: absolute;
+  left: 5px;
+  top: 50%;
+  width: 2px;
+  height: 40px;
+  border-radius: 2px;
+  transform: translateY(-50%);
+  background: var(--muted);
+  opacity: 0.35;
+  transition: opacity 150ms ease;
+}
+.media-resize-handle:focus-visible {
+  outline: 2px solid var(--green);
+  outline-offset: 1px;
+  border-radius: 6px;
+}
+.media-resize-handle:focus-visible span,
+.session-layout[data-resizing] .media-resize-handle span {
+  opacity: 1;
+  background: var(--green);
+}
+.session-data .map-toolbar {
+  flex-wrap: wrap;
+  max-width: calc(100% - 24px);
+}
+@media (hover: hover) and (pointer: fine) {
+  .media-resize-handle:hover span {
+    opacity: 1;
+  }
+}
+@media (max-width: 900px) {
+  .media-resize-handle {
+    display: none;
+  }
+  .session-layout {
+    gap: 0;
+  }
 }

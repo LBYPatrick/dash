@@ -33,7 +33,7 @@ import {
   X,
 } from 'lucide-vue-next';
 import RecordingPlayer from './components/RecordingPlayer.vue';
-import MultiFeed from './components/MultiFeed.vue';
+import ResizablePanels from './components/ResizablePanels.vue';
 import ExportDialog from './components/ExportDialog.vue';
 const TripMap = defineAsyncComponent(() => import('./components/TripMap.vue'));
 import WorkspaceNavigation from './components/WorkspaceNavigation.vue';
@@ -76,7 +76,6 @@ function switchDevice() {
   openConnection();
 }
 const sort = ref<'newest' | 'oldest' | 'longest'>('newest');
-const multiple = ref(false);
 const exportDialog = ref<InstanceType<typeof ExportDialog>>();
 const drivePoints = computed(() =>
   (
@@ -946,144 +945,125 @@ onBeforeUnmount(() => {
               Map &amp; data
             </button>
           </div>
-          <div
-            class="session-layout"
-            :class="{ 'show-data': sessionPane === 'data' }"
-          >
-            <div class="session-video">
-              <div class="view-mode segmented">
-                <button
-                  :class="{ selected: !multiple }"
-                  @click="multiple = false"
-                >
-                  Single camera
-                </button>
-                <button
-                  :class="{ selected: multiple }"
-                  @click="multiple = true"
-                >
-                  Multiple feeds
-                </button>
-              </div>
-              <MultiFeed
-                v-if="multiple"
-                :files="files"
-                :sample="demo"
-                :drive-id="active.id"
-              />
-              <div v-if="!multiple" class="viewer-card">
-                <div class="viewer-toolbar">
-                  <span
-                    ><span class="status-dot"></span
-                    >{{
-                      demo ? 'Sample road camera' : 'Recording preview'
-                    }}</span
-                  ><label v-if="playable.length > 1" class="source-picker"
-                    >Camera
-                    <select v-model="selectedSource" aria-label="Camera">
-                      <option
-                        v-for="file in playable"
-                        :key="file.url"
-                        :value="
-                          demo
-                            ? file.url
-                            : recordingAddress(active.id, file.name)
-                        "
-                      >
-                        {{ file.name }}
-                      </option>
-                    </select></label
-                  ><span v-else class="muted">{{
-                    demo
-                      ? 'Illustration'
-                      : selectedSource
-                        ? 'From your device'
-                        : 'Original files'
-                  }}</span>
-                </div>
-                <div
-                  v-if="filesBusy"
-                  class="player loading-player"
-                  role="status"
-                >
-                  <LoaderCircle class="spinning" :size="28" /><span
-                    >Loading this segment…</span
+          <ResizablePanels :class="{ 'show-data': sessionPane === 'data' }">
+            <template #video>
+              <div class="session-video">
+                <div class="viewer-card">
+                  <div class="viewer-toolbar">
+                    <span
+                      ><span class="status-dot"></span
+                      >{{
+                        demo ? 'Sample road camera' : 'Recording preview'
+                      }}</span
+                    ><label v-if="playable.length > 1" class="source-picker"
+                      >Camera
+                      <select v-model="selectedSource" aria-label="Camera">
+                        <option
+                          v-for="file in playable"
+                          :key="file.url"
+                          :value="
+                            demo
+                              ? file.url
+                              : recordingAddress(active.id, file.name)
+                          "
+                        >
+                          {{ file.name }}
+                        </option>
+                      </select></label
+                    ><span v-else class="muted">{{
+                      demo
+                        ? 'Illustration'
+                        : selectedSource
+                          ? 'From your device'
+                          : 'Original files'
+                    }}</span>
+                  </div>
+                  <div
+                    v-if="filesBusy"
+                    class="player loading-player"
+                    role="status"
                   >
+                    <LoaderCircle class="spinning" :size="28" /><span
+                      >Loading this segment…</span
+                    >
+                  </div>
+                  <div v-else-if="fileError" class="player loading-player">
+                    <CircleHelp :size="30" />
+                    <p role="alert">{{ fileError }}</p>
+                    <button class="button" @click="loadFiles">Try again</button>
+                  </div>
+                  <RecordingPlayer
+                    v-else
+                    :key="active.id"
+                    :source="selectedSource || undefined"
+                    :sample="demo"
+                  />
                 </div>
-                <div v-else-if="fileError" class="player loading-player">
-                  <CircleHelp :size="30" />
-                  <p role="alert">{{ fileError }}</p>
-                  <button class="button" @click="loadFiles">Try again</button>
-                </div>
-                <RecordingPlayer
-                  v-else
-                  :key="active.id"
-                  :source="selectedSource || undefined"
-                  :sample="demo"
-                />
               </div>
-            </div>
-            <aside class="session-data">
-              <section v-if="driveMetadata.length" class="trip-details">
-                <div class="section-heading">
-                  <div>
-                    <h2>Metadata</h2>
-                    <p>
-                      {{ driveMetadata.length }} /
-                      {{ active.segments.length }} segments decoded
-                    </p>
+            </template>
+            <template #data>
+              <aside class="session-data">
+                <section v-if="driveMetadata.length" class="trip-details">
+                  <div class="section-heading">
+                    <div>
+                      <h2>Metadata</h2>
+                      <p>
+                        {{ driveMetadata.length }} /
+                        {{ active.segments.length }} segments decoded
+                      </p>
+                    </div>
                   </div>
-                </div>
-                <div class="stat-grid">
-                  <div>
-                    <small>Measured distance</small
-                    ><strong
-                      >{{
-                        driveMetadata
-                          .reduce(
-                            (sum, meta) => sum + (meta?.distanceKm || 0),
-                            0,
-                          )
-                          .toFixed(1)
-                      }}
-                      <span>km</span></strong
-                    >
+                  <div class="stat-grid">
+                    <div>
+                      <small>Measured distance</small
+                      ><strong
+                        >{{
+                          driveMetadata
+                            .reduce(
+                              (sum, meta) => sum + (meta?.distanceKm || 0),
+                              0,
+                            )
+                            .toFixed(1)
+                        }}
+                        <span>km</span></strong
+                      >
+                    </div>
+                    <div>
+                      <small>Recorded time</small
+                      ><strong
+                        >{{
+                          (
+                            driveMetadata.reduce(
+                              (sum, meta) => sum + (meta?.duration || 0),
+                              0,
+                            ) / 60
+                          ).toFixed(1)
+                        }}
+                        <span>min</span></strong
+                      >
+                    </div>
+                    <div>
+                      <small>Vehicle</small
+                      ><strong class="vehicle-name">{{
+                        driveMetadata.find((meta) => meta?.car)?.car ||
+                        'Not recorded'
+                      }}</strong>
+                    </div>
                   </div>
-                  <div>
-                    <small>Recorded time</small
-                    ><strong
-                      >{{
-                        (
-                          driveMetadata.reduce(
-                            (sum, meta) => sum + (meta?.duration || 0),
-                            0,
-                          ) / 60
-                        ).toFixed(1)
-                      }}
-                      <span>min</span></strong
-                    >
-                  </div>
-                  <div>
-                    <small>Vehicle</small
-                    ><strong class="vehicle-name">{{
-                      driveMetadata.find((meta) => meta?.car)?.car ||
-                      'Not recorded'
-                    }}</strong>
-                  </div>
-                </div>
-                <TripMap v-if="drivePoints.length" :points="drivePoints" />
-                <p v-else class="muted">
-                  No valid GPS fixes in the indexed logs.
-                </p>
-              </section>
-              <template v-if="!driveMetadata.length"
-                ><h2>Metadata</h2>
-                <p>
-                  Metadata is not available yet. Indexing runs while parked.
-                </p></template
-              >
-            </aside>
-          </div>
+                  <TripMap v-if="drivePoints.length" :points="drivePoints" />
+                  <p v-else class="muted">
+                    No valid GPS fixes in the indexed logs.
+                  </p>
+                </section>
+                <template v-if="!driveMetadata.length"
+                  ><h2>Metadata</h2>
+                  <p>
+                    Metadata is not available yet. Indexing runs while parked.
+                  </p></template
+                >
+              </aside>
+            </template>
+          </ResizablePanels>
         </template>
         <div v-else class="no-selection">
           <HardDrive :size="42" />

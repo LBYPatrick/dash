@@ -123,46 +123,68 @@ try {
   assert.match(await page.locator('.overview').innerText(), /6 of 6 segments/);
   await page.screenshot({ path: '.artifacts/overview.png', fullPage: true });
   await page.getByRole('button', { name: 'Recordings', exact: true }).click();
-  await page
-    .getByRole('button', { name: 'Multiple feeds', exact: true })
-    .click();
-  await page.getByRole('button', { name: 'Load selected feeds' }).click();
-  await page.waitForFunction(
-    () => {
-      const videos = [...document.querySelectorAll('.feed-grid video')];
-      return (
-        videos.length === 2 &&
-        videos.every(
-          (video) =>
-            video.readyState >= 2 && Math.abs(video.duration - 4) < 0.2,
-        )
-      );
-    },
-    { timeout: 60000 },
+  assert.equal(
+    await page
+      .getByRole('button', { name: 'Multiple feeds', exact: true })
+      .count(),
+    0,
   );
-  await page.getByRole('button', { name: 'Play feeds together' }).click();
-  await page.waitForFunction(() =>
-    [...document.querySelectorAll('.feed-grid video')].every(
-      (video) => video.currentTime > 0,
-    ),
+  assert.equal(await page.locator('video').count(), 1);
+  const divider = page.getByRole('separator', { name: 'Resize video and map' });
+  const originalWidth = (await page.locator('.session-video').boundingBox())
+    .width;
+  const originalDataWidth = (await page.locator('.session-data').boundingBox())
+    .width;
+  const handle = await divider.boundingBox();
+  await page.mouse.move(
+    handle.x + handle.width / 2,
+    handle.y + handle.height / 2,
   );
-  await page.getByRole('button', { name: 'Pause feeds together' }).click();
-  await page
-    .getByLabel('Recording timeline', { exact: true })
-    .evaluate((input) => {
-      input.value = '2.5';
-      input.dispatchEvent(new Event('input', { bubbles: true }));
-    });
-  await page.waitForFunction(() =>
-    [...document.querySelectorAll('.feed-grid video')].every(
-      (video) => video.currentTime >= 2.45 && video.readyState >= 2,
-    ),
-  );
-
-  await page.screenshot({
-    path: '.artifacts/multiple-feeds.png',
-    fullPage: true,
+  await page.mouse.down();
+  await page.mouse.move(handle.x - 120, handle.y + handle.height / 2, {
+    steps: 8,
   });
+  await page.mouse.up();
+  const resizedWidth = (await page.locator('.session-video').boundingBox())
+    .width;
+  assert(resizedWidth < originalWidth - 100);
+  assert(
+    (await page.locator('.session-data').boundingBox()).width >
+      originalDataWidth + 100,
+  );
+  assert.equal(
+    await page.evaluate(
+      () =>
+        document.documentElement.scrollHeight <= innerHeight &&
+        document.documentElement.scrollWidth <= innerWidth,
+    ),
+    true,
+  );
+  await page.reload();
+  await divider.waitFor();
+  assert(
+    Math.abs(
+      (await page.locator('.session-video').boundingBox()).width - resizedWidth,
+    ) < 2,
+  );
+  await divider.focus();
+  await page.keyboard.press('ArrowRight');
+  assert(
+    (await page.locator('.session-video').boundingBox()).width >
+      resizedWidth + 14,
+  );
+  await page.keyboard.press('End');
+  assert((await page.locator('.session-data').boundingBox()).width >= 219);
+  await page.keyboard.press('Home');
+  assert((await page.locator('.session-video').boundingBox()).width >= 319);
+  await divider.dblclick();
+  assert(
+    Math.abs(
+      (await page.locator('.session-video').boundingBox()).width -
+        originalWidth,
+    ) < 2,
+  );
+  await page.screenshot({ path: '.artifacts/resizable-panels.png' });
   for (const format of ['zip', 'mp4', 'mcap']) {
     await page.getByLabel('Session actions', { exact: true }).click();
     await page
@@ -220,6 +242,12 @@ try {
   await mobile.locator('.drive-row').first().click();
   await mobile.locator('.detail .mobile-back').waitFor();
   assert.equal(await mobile.locator('.sidebar').isVisible(), false);
+  assert.equal(
+    await mobile
+      .getByRole('separator', { name: 'Resize video and map' })
+      .isVisible(),
+    false,
+  );
   assert.equal(
     await mobile.evaluate(
       () => document.documentElement.scrollWidth <= innerWidth,
@@ -321,7 +349,7 @@ try {
   await context.setOffline(false);
   assert.deepEqual(errors, []);
   console.log(
-    'Browser smoke passed: continuous playback/seeking across file boundaries, metadata/map, bookmarks/search, overview, two feeds, ZIP/MP4/MCAP downloads, diagnostic download, live unsupported state, onroad lockout, mobile navigation, offline PWA shell.',
+    'Browser smoke passed: continuous playback/seeking across file boundaries, metadata/map, bookmarks/search, overview, single camera switching, persistent resizable panels, ZIP/MP4/MCAP downloads, diagnostic download, live unsupported state, onroad lockout, mobile navigation, offline PWA shell.',
   );
 } finally {
   await setDriving(simulation ? 'unknown' : 'parked');

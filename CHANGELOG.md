@@ -6,6 +6,8 @@ All notable changes to Dash are documented here using Keep a Changelog.
 
 ### Changed
 
+- Simplify recorded playback to one selected camera at a time and match Connect’s draggable, persistent video/map divider with keyboard controls and reset.
+
 - Replace segment-based playback with continuous HLS recording timelines and one shared timeline for multiple feeds.
 - Default exports to the full recording and index video durations with parked-only ffprobe workers.
 
