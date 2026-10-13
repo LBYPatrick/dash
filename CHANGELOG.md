@@ -6,6 +6,8 @@ All notable changes to Dash are documented here using Keep a Changelog.
 
 ### Changed
 
+- Reduce excessive corner rounding, correct text and control contrast in both themes, and reserve scrollbar gutters to prevent layout shifts between views.
+
 - Restyle Dash with glass controls, floating viewer chrome, optical edge highlights, system typography, sliding selections and reversible sheet/menu transitions, including accessibility fallbacks.
 
 - Simplify recorded playback to one selected camera at a time and match Connect’s draggable, persistent video/map divider with keyboard controls and reset.
@@ -17,6 +19,8 @@ All notable changes to Dash are documented here using Keep a Changelog.
 - Move Overview, Recordings, Live and device switching into the desktop top bar and a mobile side drawer.
 
 ### Added
+
+- Add saved Light / Dark / System appearance settings and an opaque performance mode that removes glass and blur, with matching route-map themes and contrast audits.
 
 - Add a session viewer that fits the viewport, with desktop video/map panels, mobile tabs, and a three-dot actions menu.
 

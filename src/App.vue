@@ -33,6 +33,7 @@ import {
   X,
 } from 'lucide-vue-next';
 import { vGlassTabs } from './glassTabs';
+import SettingsPopup from './components/SettingsPopup.vue';
 import RecordingPlayer from './components/RecordingPlayer.vue';
 import ResizablePanels from './components/ResizablePanels.vue';
 import ExportDialog from './components/ExportDialog.vue';
@@ -462,6 +463,7 @@ onBeforeUnmount(() => {
         @device="switchDevice"
       />
       <div class="header-actions">
+        <SettingsPopup />
         <span class="local-badge"
           ><ShieldCheck :size="14" /> Local recordings</span
         ><button

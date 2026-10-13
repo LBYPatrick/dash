@@ -13,6 +13,30 @@
     />
     <link rel="icon" href="/icon.svg" type="image/svg+xml" />
     <link rel="apple-touch-icon" href="/icon-192.png" />
+    <script>
+      // Restore appearance before the first paint, including the offline shell.
+      try {
+        const saved =
+          JSON.parse(localStorage.getItem('dash.appearance') || '{}') || {};
+        const theme =
+          saved.theme === 'light' || saved.theme === 'dark'
+            ? saved.theme
+            : matchMedia('(prefers-color-scheme: dark)').matches
+              ? 'dark'
+              : 'light';
+        document.documentElement.dataset.theme = theme;
+        document.documentElement.dataset.performance = String(
+          saved.performance === true,
+        );
+        document.documentElement.style.colorScheme = theme;
+      } catch {
+        document.documentElement.dataset.theme = matchMedia(
+          '(prefers-color-scheme: dark)',
+        ).matches
+          ? 'dark'
+          : 'light';
+      }
+    </script>
     <title>Dash</title>
   </head>
   <body>

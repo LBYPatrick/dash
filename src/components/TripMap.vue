@@ -6,7 +6,8 @@ import {
   LngLatBounds,
   type GeoJSONSource,
 } from 'mapbox-gl';
-import { mapboxToken, mapboxStyle } from '../map';
+import { mapboxToken, mapStyleForTheme } from '../map';
+import { resolvedTheme } from '../appearance';
 import type { Position } from '../indexer';
 const props = defineProps<{ points: Position[] }>();
 const container = ref<HTMLDivElement>();
@@ -25,7 +26,7 @@ function fitRoute() {
     duration: 0,
   });
 }
-function draw() {
+function draw(fit = true) {
   const route = map?.getSource('route') as GeoJSONSource | undefined;
   if (!route) return;
   route.setData({
@@ -44,12 +45,12 @@ function draw() {
           ]
         : [],
   });
-  fitRoute();
+  if (fit) fitRoute();
 }
 onMounted(() => {
   map = new Map({
     container: container.value!,
-    style: mapboxStyle,
+    style: mapStyleForTheme(resolvedTheme.value),
     accessToken: mapboxToken,
     center: props.points.length
       ? [props.points[0].longitude, props.points[0].latitude]
@@ -73,7 +74,10 @@ onMounted(() => {
           {
             id: 'background',
             type: 'background',
-            paint: { 'background-color': '#f3f4f2' },
+            paint: {
+              'background-color':
+                resolvedTheme.value === 'dark' ? '#192126' : '#f3f4f2',
+            },
           },
         ],
       });
@@ -81,6 +85,21 @@ onMounted(() => {
   });
   map.on('style.load', () => {
     unavailable.value = fallback;
+    // Keep route-map labels readable against either basemap.
+    for (const layer of map!.getStyle()?.layers || []) {
+      if (layer.type !== 'symbol' || !layer.layout?.['text-field']) continue;
+      map!.setPaintProperty(
+        layer.id,
+        'text-color',
+        resolvedTheme.value === 'dark' ? '#edf3f7' : '#3d494f',
+      );
+      map!.setPaintProperty(
+        layer.id,
+        'text-halo-color',
+        resolvedTheme.value === 'dark' ? '#192126' : '#fff',
+      );
+      map!.setPaintProperty(layer.id, 'text-halo-width', 1);
+    }
     map!.addSource('route', {
       type: 'geojson',
       data: { type: 'FeatureCollection', features: [] },
@@ -91,16 +110,22 @@ onMounted(() => {
       type: 'line',
       source: 'route',
       layout,
-      paint: { 'line-color': '#fff', 'line-width': 7 },
+      paint: {
+        'line-color': resolvedTheme.value === 'dark' ? '#192126' : '#fff',
+        'line-width': 7,
+      },
     });
     map!.addLayer({
       id: 'routeLine',
       type: 'line',
       source: 'route',
       layout,
-      paint: { 'line-color': '#286b50', 'line-width': 3 },
+      paint: {
+        'line-color': resolvedTheme.value === 'dark' ? '#a4e8cd' : '#286b50',
+        'line-width': 3,
+      },
     });
-    draw();
+    draw(false);
   });
   observer = new ResizeObserver(() => {
     map?.resize();
@@ -108,7 +133,15 @@ onMounted(() => {
   observer.observe(container.value!);
   fitRoute();
 });
-watch(() => props.points, draw);
+watch(
+  () => props.points,
+  () => draw(),
+);
+watch(resolvedTheme, (theme) => {
+  fallback = false;
+  unavailable.value = false;
+  map?.setStyle(mapStyleForTheme(theme));
+});
 onBeforeUnmount(() => {
   observer?.disconnect();
   map?.remove();

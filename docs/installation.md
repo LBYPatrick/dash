@@ -77,7 +77,7 @@ Put the certificate and key under `/data/dash/tls`, readable by `comma`, with th
 DASH_TLS_ARGS="--cert /data/dash/tls/cert.pem --key /data/dash/tls/key.pem"
 ```
 
-Restart the service, then open `https://DEVICE_IP:8088`. Trust your local certificate authority on each client through the normal OS certificate workflow. Dash precaches its interface only; it does not silently copy recordings to browser storage. Mapbox Light v11 backgrounds (the same style as Connect) load automatically when a route is shown and use the internet, disclosing the viewed map area to Mapbox. Optional build-time `VITE_MAPBOX_TOKEN` and `VITE_MAPBOX_STYLE` override the default published browser token and style. The GPS path remains visible without network access.
+Restart the service, then open `https://DEVICE_IP:8088`. Trust your local certificate authority on each client through the normal OS certificate workflow. Dash precaches its interface only; it does not silently copy recordings to browser storage. Mapbox Light / Dark v11 backgrounds (following the selected appearance, using Connect’s styles) load automatically when a route is shown and use the internet, disclosing the viewed map area to Mapbox. Optional build-time `VITE_MAPBOX_TOKEN` and `VITE_MAPBOX_STYLE` override the default published browser token and style. The GPS path remains visible without network access.
 
 Dash intentionally has no authentication. Anyone with network access to port 8088 can access recordings and request parked work. Keep it on your trusted hotspot/LAN and do not forward this port publicly. Requests with a foreign browser Origin are refused, but this is not a substitute for network isolation.
 

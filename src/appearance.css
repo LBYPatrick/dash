@@ -1,0 +1,545 @@
+/* Solid content colours keep text contrast predictable in both appearances. */
+:root {
+  --surface: #f4f7f9;
+  --surface-raised: #ffffff;
+  --surface-subtle: #e8eef1;
+  --ink: #182831;
+  --muted: #465b67;
+  --green: #205f46;
+  --line: #708694;
+  --glass-fill: #ffffffed;
+  --glass-edge: #708694;
+  --selection: #e0ede5;
+}
+html {
+  overflow-y: auto;
+  scrollbar-gutter: stable;
+}
+.drive-scroll,
+.modal {
+  scrollbar-gutter: stable;
+}
+:root[data-theme='dark'] {
+  --surface: #111b22;
+  --surface-raised: #1d2a34;
+  --surface-subtle: #253642;
+  --ink: #edf3f7;
+  --muted: #b3c3cf;
+  --green: #a4e8cd;
+  --line: #6c8594;
+  --glass-fill: #1d2a34f2;
+  --glass-edge: #6c8594;
+  --selection: #304c40;
+  --glass-shadow: 0 8px 24px #0002, inset 0 1px 0 #ffffff10;
+  color: var(--ink);
+  background: var(--surface);
+}
+body {
+  color: var(--ink);
+}
+:root[data-theme='dark'] body {
+  background:
+    radial-gradient(ellipse at 85% 0%, #20333d80, transparent 55%),
+    var(--surface);
+}
+/* Replace capsule corners with a small, consistent set of radii. */
+.workspace-nav,
+.segmented,
+.device-switcher,
+.search,
+.map-toolbar,
+.button,
+.icon-button,
+.session-actions > summary,
+.source-picker select,
+.address-input,
+.range-fields input,
+.range-fields select {
+  border-radius: 8px;
+}
+.workspace-nav button,
+.segmented > button,
+.session-action-menu button {
+  border-radius: 6px;
+}
+.drive-row,
+.drive-row.active,
+.session-view .viewer-card,
+.session-data,
+.map-canvas,
+.activity-list,
+.live-settings,
+.welcome-preview {
+  border-radius: 12px;
+}
+.session-view .viewer-toolbar {
+  border-radius: 8px;
+  color: var(--ink);
+  background: var(--glass-fill);
+  border-color: var(--glass-edge);
+}
+.stat-grid > div,
+.session-data .stat-grid > div,
+.drive-row img,
+.drive-glyph {
+  border-radius: 8px;
+}
+.modal,
+.session-action-menu {
+  border-radius: 16px;
+}
+.navigation-drawer {
+  border-radius: 0 16px 16px 0;
+}
+.navigation-drawer .workspace-nav button {
+  border-radius: 8px;
+}
+.toast,
+.floating-note {
+  border-radius: 12px;
+}
+#app
+  :is(
+    p,
+    small,
+    .muted,
+    .eyebrow,
+    .drive-group h3,
+    .drive-row small,
+    .sort-picker,
+    .sidebar-footer,
+    .index-footer,
+    .detail-footer,
+    .field-label,
+    .source-picker,
+    .search,
+    .welcome-assurances,
+    .welcome-foot,
+    .connection-help,
+    .drive-note,
+    .preview-top,
+    .preview-bottom,
+    .checkbox-field,
+    .file-card,
+    .modal small,
+    .local-badge,
+    .brand-caption,
+    .stat-grid small
+  ) {
+  color: var(--muted);
+}
+#app
+  :is(
+    h1,
+    h2,
+    h3,
+    .drive-row strong,
+    .stat-grid strong,
+    .vehicle-name,
+    .viewer-toolbar,
+    .source-picker select,
+    .address-input,
+    .range-fields input,
+    .range-fields select,
+    .activity-list button,
+    .file-grid a
+  ) {
+  color: var(--ink);
+}
+.workspace-nav button,
+.segmented > button {
+  color: var(--muted);
+}
+.workspace-nav button.chosen,
+.segmented > button.selected {
+  color: var(--green);
+}
+.glass-tabs::before {
+  background: var(--selection);
+}
+.drive-row.active {
+  background: var(--surface-raised);
+  border-color: var(--line);
+}
+.sidebar,
+.session-data,
+.live-settings {
+  background: var(--surface);
+  border-color: var(--line);
+}
+.stat-grid > div,
+.session-data .stat-grid > div {
+  background: var(--surface-subtle);
+  border-color: var(--line);
+}
+.modal,
+.navigation-drawer,
+.session-action-menu {
+  background: var(--glass-fill);
+  border-color: var(--glass-edge);
+}
+.navigation-drawer .device-switcher {
+  background: var(--surface-raised);
+}
+.settings-popup .theme-options {
+  background: var(--surface-subtle);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  box-shadow: none;
+}
+.source-picker select,
+.address-input,
+.range-fields input,
+.range-fields select,
+.live-settings select,
+.live-settings input,
+.simulation-banner select {
+  background: var(--surface-raised);
+  border-color: var(--line);
+  color: var(--ink);
+}
+.search {
+  color: var(--muted);
+}
+.search input {
+  color: var(--ink);
+}
+.search input::placeholder,
+.address-input::placeholder {
+  color: var(--muted);
+  opacity: 1;
+}
+.sidebar-heading h2 > span,
+.drive-glyph,
+.modal-icon,
+.backend-address {
+  background: var(--surface-subtle);
+  color: var(--green);
+}
+.sidebar-footer,
+.index-footer,
+.detail-footer,
+.activity-list button {
+  border-color: var(--line);
+}
+.sort-picker select,
+.text-button,
+.map-toolbar button,
+.checkbox-field {
+  color: var(--green);
+}
+.trip-map .mapboxgl-ctrl-attrib,
+.trip-map .map-notice {
+  background: var(--surface-raised);
+  color: var(--muted);
+  border-color: var(--line);
+}
+:root[data-theme='dark'] .mapboxgl-ctrl-attrib-button {
+  filter: invert(1);
+}
+.toast {
+  background: var(--glass-fill);
+  color: var(--green);
+  border-color: var(--line);
+}
+.button.primary {
+  background: #205f46;
+  color: #fff;
+  border-color: #205f46;
+}
+#app .button.primary :is(span, small) {
+  color: #fff;
+}
+:root[data-theme='dark'] .button.primary {
+  background: #a4e8cd;
+  color: #102a20;
+  border-color: #a4e8cd;
+}
+:root[data-theme='dark'] #app .button.primary :is(span, small) {
+  color: #102a20;
+}
+:root[data-theme='dark'] .button:not(.primary) {
+  color: var(--ink);
+}
+:root[data-theme='dark'] .welcome-preview,
+:root[data-theme='dark'] .preview-top,
+:root[data-theme='dark'] .preview-bottom,
+:root[data-theme='dark'] .floating-note {
+  background: var(--surface-raised);
+  border-color: var(--line);
+}
+:root[data-theme='dark'] .demo-banner,
+:root[data-theme='dark'] .offline-banner,
+:root[data-theme='dark'] .simulation-banner {
+  background: #273d31;
+  color: #dcece0;
+  border-color: var(--line);
+}
+#app :is(.inline-error, .welcome-error, .disconnect) {
+  color: #9a302c;
+}
+:root[data-theme='dark'] #app :is(.inline-error, .welcome-error, .disconnect) {
+  color: #ffb6af;
+}
+button:focus-visible,
+a:focus-visible,
+summary:focus-visible,
+input:focus-visible,
+select:focus-visible,
+.media-resize-handle:focus-visible {
+  outline-color: var(--green);
+}
+.search:focus-within {
+  outline-color: var(--green);
+}
+@media (hover: hover) and (pointer: fine) {
+  .drive-row:not(.active):hover,
+  .icon-button:hover,
+  .device-switcher:hover,
+  .map-toolbar button:not(:disabled):hover,
+  .session-action-menu button:hover,
+  .session-action-menu button:focus-visible {
+    background: var(--surface-subtle);
+  }
+}
+.settings-popup {
+  max-width: 440px;
+}
+.settings-popup h2 {
+  margin: 0 0 26px;
+  font-size: 26px;
+}
+.appearance-settings {
+  padding: 0;
+  border: 0;
+  margin: 0 0 26px;
+  min-width: 0;
+}
+.appearance-settings legend {
+  margin-bottom: 12px;
+  font-size: 14px;
+  font-weight: 600;
+}
+.theme-options > label {
+  position: relative;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 14px 8px;
+  font-size: 13px;
+  color: var(--muted);
+  cursor: pointer;
+  border-radius: 6px;
+}
+.theme-options > label.selected {
+  color: var(--green);
+}
+.theme-options > label:has(input:focus-visible) {
+  outline: 2px solid var(--green);
+  outline-offset: -2px;
+}
+.performance-setting {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 20px 0;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  cursor: pointer;
+}
+.performance-setting strong {
+  font-size: 14px;
+  font-weight: 600;
+}
+.settings-popup .performance-setting small {
+  display: block;
+  margin: 6px 0 0;
+  font-size: 12px;
+}
+.settings-switch {
+  position: relative;
+  width: 48px;
+  height: 28px;
+  flex-shrink: 0;
+}
+.settings-switch input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+.switch-track {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: 14px;
+  background: #667a85;
+  pointer-events: none;
+}
+.switch-track::after {
+  content: '';
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 22px;
+  height: 22px;
+  background: #fff;
+  border-radius: 50%;
+  transition: transform 160ms var(--ease);
+}
+.settings-switch input:checked + .switch-track {
+  background: #205f46;
+}
+.settings-switch input:checked + .switch-track::after {
+  transform: translateX(20px);
+}
+.settings-switch input:focus-visible + .switch-track {
+  outline: 2px solid var(--green);
+  outline-offset: 3px;
+}
+:root[data-theme='dark'] .settings-switch input:checked + .switch-track {
+  background: #70bea0;
+}
+.settings-popup .settings-note {
+  margin-top: 20px;
+  font-size: 12px;
+}
+/* Performance mode removes expensive materials everywhere, including native
+   dialog backdrops and pseudo-elements. Every material becomes a solid fill. */
+:root[data-performance='true'] {
+  --glass-fill: var(--surface-raised);
+  --glass-blur: none;
+  --glass-shadow: none;
+}
+:root[data-performance='true'] *,
+:root[data-performance='true'] *::before,
+:root[data-performance='true'] *::after,
+:root[data-performance='true'] dialog::backdrop {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  box-shadow: none !important;
+}
+:root[data-performance='true'] body,
+:root[data-performance='true'] .sidebar,
+:root[data-performance='true'] .session-data {
+  background: var(--surface);
+}
+:root[data-performance='true']
+  :is(
+    .modal,
+    .navigation-drawer,
+    .session-action-menu,
+    .toast,
+    .viewer-toolbar,
+    .welcome-preview,
+    .preview-top,
+    .preview-bottom,
+    .floating-note,
+    .device-switcher,
+    .search,
+    .icon-button,
+    .map-toolbar,
+    .session-actions > summary,
+    .segmented,
+    .workspace-nav,
+    .button:not(.primary)
+  ) {
+  background: var(--surface-raised);
+}
+:root[data-performance='true'] .glass-tabs::before {
+  background: var(--selection);
+}
+:root[data-performance='true'] .stat-grid > div {
+  background: var(--surface-subtle);
+}
+:root[data-performance='true'] .brand-mark {
+  background: #205f46;
+}
+:root[data-performance='true'] dialog::backdrop {
+  background: var(--surface);
+}
+@media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
+  :root {
+    --glass-fill: var(--surface-raised);
+    --glass-blur: none;
+    --glass-shadow: none;
+  }
+  #app
+    :is(
+      .sidebar,
+      .session-data,
+      .viewer-toolbar,
+      .modal,
+      .navigation-drawer,
+      .session-action-menu,
+      .toast
+    ) {
+    background: var(--surface-raised);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+}
+
+.theme-options input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+  z-index: 1;
+}
+.workspace-nav button,
+.segmented > button,
+.theme-options > label {
+  border: 1px solid transparent;
+}
+.workspace-nav button.chosen,
+.segmented > button.selected,
+.theme-options > label.selected {
+  border-color: var(--green);
+  font-weight: 650;
+}
+#app .player :is(p, small, h2, h3, .muted) {
+  color: #edf3f7;
+}
+#app .player-error {
+  background: #1d2933;
+  color: #edf3f7;
+  border: 1px solid #6c8594;
+}
+#app .player-error .button {
+  background: #edf3f7;
+  color: #182831;
+}
+#app .sample-label {
+  background: #1d2933;
+  color: #edf3f7;
+}
+#app .file-card {
+  background: var(--surface-raised);
+  border-color: var(--line);
+}
+.file-icon,
+.modal code {
+  background: var(--surface-subtle);
+  color: var(--ink);
+}
+:root[data-interaction='keyboard'] .switch-track::after {
+  transition: none;
+}
+:root[data-theme='dark'] .settings-switch input:checked + .switch-track::after {
+  background: #102a20;
+}
+:root[data-theme] .simulation-banner select {
+  background: var(--surface-raised);
+  color: var(--ink);
+  border-color: var(--line);
+}

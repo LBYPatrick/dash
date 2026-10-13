@@ -2,5 +2,5 @@
 export const mapboxToken =
   import.meta.env.VITE_MAPBOX_TOKEN ||
   '';
-export const mapboxStyle =
-  import.meta.env.VITE_MAPBOX_STYLE || 'mapbox://styles/mapbox/light-v11';
+export const mapStyleForTheme = (theme: 'light' | 'dark') =>
+  import.meta.env.VITE_MAPBOX_STYLE || `mapbox://styles/mapbox/${theme}-v11`;

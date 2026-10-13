@@ -7,7 +7,7 @@ export const vGlassTabs: ObjectDirective<HTMLElement> = {
     element.classList.add('glass-tabs');
     const update = () => {
       const active = element.querySelector<HTMLElement>(
-        ':scope > button.selected, :scope > button.chosen',
+        ':scope > button.selected, :scope > button.chosen, :scope > label.selected',
       );
       const bounds = element.getBoundingClientRect();
       if (!active || !bounds.width || !bounds.height) return;
@@ -20,7 +20,7 @@ export const vGlassTabs: ObjectDirective<HTMLElement> = {
       ];
       element.style.setProperty(
         '--selection-inset',
-        `${inset.map((value) => `${Math.max(0, value)}px`).join(' ')} round 22px`,
+        `${inset.map((value) => `${Math.max(0, value)}px`).join(' ')} round 8px`,
       );
     };
     const keyboard = () => {
