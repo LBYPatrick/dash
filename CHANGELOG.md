@@ -10,6 +10,8 @@ All notable changes to Dash are documented here using Keep a Changelog.
 
 ### Changed
 
+- Remove fixed-width workspace/pane limits, load cached GPS on first open even when workers are paused, and preserve route layers across theme changes.
+
 - Reuse Shelf’s popup widget and dismissal stack directly; remove the page-wide scrollbar strip and keep scrolling inside content panes.
 
 - Fix map fallback reentrancy during theme changes and keep library recordings reachable in short landscape windows.

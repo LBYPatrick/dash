@@ -313,7 +313,19 @@ async function loadMetadata() {
     /* Retain summary metadata while reconnecting. */
   }
 }
-watch([activeId, () => indexStatus.value.completed], loadMetadata);
+watch(
+  [
+    activeId,
+    () => indexStatus.value.completed,
+    // The initial metadata request can finish before the index snapshot.
+    // Retry once its target entry exists, including when workers are paused.
+    () =>
+      !!(
+        active.value && indexEntries.value[active.value.segments[0]?.url || '']
+      ),
+  ],
+  loadMetadata,
+);
 async function connect() {
   connectionRequest?.abort();
   const request = new AbortController();

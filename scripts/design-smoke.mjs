@@ -16,6 +16,21 @@ try {
   page.on('pageerror', (e) => errors.push(e.message));
   await page.goto(origin);
   await page.getByRole('heading', { name: 'Your drives' }).waitFor();
+  await page.locator('.map-canvas').waitFor(); // Cached GPS loads on first open, even with paused workers.
+  await page.setViewportSize({ width: 1920, height: 1080 });
+  assert(
+    await page.evaluate(() =>
+      ['.topbar', '.workspace', '.detail'].every(
+        (selector) =>
+          Math.abs(
+            document.querySelector(selector).getBoundingClientRect().right -
+              innerWidth,
+          ) < 1,
+      ),
+    ),
+    'Wide windows must fill the right edge without an artificial margin',
+  );
+
   for (const [width, height] of [
     [1440, 1080],
     [1024, 768],

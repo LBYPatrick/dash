@@ -155,7 +155,13 @@ watch(resolvedTheme, (theme) => {
   styleGeneration++;
   fallback = false;
   unavailable.value = false;
-  map?.setStyle(mapStyleForTheme(theme));
+  // Rebuild the style so style.load reinstalls our route layers as well.
+  // Diffing a raster style can remove custom layers without that event.
+  map?.setStyle(mapStyleForTheme(theme), {
+    diff: false,
+    localFontFamily: undefined,
+    localIdeographFontFamily: undefined,
+  });
 });
 onBeforeUnmount(() => {
   observer?.disconnect();

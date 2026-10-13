@@ -9,6 +9,8 @@
   --color-base-200: oklch(96.5% 0.004 250);
   --color-base-300: oklch(93% 0.006 250);
   --color-chrome: var(--color-base-300);
+  --danger-fill: #fae8e3;
+  --danger-text: #862c23;
   --color-base-content: oklch(24% 0.012 250);
   --color-primary: #006ac6;
   --color-primary-text: #005aab;
@@ -58,6 +60,8 @@
   --color-base-200: oklch(17.5% 0.008 250);
   --color-base-300: oklch(27% 0.01 250);
   --color-chrome: var(--color-base-200);
+  --danger-fill: #362320;
+  --danger-text: #ffd1cb;
   --color-base-content: oklch(93% 0.006 250);
   --color-primary: #0074d4;
   --color-primary-text: #87c5ff;
@@ -628,6 +632,7 @@ body,
   min-height: 0;
 }
 #app .workspace > .detail {
+  max-width: none;
   min-height: 0;
   overflow-y: auto;
   scrollbar-gutter: stable;
@@ -657,4 +662,10 @@ body,
     .sheet-leave-active .panel
   ) {
   transition: none !important;
+}
+
+:root[data-theme] #app .inline-error {
+  background: var(--danger-fill);
+  color: var(--danger-text);
+  border: 0;
 }
