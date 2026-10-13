@@ -1,0 +1,9 @@
+.git
+node_modules
+dist
+.artifacts
+**/.DS_Store
+**/cache
+**/dash-backend/dash-backend
+**/*.pem
+**/*.key

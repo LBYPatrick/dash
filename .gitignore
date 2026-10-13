@@ -1,0 +1,9 @@
+node_modules/
+dist/
+.artifacts/
+.DS_Store
+dash-backend/dash-backend
+dash-backend/cache/
+.env
+*.key
+*.pem

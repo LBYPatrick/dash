@@ -1,0 +1,2 @@
+Empty seed for the optional Go module download cache build context.
+The sandbox helper can provide verified local module archives when available.

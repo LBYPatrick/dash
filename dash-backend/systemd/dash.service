@@ -1,0 +1,49 @@
+[Unit]
+Description=Dash local drive library and PWA
+After=local-fs.target network.target
+RequiresMountsFor=/data
+StartLimitIntervalSec=300
+StartLimitBurst=3
+ConditionPathIsDirectory=/data/media/0/realdata
+
+[Service]
+Type=simple
+User=comma
+Group=comma
+WorkingDirectory=/data/dash
+EnvironmentFile=-/data/dash/dash.env
+ExecStart=/data/dash/dash-backend --listen 0.0.0.0:8088 --root /data/media/0/realdata --cache /data/dash/cache --app /data/dash/dist --params /data/params/d --firmware /data/openpilot --require-systemd-limits $DASH_TLS_ARGS
+ExecStopPost=/data/dash/dash-backend --stop-live --params /data/params/d
+Restart=on-failure
+RestartSec=10
+TimeoutStopSec=5
+KillMode=control-group
+KillSignal=SIGTERM
+SendSIGKILL=yes
+OOMPolicy=stop
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=dash-backend
+UMask=0077
+Nice=15
+CPUAccounting=yes
+CPUQuota=50%
+CPUQuotaPeriodSec=100ms
+CPUWeight=10
+MemoryAccounting=yes
+MemoryHigh=256M
+MemoryMax=384M
+MemorySwapMax=0
+TasksAccounting=yes
+TasksMax=64
+LimitNOFILE=1024
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+ProtectControlGroups=yes
+ReadWritePaths=/data/dash /data/params
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+
+[Install]
+WantedBy=multi-user.target

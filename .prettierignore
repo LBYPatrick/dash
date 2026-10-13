@@ -1,0 +1,6 @@
+node_modules
+dist
+.artifacts
+package-lock.json
+dash-backend/go.sum
+dash-backend/internal/telemetry/testdata

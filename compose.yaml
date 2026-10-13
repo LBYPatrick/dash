@@ -1,0 +1,38 @@
+name: dash-sandbox
+services:
+  dash:
+    build:
+      context: .
+      additional_contexts:
+        gomodcache: ${DASH_GO_CACHE_CONTEXT:-./docker/go-cache}
+    ports:
+      - '127.0.0.1:${DASH_SANDBOX_PORT:-8089}:8088'
+    init: true
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    cpus: 0.5
+    mem_limit: 384m
+    memswap_limit: 384m
+    pids_limit: 64
+    stop_grace_period: 5s
+    restart: 'no'
+    volumes:
+      - sandbox-cache:/data/dash/cache
+      - sandbox-params:/data/params/d
+    tmpfs:
+      - /tmp:size=32m,mode=1777
+    healthcheck:
+      test: ['CMD', 'dash-backend', '--health-check']
+      interval: 5s
+      timeout: 3s
+      start_period: 10s
+      retries: 12
+    logging:
+      driver: json-file
+      options:
+        max-size: '2m'
+        max-file: '3'
+volumes:
+  sandbox-cache:
+  sandbox-params:
