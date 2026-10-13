@@ -8,10 +8,10 @@ Open Dash while parked, choose a drive, scrub one recording timeline, compare ca
 
 - Searchable, sortable drive library with thumbnails and browser-local bookmarks.
 - Incremental SQLite indexing, disposable cache recovery, and a rebuild action. Original recordings are read-only.
-- A viewport-sized session viewer with camera footage beside the map/metadata on desktop and Video / Map & data tabs on mobile. Downloads and bookmarks live in the three-dot actions menu.
+- A viewport-sized session viewer with camera footage beside the map/metadata on desktop and Video / Map & data tabs on mobile. Downloads and bookmarks live in the three-dot actions menu. Overview, Recordings, Live and device switching sit in the desktop top bar or mobile navigation drawer.
 - Continuous, seekable HLS playback across recording files, with automatic transitions and a shared timeline for multiple feeds. Alignment follows available footage; it is not frame-accurate telemetry synchronization. Missing or unreadable camera files are omitted.
 - Backend ZIP, MP4, and MCAP exports. MP4 can retain HEVC or convert to H.264 for compatibility. MCAP uses Dash's own JSON schemas and stores original recordings as attachments; it does not provide frame-level video channels.
-- GPS route, measured distance, recorded duration, vehicle/version metadata, and library overview when supported logs are present. Missing metadata stays missing. OpenStreetMap backgrounds load automatically; the GPS route remains visible when tiles are unavailable.
+- GPS route, measured distance, recorded duration, vehicle/version metadata, and library overview when supported logs are present. Missing metadata stays missing. Maps match Connect’s Mapbox Light v11 styling and load automatically; the GPS route remains visible when maps are unavailable. Rendering runs in the browser. Set `VITE_MAPBOX_TOKEN` and optionally `VITE_MAPBOX_STYLE` at build time to use your own Mapbox configuration; the default uses Connect’s published browser token.
 - Parked-only local WebRTC on firmware with the managed `IsLiveStreaming` API. Browser recording is available where MediaRecorder supports the negotiated stream.
 - Installable PWA shell over trusted HTTPS. Recordings and exports are not cached offline.
 

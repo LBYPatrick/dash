@@ -36,6 +36,8 @@ try {
   page.on('pageerror', (error) => errors.push(error.message));
   await page.goto(origin);
   await page.getByRole('heading', { name: 'Your drives' }).waitFor();
+  assert.equal(await page.locator('.topbar .workspace-nav').isVisible(), true);
+  assert.equal(await page.locator('.sidebar .workspace-nav').count(), 0);
   await page.waitForFunction(
     () => document.querySelector('video')?.readyState >= 1,
   );
@@ -86,10 +88,7 @@ try {
   });
   await page.getByRole('heading', { name: 'Metadata', exact: true }).waitFor();
   await page.locator('.map-canvas').waitFor();
-  await page
-    .locator('.leaflet-tile-pane img[src^="https://tile.openstreetmap.org/"]')
-    .first()
-    .waitFor({ state: 'attached' });
+  await page.locator('.mapboxgl-canvas').first().waitFor({ state: 'attached' });
   assert.equal(
     await page.getByRole('button', { name: /Load map background/ }).count(),
     0,
@@ -190,7 +189,9 @@ try {
     await download.saveAs(`.artifacts/smoke.${format}`);
     await page.getByRole('button', { name: 'Close export' }).click();
   }
-  await page.locator('.device-card').click();
+  await page
+    .getByRole('button', { name: 'Switch device', exact: true })
+    .click();
   const [diagnostic] = await Promise.all([
     page.waitForEvent('download'),
     page.getByRole('button', { name: 'Download backend diagnostics' }).click(),
@@ -272,7 +273,30 @@ try {
   await mobile.setViewportSize({ width: 390, height: 844 });
   await mobile.locator('.detail .mobile-back').click();
   assert.equal(await mobile.locator('.sidebar').isVisible(), true);
-  await mobile.locator('.device-card').click();
+  await mobile.getByRole('button', { name: 'Open navigation' }).click();
+  await mobile
+    .getByRole('dialog', { name: 'Navigation', exact: true })
+    .waitFor();
+  await mobile.getByRole('button', { name: 'Overview', exact: true }).click();
+  await mobile
+    .getByRole('heading', { name: 'Recording overview', exact: true })
+    .waitFor();
+  assert.equal(
+    await mobile
+      .getByRole('dialog', { name: 'Navigation', exact: true })
+      .isVisible(),
+    false,
+  );
+  await mobile.getByRole('button', { name: 'Open navigation' }).click();
+  await mobile
+    .getByRole('navigation', { name: 'Workspace' })
+    .getByRole('button', { name: 'Recordings', exact: true })
+    .click();
+  assert.equal(await mobile.locator('.sidebar').isVisible(), true);
+  await mobile.getByRole('button', { name: 'Open navigation' }).click();
+  await mobile
+    .getByRole('button', { name: 'Switch device', exact: true })
+    .click();
   await mobile
     .getByRole('button', { name: 'Download backend diagnostics' })
     .waitFor();

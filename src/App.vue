@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import {
   computed,
+  defineAsyncComponent,
   nextTick,
   onBeforeUnmount,
   onMounted,
@@ -22,6 +23,7 @@ import {
   ListVideo,
   LoaderCircle,
   Monitor,
+  Menu,
   MoreHorizontal,
   RefreshCw,
   Search,
@@ -33,7 +35,8 @@ import {
 import RecordingPlayer from './components/RecordingPlayer.vue';
 import MultiFeed from './components/MultiFeed.vue';
 import ExportDialog from './components/ExportDialog.vue';
-import TripMap from './components/TripMap.vue';
+const TripMap = defineAsyncComponent(() => import('./components/TripMap.vue'));
+import WorkspaceNavigation from './components/WorkspaceNavigation.vue';
 import LiveView from './components/LiveView.vue';
 import DiagnosticsDownload from './components/DiagnosticsDownload.vue';
 import SimulationControls from './components/SimulationControls.vue';
@@ -62,6 +65,16 @@ const address = ref(new URL('/files/', location.origin).href);
 const connectedAddress = ref('');
 const demo = ref(false);
 const view = ref<'drives' | 'overview' | 'live'>('drives');
+const navigationDrawer = ref<HTMLDialogElement>();
+function navigate(destination: 'drives' | 'overview' | 'live') {
+  view.value = destination;
+  mobileDetail.value = destination !== 'drives';
+  navigationDrawer.value?.close();
+}
+function switchDevice() {
+  navigationDrawer.value?.close();
+  openConnection();
+}
 const sort = ref<'newest' | 'oldest' | 'longest'>('newest');
 const multiple = ref(false);
 const exportDialog = ref<InstanceType<typeof ExportDialog>>();
@@ -431,6 +444,23 @@ onBeforeUnmount(() => {
         ></span
         ><span class="brand-caption">Local recordings</span></a
       >
+      <button
+        v-if="connected"
+        class="icon-button mobile-menu"
+        aria-label="Open navigation"
+        aria-haspopup="dialog"
+        @click="navigationDrawer?.showModal()"
+      >
+        <Menu :size="21" />
+      </button>
+      <WorkspaceNavigation
+        v-if="connected"
+        class="desktop-navigation"
+        :view="view"
+        :device-name="deviceName"
+        @navigate="navigate"
+        @device="switchDevice"
+      />
       <div class="header-actions">
         <span class="local-badge"
           ><ShieldCheck :size="14" /> Local recordings</span
@@ -444,6 +474,29 @@ onBeforeUnmount(() => {
       </div>
     </header>
 
+    <dialog
+      ref="navigationDrawer"
+      class="navigation-drawer"
+      aria-label="Navigation"
+      @click="$event.target === navigationDrawer && navigationDrawer?.close()"
+    >
+      <div class="drawer-heading">
+        <strong>dash</strong
+        ><button
+          class="icon-button"
+          aria-label="Close navigation"
+          @click="navigationDrawer?.close()"
+        >
+          <X :size="20" />
+        </button>
+      </div>
+      <WorkspaceNavigation
+        :view="view"
+        :device-name="deviceName"
+        @navigate="navigate"
+        @device="switchDevice"
+      />
+    </dialog>
     <main v-if="!connected" class="welcome">
       <div class="welcome-copy">
         <div class="eyebrow">
@@ -508,49 +561,6 @@ onBeforeUnmount(() => {
 
     <main v-else class="workspace" :class="{ 'show-detail': mobileDetail }">
       <aside class="sidebar">
-        <button class="device-card" @click="openConnection">
-          <span class="device-icon"><HardDrive :size="23" /></span
-          ><span
-            ><strong>{{ deviceName }}</strong
-            ><small
-              ><span
-                class="status-dot"
-                :class="{ amber: demo || !online }"
-              ></span
-              >{{
-                demo
-                  ? 'Exploring sample drives'
-                  : online
-                    ? 'Direct connection'
-                    : 'Network offline'
-              }}</small
-            ></span
-          ><ChevronRight :size="17" />
-        </button>
-        <nav class="workspace-nav" aria-label="Workspace">
-          <button
-            :class="{ chosen: view === 'drives' }"
-            @click="view = 'drives'"
-          >
-            Recordings</button
-          ><button
-            :class="{ chosen: view === 'overview' }"
-            @click="
-              view = 'overview';
-              mobileDetail = true;
-            "
-          >
-            Overview</button
-          ><button
-            :class="{ chosen: view === 'live' }"
-            @click="
-              view = 'live';
-              mobileDetail = true;
-            "
-          >
-            Live
-          </button>
-        </nav>
         <div class="sidebar-heading">
           <h2>
             Your drives<span>{{ drives.length }}</span>
@@ -715,7 +725,7 @@ onBeforeUnmount(() => {
         <button
           v-if="view !== 'drives'"
           class="mobile-back text-button"
-          @click="mobileDetail = false"
+          @click="navigate('drives')"
         >
           <ArrowLeft :size="16" /> Recordings
         </button>

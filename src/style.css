@@ -1,4 +1,4 @@
-@import url('leaflet/dist/leaflet.css');
+@import url('mapbox-gl/dist/mapbox-gl.css');
 :root {
   font-family:
     Inter,
@@ -2120,4 +2120,174 @@ svg {
   flex: 1;
   min-width: 0;
   accent-color: var(--green);
+}
+
+/* Navigation belongs to the app bar; the library sidebar is for drives. */
+.workspace-navigation {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  min-width: 0;
+}
+.desktop-navigation {
+  margin-left: auto;
+}
+.desktop-navigation .workspace-nav {
+  margin: 0;
+}
+.device-switcher {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  max-width: 200px;
+  padding: 8px 12px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  font-size: 12px;
+}
+.device-switcher span {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.mobile-menu {
+  display: none;
+}
+.navigation-drawer {
+  position: fixed;
+  inset: 0 auto 0 0;
+  margin: 0;
+  width: min(320px, 85vw);
+  height: 100dvh;
+  max-height: 100dvh;
+  padding: max(20px, env(safe-area-inset-top)) 20px 20px;
+  border: 0;
+  border-right: 1px solid var(--line);
+  background: #fff;
+  color: var(--ink);
+}
+.navigation-drawer::backdrop {
+  background: #14251c66;
+}
+.drawer-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 24px;
+  font-size: 24px;
+}
+.navigation-drawer .workspace-navigation,
+.navigation-drawer .workspace-nav {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+}
+.navigation-drawer .workspace-nav {
+  gap: 4px;
+  margin: 0;
+}
+.navigation-drawer .workspace-nav button {
+  min-height: 48px;
+  text-align: left;
+  padding: 12px;
+}
+.navigation-drawer .device-switcher {
+  max-width: none;
+  margin-top: 12px;
+}
+.map-toolbar {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  display: flex;
+  align-items: center;
+  padding: 4px;
+  gap: 2px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 4px 16px #0001;
+}
+.map-toolbar button {
+  min-width: 44px;
+  min-height: 44px;
+  padding: 8px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  border-radius: 8px;
+}
+.map-toolbar-divider {
+  width: 1px;
+  height: 20px;
+  margin: 0 4px;
+  background: var(--line);
+}
+.trip-map .map-notice {
+  position: absolute;
+  bottom: 36px;
+  left: 12px;
+  right: 12px;
+  width: fit-content;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: #fff;
+  color: var(--muted);
+  font-size: 12px;
+  border: 1px solid var(--line);
+}
+.trip-map .mapboxgl-ctrl-attrib {
+  background: #fff;
+  color: var(--muted);
+}
+.trip-map .mapboxgl-ctrl-attrib a {
+  color: inherit;
+}
+@media (hover: hover) and (pointer: fine) {
+  .map-toolbar button:not(:disabled):hover,
+  .device-switcher:hover {
+    background: #f3f5f3;
+  }
+}
+@media (min-width: 901px) and (max-width: 1150px) {
+  .brand-caption,
+  .brand-divider,
+  .local-badge {
+    display: none;
+  }
+  .topbar {
+    padding-inline: 24px;
+  }
+  .workspace-navigation {
+    gap: 12px;
+  }
+  .header-actions {
+    gap: 10px;
+  }
+}
+@media (max-width: 900px) {
+  .desktop-navigation {
+    display: none;
+  }
+  .mobile-menu {
+    display: inline-flex;
+    margin-left: auto;
+  }
+  .topbar {
+    gap: 10px;
+  }
+  .topbar .brand-caption,
+  .topbar .brand-divider,
+  .topbar .local-badge {
+    display: none;
+  }
+  .header-actions {
+    gap: 0;
+  }
+}
+
+.desktop-navigation .workspace-nav button {
+  padding-inline: 12px;
+  min-height: 44px;
+  white-space: nowrap;
 }
