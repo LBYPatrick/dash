@@ -1,7 +1,14 @@
 <script setup lang="ts">
 import { vGlassTabs } from '../glassTabs';
-import { HardDrive, ChevronDown } from '../icons';
-defineProps<{ view: 'drives' | 'overview' | 'live'; deviceName: string }>();
+import DeviceSwitcher from './DeviceSwitcher.vue';
+withDefaults(
+  defineProps<{
+    view: 'drives' | 'overview' | 'live';
+    deviceName: string;
+    showDevice?: boolean;
+  }>(),
+  { showDevice: true },
+);
 defineEmits<{ navigate: [view: 'drives' | 'overview' | 'live']; device: [] }>();
 const destinations = [
   { id: 'overview', label: 'Overview' },
@@ -22,13 +29,10 @@ const destinations = [
         {{ destination.label }}
       </button>
     </nav>
-    <button
-      class="device-switcher"
-      aria-label="Switch device"
-      @click="$emit('device')"
-    >
-      <HardDrive :size="17" /><span>{{ deviceName }}</span
-      ><ChevronDown :size="15" />
-    </button>
+    <DeviceSwitcher
+      v-if="showDevice"
+      :name="deviceName"
+      @switch="$emit('device')"
+    />
   </div>
 </template>

@@ -77,11 +77,47 @@ try {
       .evaluate((e) => getComputedStyle(e).padding === '0px'),
   );
   await page.getByRole('button', { name: 'Enter playback timestamp' }).click();
-  await page.getByRole('textbox', { name: 'Playback timestamp' }).fill('0:03');
+  await page
+    .getByRole('textbox', { name: 'Playback timestamp' })
+    .fill('0:03.125');
   await page.getByRole('button', { name: 'Go', exact: true }).click();
   await page.waitForFunction(
-    () => Math.abs(document.querySelector('video').currentTime - 3) < 0.2,
+    () => Math.abs(document.querySelector('video').currentTime - 3.125) < 0.001,
   );
+  assert.match(
+    (await page.locator('.timestamp-button').innerText()).replace(/\s+/g, ' '),
+    /0:03\.125 \/ \d+:\d{2}\.\d{3}/,
+  );
+  await page.getByRole('button', { name: 'Enter playback timestamp' }).click();
+  assert.equal(
+    await page
+      .getByRole('textbox', { name: 'Playback timestamp' })
+      .inputValue(),
+    '0:03.125',
+  );
+  await page.keyboard.press('Escape');
+  await page
+    .getByRole('button', { name: 'Play recording', exact: true })
+    .click();
+  const samples = await page.evaluate(async () => {
+    const values = new Set();
+    const started = performance.now();
+    while (performance.now() - started < 650) {
+      await new Promise(requestAnimationFrame);
+      values.add(document.querySelector('.video-timeline input').value);
+    }
+    return values.size;
+  });
+  assert(
+    samples > 8,
+    `Playback should update smoothly between timeupdate events, got ${samples} positions`,
+  );
+  await page
+    .getByRole('button', { name: 'Pause recording', exact: true })
+    .click();
+  const stopped = await page.locator('.timestamp-button').innerText();
+  await page.waitForTimeout(120);
+  assert.equal(await page.locator('.timestamp-button').innerText(), stopped);
   await page.getByRole('combobox', { name: 'Playback speed' }).click();
   await page.getByRole('option', { name: '2×', exact: true }).click();
   assert.equal(await page.locator('video').evaluate((e) => e.playbackRate), 2);
@@ -100,9 +136,11 @@ try {
     true,
   );
   const slider = page.getByRole('slider', { name: 'Recording timeline' });
-  await slider.fill('12');
+  assert.equal(await slider.getAttribute('step'), '0.001');
+  await slider.fill('12.345');
   await page.waitForFunction(
-    () => Math.abs(document.querySelector('video').currentTime - 12) < 0.2,
+    () =>
+      Math.abs(document.querySelector('video').currentTime - 12.345) < 0.001,
   );
   await slider.fill('3');
   await page.getByRole('button', { name: 'Follow', exact: true }).waitFor();
@@ -140,7 +178,9 @@ try {
     [1440, 900],
     [390, 844],
     [844, 390],
+    [390, 844, 'dark'],
   ]) {
+    if (size[2]) await page.emulateMedia({ colorScheme: size[2] });
     await page.setViewportSize({ width: size[0], height: size[1] });
     if (size[0] <= 900 && !(await slider.isVisible()))
       await page.locator('.drive-row').first().click();
@@ -152,6 +192,23 @@ try {
           document.documentElement.scrollWidth <= innerWidth,
       ),
     );
+    assert(
+      await page
+        .locator('.playback-toolbar')
+        .evaluate((e) => e.scrollWidth <= e.clientWidth),
+      'Playback controls must fit',
+    );
+    if (size[0] === 390) {
+      const timer = await page.locator('.timestamp-button').boundingBox();
+      const options = await page
+        .getByRole('button', { name: 'Viewer options', exact: true })
+        .boundingBox();
+      assert(
+        Math.abs(timer.y + timer.height / 2 - options.y - options.height / 2) <
+          2,
+        'Phone controls should share one row',
+      );
+    }
     const result = await new AxeBuilder({ page })
       .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
       .analyze();
@@ -163,12 +220,12 @@ try {
       [],
     );
     await page.screenshot({
-      path: `.artifacts/enhanced-viewer-${size[0]}.png`,
+      path: `.artifacts/enhanced-viewer-${size[0]}${size[2] ? '-dark' : ''}.png`,
     });
   }
   assert.deepEqual(errors, []);
   console.log(
-    'Enhanced viewer passed: sidebar drag/persistence/animated reset, padding, typed/slider seeking, speed, follow/full-route, snapshots/engagement, responsive fit and accessibility.',
+    'Enhanced viewer passed: sidebar drag/persistence/animated reset, padding, millisecond typed/slider seeking, smooth playback clock, speed, follow/full-route, snapshots/engagement, responsive fit and accessibility.',
   );
 } finally {
   await browser.close();

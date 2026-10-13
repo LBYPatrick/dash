@@ -40,6 +40,7 @@ import SessionActions from './components/SessionActions.vue';
 import RecordingPlayer from './components/RecordingPlayer.vue';
 import ResizablePanels from './components/ResizablePanels.vue';
 import SidebarResize from './components/SidebarResize.vue';
+import DeviceSwitcher from './components/DeviceSwitcher.vue';
 const sidebarWidth = ref(320);
 const sidebarResetting = ref(false);
 import ExportDialog from './components/ExportDialog.vue';
@@ -81,13 +82,24 @@ const connectedAddress = ref('');
 const demo = ref(false);
 const view = ref<'drives' | 'overview' | 'live'>('drives');
 const navigationDrawer = ref<HTMLDialogElement>();
+const mobileMenu = ref<HTMLButtonElement>();
+function showHelp() {
+  if (navigationDrawer.value?.open) {
+    navigationDrawer.value.close();
+    mobileMenu.value?.focus();
+  }
+  helpDialog.value?.showModal();
+}
 function navigate(destination: 'drives' | 'overview' | 'live') {
   view.value = destination;
   mobileDetail.value = destination !== 'drives';
   navigationDrawer.value?.close();
 }
 function switchDevice() {
-  navigationDrawer.value?.close();
+  if (navigationDrawer.value?.open) {
+    navigationDrawer.value.close();
+    mobileMenu.value?.focus();
+  }
   openConnection();
 }
 const sort = ref<'newest' | 'oldest' | 'longest'>('newest');
@@ -493,42 +505,58 @@ onBeforeUnmount(() => {
     :class="{ 'session-shell': connected && view === 'drives' && !!active }"
   >
     <SimulationControls />
-    <header class="topbar">
-      <a
-        class="brand"
-        href="#"
-        @click.prevent="mobileDetail = false"
-        aria-label="Dash home"
-        ><span class="brand-mark"><span></span><span></span></span>dash<span
-          class="brand-divider"
-        ></span
-        ><span class="brand-caption">Local recordings</span></a
-      >
-      <button
-        v-if="connected"
-        class="icon-button mobile-menu"
-        aria-label="Open navigation"
-        aria-haspopup="dialog"
-        @click="navigationDrawer?.showModal()"
-      >
-        <Menu :size="21" />
-      </button>
+    <header class="topbar" :data-connected="connected || undefined">
+      <div class="toolbar-leading">
+        <button
+          v-if="connected"
+          type="button"
+          ref="mobileMenu"
+          class="icon-button mobile-menu"
+          aria-label="Open navigation"
+          aria-haspopup="dialog"
+          @click="navigationDrawer?.showModal()"
+        >
+          <Menu :size="21" />
+        </button>
+        <a
+          class="brand"
+          href="#"
+          @click.prevent="navigate('drives')"
+          aria-label="Dash home"
+          ><span class="brand-mark" aria-hidden="true"
+            ><span></span><span></span></span
+          ><span class="brand-name">dash</span></a
+        >
+        <DeviceSwitcher
+          v-if="connected"
+          class="toolbar-device"
+          :name="deviceName"
+          @switch="switchDevice"
+        />
+      </div>
       <WorkspaceNavigation
         v-if="connected"
         class="desktop-navigation"
         :view="view"
         :device-name="deviceName"
+        :show-device="false"
         @navigate="navigate"
-        @device="switchDevice"
       />
-      <div class="header-actions">
+      <span v-if="connected" class="mobile-page-title">{{
+        view === 'drives'
+          ? 'Recordings'
+          : view === 'overview'
+            ? 'Overview'
+            : 'Live'
+      }}</span>
+      <div class="header-actions" role="group" aria-label="App controls">
         <SettingsPopup />
-        <span class="local-badge"
-          ><ShieldCheck :size="14" /> Local recordings</span
-        ><button
-          class="icon-button"
+        <button
+          type="button"
+          class="icon-button desktop-help"
           aria-label="Help and installation"
-          @click="helpDialog?.showModal()"
+          title="Help and installation"
+          @click="showHelp"
         >
           <CircleHelp :size="19" />
         </button>
@@ -557,6 +585,9 @@ onBeforeUnmount(() => {
         @navigate="navigate"
         @device="switchDevice"
       />
+      <button class="drawer-help" type="button" @click="showHelp">
+        <CircleHelp :size="18" /> Help and installation
+      </button>
     </dialog>
     <main v-if="!connected" class="welcome">
       <div class="welcome-copy">

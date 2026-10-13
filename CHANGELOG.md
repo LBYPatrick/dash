@@ -10,6 +10,9 @@ All notable changes to Dash are documented here using Keep a Changelog.
 
 ### Changed
 
+- Redesign the top bar around device context, centered desktop destinations and quiet utilities; simplify mobile chrome and keep help in the navigation drawer.
+- Show millisecond playback timestamps and slider steps, with smooth media-clock progress that respects reduced motion and performance mode.
+
 - Remove phantom reserved scrollbar strips from popups, menus and content panes; use Shelf’s thin transparent scrollbars only for overflowing content.
 
 - Use a lightweight Leaflet renderer for credential-free OpenStreetMap, loading Mapbox only when configured; fit routes when mobile map panels first become visible.

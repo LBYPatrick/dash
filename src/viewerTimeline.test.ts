@@ -13,6 +13,13 @@ describe('viewer time and telemetry', () => {
     expect(parseTimestamp('1:99')).toBeUndefined();
     expect(parseTimestamp('-2')).toBeUndefined();
     expect(formatTimestamp(3723)).toBe('1:02:03');
+    expect(formatTimestamp(3.125, 3)).toBe('0:03.125');
+    expect(formatTimestamp(59.9996, 3)).toBe('1:00.000');
+    expect(formatTimestamp(3599.9996, 3)).toBe('1:00:00.000');
+    expect(formatTimestamp(-1, 3)).toBe('0:00.000');
+    expect(formatTimestamp(NaN, 3)).toBe('0:00.000');
+    expect(parseTimestamp('1:02:03.125')).toBe(3723.125);
+    expect(parseTimestamp('0:03.1234')).toBeUndefined();
   });
   it('aligns boot-relative samples to actual camera part durations', () => {
     const parts = [

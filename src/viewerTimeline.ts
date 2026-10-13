@@ -8,9 +8,14 @@ export interface TimelineSegment {
 export interface ViewerPosition extends Position {
   offset: number;
 }
-export function formatTimestamp(seconds: number): string {
-  const total = Math.max(0, Math.floor(seconds));
-  const s = String(total % 60).padStart(2, '0');
+export function formatTimestamp(seconds: number, precision: 0 | 3 = 0): string {
+  const safe = Number.isFinite(seconds) ? Math.max(0, seconds) : 0;
+  const milliseconds = Math.round(safe * 1000);
+  const total = precision ? Math.floor(milliseconds / 1000) : Math.floor(safe);
+  const fraction = precision
+    ? `.${String(milliseconds % 1000).padStart(3, '0')}`
+    : '';
+  const s = `${String(total % 60).padStart(2, '0')}${fraction}`;
   const minutes = Math.floor(total / 60);
   return minutes >= 60
     ? `${Math.floor(minutes / 60)}:${String(minutes % 60).padStart(2, '0')}:${s}`

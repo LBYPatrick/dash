@@ -2,7 +2,9 @@
 
 A local drive library for sunnypilot devices. A Vue PWA and a required Go service, **dash-backend**, serve the interface, recordings, index, and exports from one address. No login, copyparty, cloud account, or Python runtime for Dash. Device installation uses systemd; Docker is optional for development.
 
-Open Dash while parked, choose a drive, scrub one recording timeline, switch cameras, enter a timestamp or change playback speed, and export the complete session. Resize the desktop library or viewer panels; double-click a divider to reset. The map follows the playhead until you explore it or choose Full route. Viewer options toggle cached road snapshots and recorded engagement status. The interface works on a phone connected to the device hotspot or another computer on the same LAN.
+Open Dash while parked, choose a drive, scrub one recording timeline, switch cameras, enter a timestamp to millisecond precision or change playback speed, and export the complete session. Resize the desktop library or viewer panels; double-click a divider to reset. The map follows the playhead until you explore it or choose Full route. Viewer options toggle cached road snapshots and recorded engagement status. The interface works on a phone connected to the device hotspot or another computer on the same LAN.
+
+Desktop navigation stays centered between the device switcher and app controls. On phones, open the navigation drawer to switch views/devices or find installation help; Settings stays in the top bar. The player timer and seek bar show millisecond precision, with smooth playback updates that respect performance and reduced-motion settings. Video seeking remains limited by the source frames and browser.
 
 ## Included
 

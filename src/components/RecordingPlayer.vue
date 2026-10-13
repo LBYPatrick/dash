@@ -12,6 +12,7 @@ import type Hls from 'hls.js';
 import SelectMenu from './SelectMenu.vue';
 import SessionActions from './SessionActions.vue';
 import { readStored, writeStored } from '../storage';
+import { performanceMode } from '../appearance';
 import {
   formatTimestamp,
   parseTimestamp,
@@ -57,7 +58,48 @@ watch([snapshots, engagement], () =>
   }),
 );
 const bands = computed(() => engagementBands(props.segments || []));
-const status = computed(() => engagementAt(props.segments || [], time.value));
+const telemetryTime = ref(0);
+const status = computed(() =>
+  engagementAt(props.segments || [], telemetryTime.value),
+);
+const motionPreference = window.matchMedia('(prefers-reduced-motion: reduce)');
+const reducedMotion = ref(motionPreference.matches);
+let clockFrame = 0;
+function stopClock() {
+  cancelAnimationFrame(clockFrame);
+  clockFrame = 0;
+}
+function clockAllowed() {
+  const element = video.value;
+  return (
+    props.controls &&
+    element &&
+    !element.paused &&
+    !element.ended &&
+    element.readyState >= 3 &&
+    !document.hidden &&
+    !performanceMode.value &&
+    !reducedMotion.value
+  );
+}
+function updateClock() {
+  if (!clockAllowed()) {
+    stopClock();
+    return;
+  }
+  if (clockFrame) return;
+  clockFrame = requestAnimationFrame(() => {
+    clockFrame = 0;
+    // Read the actual media clock: never advance while buffering or ease a seek.
+    if (!clockAllowed()) return;
+    time.value = video.value!.currentTime;
+    updateClock();
+  });
+}
+function motionChanged(event: MediaQueryListEvent) {
+  reducedMotion.value = event.matches;
+}
+watch([performanceMode, reducedMotion, () => props.controls], updateClock);
 const frameLimit = ref(8);
 const root = ref<HTMLDivElement>();
 let resizeObserver: ResizeObserver;
@@ -78,7 +120,9 @@ function sync() {
     ? video.value.duration
     : 0;
   paused.value = video.value.paused;
+  telemetryTime.value = time.value;
   emit('timeupdate', time.value, duration.value);
+  updateClock();
 }
 function seek(value: number) {
   if (video.value && duration.value > 0) {
@@ -102,7 +146,7 @@ async function togglePlay() {
   sync();
 }
 async function editTime() {
-  timestamp.value = formatTimestamp(time.value);
+  timestamp.value = formatTimestamp(time.value, 3);
   timestampError.value = '';
   editingTime.value = true;
   await nextTick();
@@ -117,8 +161,8 @@ async function closeTime() {
 }
 function submitTime() {
   const seconds = parseTimestamp(timestamp.value);
-  if (seconds === undefined || seconds > duration.value) {
-    timestampError.value = `Enter a time from 0:00 to ${formatTimestamp(duration.value)}.`;
+  if (seconds === undefined || seconds > duration.value + 0.0005) {
+    timestampError.value = `Enter a time from 0:00 to ${formatTimestamp(duration.value, 3)}.`;
     return;
   }
   seek(seconds);
@@ -145,6 +189,7 @@ let retry: ReturnType<typeof setTimeout> | undefined;
 let attempts = 0;
 const playlist = () => !!props.source?.includes('/api/playlist?');
 function cleanup() {
+  stopClock();
   generation++;
   clearTimeout(retry);
   stream?.destroy();
@@ -223,6 +268,8 @@ function playbackError() {
     retry = setTimeout(() => void initialize(), 2000);
 }
 onMounted(() => {
+  document.addEventListener('visibilitychange', sync);
+  motionPreference.addEventListener('change', motionChanged);
   void initialize();
   resizeObserver = new ResizeObserver(
     () =>
@@ -234,6 +281,8 @@ onMounted(() => {
   if (root.value) resizeObserver.observe(root.value);
 });
 onBeforeUnmount(() => {
+  document.removeEventListener('visibilitychange', sync);
+  motionPreference.removeEventListener('change', motionChanged);
   cleanup();
   resizeObserver?.disconnect();
 });
@@ -248,9 +297,15 @@ onBeforeUnmount(() => {
       playsinline
       preload="metadata"
       :poster="sample ? '/sample-road.svg' : undefined"
-      @ended="emit('ended')"
+      @ended="
+        sync();
+        emit('ended');
+      "
       @timeupdate="sync"
       @play="sync"
+      @playing="sync"
+      @waiting="stopClock"
+      @seeking="stopClock"
       @pause="sync"
       @seeked="sync"
       @durationchange="sync"
@@ -337,7 +392,8 @@ onBeforeUnmount(() => {
           aria-label="Recording timeline"
           min="0"
           :max="duration || 1"
-          step="0.1"
+          step="0.001"
+          :aria-valuetext="formatTimestamp(time, 3)"
           :value="time"
           :disabled="!duration"
           @input="seekSlider"
@@ -380,7 +436,7 @@ onBeforeUnmount(() => {
             ref="timestampInput"
             v-model="timestamp"
             aria-label="Playback timestamp"
-            placeholder="m:ss or h:mm:ss"
+            placeholder="m:ss.SSS"
             autocomplete="off"
           /><button type="submit" class="player-control">Go</button>
         </form>
@@ -393,7 +449,10 @@ onBeforeUnmount(() => {
           :disabled="!duration"
           @click="editTime"
         >
-          {{ formatTimestamp(time) }} / {{ formatTimestamp(duration) }}
+          <span>{{ formatTimestamp(time, 3) }}</span
+          ><span class="timestamp-total">
+            / {{ formatTimestamp(duration, 3) }}</span
+          >
         </button>
         <SelectMenu
           v-model="rate"

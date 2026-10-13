@@ -61,15 +61,69 @@ try {
       `Viewport overflow at ${width}x${height}`,
     );
     assert(
+      await page.locator('.topbar').evaluate((bar) => {
+        const center = bar.querySelector(
+          innerWidth > 900 ? '.desktop-navigation' : '.mobile-page-title',
+        );
+        const bounds = center.getBoundingClientRect();
+        return Math.abs(bounds.x + bounds.width / 2 - innerWidth / 2) < 1;
+      }),
+      `Toolbar destination must remain centered at ${width}px`,
+    );
+    assert(
+      await page.locator('.topbar').evaluate((bar) => {
+        const items = [...bar.querySelectorAll('button, a')].filter(
+          (e) => e.getBoundingClientRect().width > 0,
+        );
+        return items.every((e) => {
+          const rect = e.getBoundingClientRect();
+          return (
+            rect.left >= 0 && rect.right <= innerWidth && rect.height >= 26
+          );
+        });
+      }),
+      `Toolbar controls must fit at ${width}px`,
+    );
+    assert(
       await page
         .locator('.viewer-toolbar')
         .evaluate((e) => e.scrollWidth <= e.clientWidth),
       `Camera controls overflow at ${width}x${height}`,
     );
   }
+  await page.setViewportSize({ width: 936, height: 600 });
+  await page
+    .locator('.toolbar-device span')
+    .evaluate(
+      (e) =>
+        (e.textContent =
+          'a-very-long-device-name-on-the-local-network.example'),
+    );
+  assert(
+    await page
+      .locator('.toolbar-leading')
+      .evaluate((e) => e.scrollWidth <= e.clientWidth),
+    'Long device names must truncate within the toolbar',
+  );
+  await page.screenshot({ path: '.artifacts/toolbar-desktop.png' });
   await page.setViewportSize({ width: 390, height: 844 });
+  await page.screenshot({ path: '.artifacts/toolbar-mobile.png' });
   await page.getByRole('button', { name: 'Open navigation' }).click();
   const drawer = page.getByRole('dialog', { name: 'Navigation', exact: true });
+  await drawer.waitFor();
+  await drawer.getByRole('button', { name: 'Help and installation' }).click();
+  await page.getByRole('dialog', { name: 'Help', exact: true }).waitFor();
+  await page.getByRole('button', { name: 'Close help' }).click();
+  await page
+    .getByRole('dialog', { name: 'Help', exact: true })
+    .waitFor({ state: 'hidden' });
+  assert(
+    await page
+      .getByRole('button', { name: 'Open navigation' })
+      .evaluate((e) => e === document.activeElement),
+    'Help must return focus to the visible navigation button',
+  );
+  await page.getByRole('button', { name: 'Open navigation' }).click();
   await drawer.waitFor();
   await page.keyboard.press('Tab');
   assert(
@@ -140,6 +194,20 @@ try {
   await phone.getByRole('button', { name: 'Map & data', exact: true }).click();
   await phone.locator('.map-canvas').waitFor();
   await phone.screenshot({ path: '.artifacts/fresh-phone-map.png' });
+  await phone.route('**/api/**', (route) => route.abort());
+  await phone.route('**/files/**', (route) => route.abort());
+  await phone.reload();
+  await phone
+    .getByRole('heading', { name: 'Review your recordings.' })
+    .waitFor();
+  assert(
+    await phone
+      .getByRole('button', { name: 'Help and installation' })
+      .isVisible(),
+    'Installation help must remain reachable before a device connects',
+  );
+  await phone.getByRole('button', { name: 'Help and installation' }).click();
+  await phone.getByRole('dialog', { name: 'Help', exact: true }).waitFor();
   await phoneContext.close();
   assert.deepEqual(errors, []);
   console.log(
