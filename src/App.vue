@@ -44,6 +44,10 @@ import DeviceSwitcher from './components/DeviceSwitcher.vue';
 const sidebarWidth = ref(320);
 const sidebarResetting = ref(false);
 import ExportDialog from './components/ExportDialog.vue';
+const RecordingDashboard = defineAsyncComponent(
+  () => import('./components/RecordingDashboard.vue'),
+);
+const dashboardSelection = ref('');
 const TripMap = defineAsyncComponent(() => import('./components/TripMap.vue'));
 import WorkspaceNavigation from './components/WorkspaceNavigation.vue';
 import LiveView from './components/LiveView.vue';
@@ -79,6 +83,7 @@ import { readStored, writeStored } from './storage';
 const appOrigin = location.origin;
 const address = ref(new URL('/files/', location.origin).href);
 const connectedAddress = ref('');
+watch(connectedAddress, () => (dashboardSelection.value = ''));
 const demo = ref(false);
 const view = ref<'drives' | 'overview' | 'live'>('drives');
 const navigationDrawer = ref<HTMLDialogElement>();
@@ -153,29 +158,6 @@ const driveMetadata = computed(
       .map((segment) => indexEntries.value[segment.url]?.metadata)
       .filter((meta) => meta?.status === 'ready') || [],
 );
-const statistics = computed(() =>
-  drives.value.map((drive) => {
-    const meta = drive.segments
-      .map((segment) => indexEntries.value[segment.url]?.metadata)
-      .filter((entry) => entry?.status === 'ready');
-    const points = meta
-      .flatMap((entry) => entry?.points || [])
-      .sort((a, b) => a.time - b.time);
-    return {
-      id: drive.id,
-      date: drive.date,
-      distance: meta.reduce((sum, entry) => sum + (entry?.distanceKm || 0), 0),
-      duration: meta.reduce((sum, entry) => sum + (entry?.duration || 0), 0),
-      covered: meta.length,
-      total: drive.segments.length,
-    };
-  }),
-);
-const totals = computed(() => ({
-  distance: statistics.value.reduce((sum, drive) => sum + drive.distance, 0),
-  duration: statistics.value.reduce((sum, drive) => sum + drive.duration, 0),
-  covered: statistics.value.reduce((sum, drive) => sum + drive.covered, 0),
-}));
 const thumbnail = (drive: Drive) =>
   demo.value
     ? '/sample-road.svg'
@@ -844,64 +826,15 @@ onBeforeUnmount(() => {
             library does not simulate a live connection.
           </p>
         </div>
-        <section v-else-if="view === 'overview'" class="overview">
-          <div class="eyebrow">INDEXED TELEMETRY</div>
-          <h1>Recording overview</h1>
-          <p>
-            Measured from indexed qlogs. Totals cover {{ totals.covered }} of
-            {{ totalSegments }} segments.
-          </p>
-          <div class="stat-grid">
-            <div>
-              <small>Recorded drives</small><strong>{{ drives.length }}</strong>
-            </div>
-            <div>
-              <small>Measured distance</small
-              ><strong>{{ totals.distance.toFixed(1) }} <span>km</span></strong>
-            </div>
-            <div>
-              <small>Recorded time</small
-              ><strong
-                >{{ (totals.duration / 60).toFixed(1) }}
-                <span>min</span></strong
-              >
-            </div>
-          </div>
-          <p v-if="!totals.covered" class="inline-error">
-            Trip statistics will appear after parked indexing decodes qlogs. No
-            mileage or duration is estimated from file counts.
-          </p>
-          <div class="activity-list">
-            <h2>Drive activity</h2>
-            <button
-              v-for="trip in statistics.filter((item) => item.covered)"
-              :key="trip.id"
-              @click="
-                selectDrive(drives.find((drive) => drive.id === trip.id)!)
-              "
-            >
-              <span
-                >{{ dateLabel(trip.date) }} · {{ timeLabel(trip.date) }}</span
-              ><span
-                >{{ trip.distance.toFixed(1) }} km ·
-                {{ Math.round(trip.duration / 60) }} min</span
-              ><span class="activity-track"
-                ><span
-                  :style="{
-                    width: `${Math.max(2, (trip.distance / Math.max(1, ...statistics.map((entry) => entry.distance))) * 100)}%`,
-                  }"
-                ></span
-              ></span>
-            </button>
-          </div>
-          <div class="drive-note">
-            <ShieldCheck :size="18" />
-            <p>
-              Distance uses valid GPS fixes, skips gaps over 10 seconds and
-              implausible jumps. Missing or undecodable logs remain uncounted.
-            </p>
-          </div>
-        </section>
+        <RecordingDashboard
+          v-else-if="view === 'overview'"
+          :key="connectedAddress"
+          v-model="dashboardSelection"
+          :drives="drives"
+          :entries="indexEntries"
+          :demo="demo"
+          @open="selectDrive"
+        />
         <template v-else-if="active">
           <div class="detail-heading">
             <div>

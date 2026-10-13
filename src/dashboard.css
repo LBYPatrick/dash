@@ -1,0 +1,390 @@
+/* Dashboard graphs share the app's Shelf surfaces and platform typography. */
+#app .recording-dashboard {
+  padding-bottom: 28px;
+  min-width: 0;
+}
+#app .dashboard-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24px;
+  margin-bottom: 24px;
+}
+#app .dashboard-heading h1 {
+  font-size: 28px;
+  letter-spacing: -0.035em;
+  margin: 0 0 6px;
+  line-height: 1.2;
+}
+#app .dashboard-heading p,
+#app .dashboard-drives header p {
+  color: var(--muted);
+  margin: 0;
+}
+#app .dashboard-filters {
+  display: flex;
+  gap: 12px;
+}
+#app .dashboard-filters label {
+  display: grid;
+  gap: 4px;
+  color: var(--muted);
+  font-size: 11px;
+}
+#app .dashboard-filters .selectmenu {
+  width: 140px;
+}
+#app .dashboard-totals {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+#app .dashboard-totals > button {
+  display: flex;
+  position: relative;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  text-align: left;
+  min-width: 0;
+  padding: 16px;
+  border-radius: 8px;
+  background: var(--fill-4);
+  color: var(--ink);
+}
+#app .dashboard-totals > button.selected {
+  background: var(--fill-2);
+}
+#app .dashboard-totals > button > span:first-child {
+  font-size: 12px;
+  font-weight: 550;
+}
+#app .dashboard-totals strong {
+  font-size: 30px;
+  line-height: 1.2;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.035em;
+  overflow-wrap: anywhere;
+}
+#app .dashboard-totals strong small {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--muted);
+  letter-spacing: 0;
+}
+#app .stat-coverage {
+  font-size: 11px;
+  color: var(--muted);
+}
+#app .stat-selected {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--color-primary-text);
+  position: absolute;
+  top: 16px;
+  right: 16px;
+}
+#app .dashboard-coverage {
+  font-size: 12px;
+  color: var(--muted);
+  margin: 12px 0;
+}
+#app .dashboard-activity {
+  margin-top: 28px;
+}
+#app .activity-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+#app .activity-controls h2 {
+  font-size: 18px;
+  font-weight: 600;
+  margin: 0;
+  letter-spacing: -0.02em;
+}
+#app .activity-group {
+  width: auto;
+  margin: 0;
+  padding: 3px;
+  gap: 2px;
+}
+#app .activity-group button {
+  min-height: 28px;
+  padding: 4px 12px;
+  font-size: 12px;
+}
+#app .activity-visualization {
+  min-width: 0;
+}
+#app .chart-heading {
+  min-height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: var(--muted);
+  font-size: 12px;
+}
+#app .chart-paging {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-variant-numeric: tabular-nums;
+}
+#app .chart-paging .icon-button {
+  width: 32px;
+  min-height: 32px;
+  height: 32px;
+  font-size: 22px;
+}
+#app .activity-plot {
+  position: relative;
+  min-width: 0;
+}
+#app .activity-plot svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+  overflow: hidden;
+}
+#app .chart-grid {
+  stroke: var(--separator);
+  stroke-width: 1;
+}
+#app .chart-axis {
+  fill: var(--muted);
+  font-size: 10px;
+  font-family: var(--font-ui);
+  font-variant-numeric: tabular-nums;
+}
+#app .activity-bar {
+  fill: var(--color-primary-text);
+}
+#app .activity-bar.dimmed {
+  fill: var(--muted);
+}
+#app .activity-bar.inspected {
+  fill: var(--color-primary-text);
+}
+#app .chart-hatching {
+  stroke: var(--color-base-100);
+  stroke-width: 1.5;
+}
+#app .activity-hit {
+  position: absolute;
+  background: transparent;
+  border: 0;
+  border-radius: 3px;
+  cursor: pointer;
+  padding: 0;
+}
+#app .activity-hit:focus-visible {
+  outline: none;
+  box-shadow: inset 0 -3px var(--color-primary-text);
+  background: var(--fill-4);
+}
+#app .activity-hit[aria-pressed='true'] {
+  box-shadow: inset 0 -3px var(--color-primary-text);
+}
+#app .chart-readout {
+  font-size: 12px;
+  min-height: 36px;
+  margin: 8px 0 0;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+#app .chart-hint {
+  font-size: 11px;
+  color: var(--muted);
+  margin: 0 0 12px;
+}
+#app :is(.chart-table, .statistics-notes) {
+  color: var(--muted);
+  font-size: 12px;
+}
+#app :is(.chart-table, .statistics-notes) summary {
+  cursor: pointer;
+  min-height: 32px;
+  padding-block: 6px;
+  width: fit-content;
+}
+#app .chart-table table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+  font-size: 12px;
+  color: var(--ink);
+}
+#app .chart-table caption {
+  text-align: left;
+  color: var(--muted);
+  padding: 8px 0;
+}
+#app .chart-table :is(th, td) {
+  padding: 8px 6px;
+  border-bottom: 1px solid var(--separator);
+  overflow-wrap: anywhere;
+  font-weight: 400;
+}
+#app .chart-table thead th {
+  font-weight: 600;
+}
+#app .chart-table .text-button {
+  min-height: 32px;
+  text-align: left;
+}
+#app .dashboard-drives {
+  margin-top: 28px;
+}
+#app .dashboard-drive {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  padding: 12px 8px;
+  gap: 12px;
+  text-align: left;
+  color: var(--ink);
+  border-radius: 6px;
+  min-width: 0;
+}
+#app .dashboard-drive :is(img, .dashboard-thumbnail) {
+  width: 64px;
+  height: 40px;
+  flex: 0 0 64px;
+  border-radius: 4px;
+  object-fit: cover;
+  background: var(--fill-3);
+}
+#app .dashboard-drive-date {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  flex: 1;
+}
+#app .dashboard-drive strong {
+  font-weight: 550;
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+#app .dashboard-drive small {
+  font-size: 11px;
+  color: var(--muted);
+  display: block;
+}
+#app .dashboard-drive-values {
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+#app .dashboard-drive-arrow {
+  color: var(--muted);
+  font-size: 20px;
+}
+#app .dashboard-list-paging {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 12px;
+  font-size: 11px;
+  color: var(--muted);
+}
+#app .statistics-notes {
+  margin-top: 24px;
+}
+#app .statistics-notes p {
+  max-width: 75ch;
+  line-height: 1.6;
+}
+#app .dashboard-empty {
+  padding: 20px 0;
+  color: var(--muted);
+}
+@media (hover: hover) and (pointer: fine) {
+  #app :is(.dashboard-totals > button, .dashboard-drive):hover {
+    background: var(--fill-3);
+  }
+  #app .activity-hit:hover {
+    background: var(--fill-4);
+  }
+}
+@media (max-width: 1100px) {
+  #app .dashboard-heading {
+    flex-wrap: wrap;
+    gap: 16px;
+  }
+  #app .stat-selected {
+    position: static;
+  }
+}
+@media (max-width: 600px) {
+  #app .dashboard-heading {
+    margin-bottom: 16px;
+  }
+  #app .dashboard-heading h1 {
+    font-size: 24px;
+  }
+  #app .dashboard-filters {
+    width: 100%;
+    gap: 8px;
+  }
+  #app .dashboard-filters > label {
+    flex: 1;
+    min-width: 0;
+  }
+  #app .dashboard-filters .selectmenu {
+    width: 100%;
+  }
+  #app .dashboard-totals {
+    gap: 6px;
+  }
+  #app .dashboard-totals > button {
+    padding: 12px 8px;
+    gap: 8px;
+  }
+  #app .dashboard-totals strong {
+    font-size: 24px;
+  }
+  #app .dashboard-totals strong small {
+    font-size: 12px;
+  }
+  #app .dashboard-totals > button > span:first-child {
+    font-size: 11px;
+  }
+  #app .stat-coverage {
+    font-size: 10px;
+  }
+  #app .stat-selected {
+    font-size: 10px;
+  }
+  #app .activity-group button {
+    min-height: 36px;
+  }
+  #app .dashboard-drive {
+    padding-inline: 0;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  #app .dashboard-drive :is(img, .dashboard-thumbnail) {
+    width: 48px;
+    flex-basis: 48px;
+    height: 34px;
+  }
+  #app .dashboard-drive-values {
+    font-size: 11px;
+  }
+  #app .dashboard-drive strong {
+    font-size: 11px;
+  }
+  #app .chart-table :is(th, td) {
+    padding-inline: 3px;
+    font-size: 11px;
+  }
+  #app .chart-table .text-button {
+    min-height: 44px;
+  }
+}

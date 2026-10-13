@@ -20,7 +20,7 @@ func TestDecodeIndependentCerealFixture(t *testing.T) {
 	if len(result.Points) != 11 || len(result.Speeds) != 11 {
 		t.Fatalf("unexpected sample counts %d/%d", len(result.Points), len(result.Speeds))
 	}
-	if result.Duration != 11 || result.DistanceKM < .06 || result.DistanceKM > .08 {
+	if result.DistanceSamples != 10 || result.Duration != 11 || result.DistanceKM < .06 || result.DistanceKM > .08 {
 		t.Fatalf("unexpected trip: duration=%v distance=%v", result.Duration, result.DistanceKM)
 	}
 	if result.Points[0].Latitude != 37.77 || result.Points[0].Time != 1791840000 || result.Speeds[0].Speed != 7 || !result.Speeds[0].GasPressed {

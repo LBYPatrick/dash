@@ -299,7 +299,7 @@ func (i *Index) scanSegment(ctx context.Context, name string, generation uint64)
 	var oldHash, oldRaw string
 	_ = i.db.QueryRow("SELECT fingerprint,entry FROM segments WHERE name=?", name).Scan(&oldHash, &oldRaw)
 	var old IndexedSegment
-	if oldHash == fingerprint && json.Unmarshal([]byte(oldRaw), &old) == nil && old.Metadata.Status != "error" && old.MediaVersion == 1 && old.TelemetryVersion == 2 {
+	if oldHash == fingerprint && json.Unmarshal([]byte(oldRaw), &old) == nil && old.Metadata.Status != "error" && old.MediaVersion == 1 && old.TelemetryVersion == 3 {
 		if old.Thumbnail == "" {
 			return nil
 		}
@@ -308,7 +308,7 @@ func (i *Index) scanSegment(ctx context.Context, name string, generation uint64)
 		}
 	}
 	entry.MediaVersion = 1
-	entry.TelemetryVersion = 2
+	entry.TelemetryVersion = 3
 	for n, file := range entry.Files {
 		if !cameras[file.Name] || file.Size > 256<<20 {
 			continue

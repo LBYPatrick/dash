@@ -43,6 +43,8 @@ All notable changes to Dash are documented here using Keep a Changelog.
 
 ### Added
 
+- Add dashboard totals and D3 activity graphs with period/group/unit controls, metric cards, deliberate bar-to-drive filtering, keyboard/table alternatives and bounded mobile history paging. Distinguish missing GPS from measured zero without fetching detailed telemetry for the dashboard.
+
 - Add a persistent resizable recording sidebar with animated reset, balanced viewer padding, playback-follow maps, timestamp entry, speed control, and optional cached snapshot/recorded engagement rows.
 
 - Adopt Shelf’s palette, icons, compact chrome, opaque menus and content-sized animated sheets across every view; add component/flow accessibility checks.

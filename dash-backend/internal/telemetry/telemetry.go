@@ -37,16 +37,17 @@ type Engagement struct {
 	Active  bool    `json:"active"`
 }
 type Metadata struct {
-	StartMonotonic float64        `json:"startMonotonic"`
-	Engagement     []Engagement   `json:"engagement,omitempty"`
-	Status         string         `json:"status"`
-	Reason         string         `json:"reason,omitempty"`
-	Duration       float64        `json:"duration"`
-	DistanceKM     float64        `json:"distanceKm"`
-	Points         []Position     `json:"points,omitempty"`
-	Speeds         []VehicleState `json:"speeds,omitempty"`
-	Car            string         `json:"car,omitempty"`
-	Version        string         `json:"version,omitempty"`
+	DistanceSamples int            `json:"distanceSamples,omitempty"`
+	StartMonotonic  float64        `json:"startMonotonic"`
+	Engagement      []Engagement   `json:"engagement,omitempty"`
+	Status          string         `json:"status"`
+	Reason          string         `json:"reason,omitempty"`
+	Duration        float64        `json:"duration"`
+	DistanceKM      float64        `json:"distanceKm"`
+	Points          []Position     `json:"points,omitempty"`
+	Speeds          []VehicleState `json:"speeds,omitempty"`
+	Car             string         `json:"car,omitempty"`
+	Version         string         `json:"version,omitempty"`
 }
 type contextReader struct {
 	ctx    context.Context
@@ -197,6 +198,7 @@ func Decode(ctx context.Context, filename string) (Metadata, error) {
 		km := 6371 * 2 * math.Atan2(math.Sqrt(h), math.Sqrt(math.Max(0, 1-h)))
 		if km/dt <= 0.09 {
 			result.DistanceKM += km
+			result.DistanceSamples++
 		}
 	}
 

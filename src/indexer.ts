@@ -15,6 +15,7 @@ export interface Telemetry {
   startMonotonic?: number;
   engagement?: { time: number; enabled: boolean; active: boolean }[];
   distanceKm?: number;
+  distanceSamples?: number;
   points?: Position[];
   speeds?: { time: number; speed: number; steeringAngle?: number }[];
   car?: string;

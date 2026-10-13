@@ -47,3 +47,15 @@ These checks use synthetic recordings. Physical-device live streaming and record
 | Whole-second timer and coarse playback updates                 | `m:ss.SSS` timer, 0.001-second slider steps and display-synced media-clock updates | Precise seeking and smooth progress without easing behind the video |
 
 Playback motion is functional state indication: it reads the media clock with `requestAnimationFrame`, without extrapolation or easing. Pausing, buffering, hidden tabs and unmount stop the loop. Reduced motion and performance mode retain ordinary media-event updates; metadata/map work remains at the media event cadence. Seek precision describes requested timestamps, not extra frames beyond the source/browser. Desktop navigation reuses the existing shared selection highlight; keyboard navigation stays immediate. No new animation dependency or background backend work was added.
+
+## Dashboard statistics
+
+| Before                                        | After                                                                                         | Why                                                                         |
+| --------------------------------------------- | --------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
+| Static totals and a list of covered drives    | Metric cards choose a D3 distance/time/count graph; every retained drive remains discoverable | Connect totals to a useful next action without hiding incomplete recordings |
+| Browsing activity has no date scope           | All/7/30/90-day scopes and drive/day/month grouping                                           | Find a useful period before inspecting individual recordings                |
+| Graph interaction can mix hover and selection | Hover/focus previews; click/Enter pins a drive-list filter; Escape/Clear restores the list    | Inspection never unexpectedly navigates or changes results                  |
+| Dense charts need horizontal scrolling        | Responsive bounded bar windows with Earlier/Later paging and a stable scale across pages      | Keep readable, keyboard-accessible targets on a phone                       |
+| Unknown distance appears as zero              | Accepted GPS-pair count in cached summaries; unavailable and partial values are explicit      | Separate missing metadata from a stationary recording                       |
+
+`make statistics-smoke` covers totals, metric/unit/group/range changes, deliberate selection vs inspection, arrow-key/Enter/Escape navigation, table controls, returning from a recording with its selection restored, bounded charts and lists, and light/dark phone/desktop accessibility. A separate browser-only 90-drive history tests partial/missing data and paging; it never creates recordings on a device. The dashboard reads ordinary index summaries and does not request GPS/sample arrays, exports or decoding jobs. D3's scale module is bundled with the lazy dashboard chunk. The existing single parked worker, sample budgets and systemd resource limits remain in force.
