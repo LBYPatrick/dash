@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { vGlassTabs } from '../glassTabs';
 import { HardDrive, ChevronDown } from 'lucide-vue-next';
 defineProps<{ view: 'drives' | 'overview' | 'live'; deviceName: string }>();
 defineEmits<{ navigate: [view: 'drives' | 'overview' | 'live']; device: [] }>();
@@ -10,7 +11,7 @@ const destinations = [
 </script>
 <template>
   <div class="workspace-navigation">
-    <nav class="workspace-nav" aria-label="Workspace">
+    <nav v-glass-tabs class="workspace-nav" aria-label="Workspace">
       <button
         v-for="destination in destinations"
         :key="destination.id"

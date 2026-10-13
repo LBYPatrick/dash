@@ -6,6 +6,8 @@ All notable changes to Dash are documented here using Keep a Changelog.
 
 ### Changed
 
+- Restyle Dash with glass controls, floating viewer chrome, optical edge highlights, system typography, sliding selections and reversible sheet/menu transitions, including accessibility fallbacks.
+
 - Simplify recorded playback to one selected camera at a time and match Connect’s draggable, persistent video/map divider with keyboard controls and reset.
 
 - Replace segment-based playback with continuous HLS recording timelines and one shared timeline for multiple feeds.

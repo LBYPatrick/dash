@@ -32,6 +32,7 @@ import {
   Wifi,
   X,
 } from 'lucide-vue-next';
+import { vGlassTabs } from './glassTabs';
 import RecordingPlayer from './components/RecordingPlayer.vue';
 import ResizablePanels from './components/ResizablePanels.vue';
 import ExportDialog from './components/ExportDialog.vue';
@@ -575,7 +576,7 @@ onBeforeUnmount(() => {
             <RefreshCw :size="17" :class="{ spinning: busy }" />
           </button>
         </div>
-        <div class="segmented">
+        <div v-glass-tabs class="segmented">
           <button
             :class="{ selected: filter === 'all' }"
             @click="filter = 'all'"
@@ -929,6 +930,7 @@ onBeforeUnmount(() => {
             </div>
           </dialog>
           <div
+            v-glass-tabs
             class="session-mobile-tabs segmented"
             aria-label="Session panels"
           >
@@ -1172,8 +1174,10 @@ onBeforeUnmount(() => {
         </button>
       </div>
     </dialog>
-    <div v-if="notice" class="toast" role="status">
-      <Check :size="17" />{{ notice }}
-    </div>
+    <Transition name="toast">
+      <div v-if="notice" class="toast" role="status">
+        <Check :size="17" />{{ notice }}
+      </div>
+    </Transition>
   </div>
 </template>

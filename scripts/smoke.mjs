@@ -309,12 +309,10 @@ try {
   await mobile
     .getByRole('heading', { name: 'Recording overview', exact: true })
     .waitFor();
-  assert.equal(
-    await mobile
-      .getByRole('dialog', { name: 'Navigation', exact: true })
-      .isVisible(),
-    false,
-  );
+  await mobile
+    .getByRole('dialog', { name: 'Navigation', exact: true })
+    .waitFor({ state: 'hidden' });
+
   await mobile.getByRole('button', { name: 'Open navigation' }).click();
   await mobile
     .getByRole('navigation', { name: 'Workspace' })

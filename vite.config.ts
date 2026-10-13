@@ -29,8 +29,8 @@ export default defineConfig({
         name: 'Dash — Your drives',
         short_name: 'Dash',
         description: 'A direct connection to your drive recordings.',
-        theme_color: '#f7f8fa',
-        background_color: '#f7f8fa',
+        theme_color: '#eef2f6',
+        background_color: '#eef2f6',
         display: 'standalone',
         start_url: '/',
         icons: [

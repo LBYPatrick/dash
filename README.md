@@ -6,6 +6,7 @@ Open Dash while parked, choose a drive, scrub one recording timeline, switch cam
 
 ## Included
 
+- Liquid Glass inspired controls, sliding selection highlights, animated menus/sheets, and system typography. Reduced motion, reduced transparency and increased contrast preferences are respected; effects render on the client.
 - Searchable, sortable drive library with thumbnails and browser-local bookmarks.
 - Incremental SQLite indexing, disposable cache recovery, and a rebuild action. Original recordings are read-only.
 - A viewport-sized session viewer with camera footage beside the map/metadata on desktop, a draggable divider that remembers the panel widths, and Video / Map & data tabs on mobile. Downloads and bookmarks live in the three-dot actions menu. Overview, Recordings, Live and device switching sit in the desktop top bar or mobile navigation drawer.
@@ -73,6 +74,6 @@ make build-arm64    # Linux ARM64 cross-build
 make smoke          # Chrome browser integration tests
 ```
 
-Set `CHROME_PATH` if Chrome is not at the macOS default path. Smoke tests exercise continuous playback and seeking across file boundaries, camera switching, panel dragging/reset/keyboard resizing, metadata, search/bookmarks, all export formats, onroad refusal, mobile layout, and the offline PWA shell. They modify only synthetic fixture params and write screenshots/downloads under ignored `.artifacts/`.
+Set `CHROME_PATH` if Chrome is not at the macOS default path. Smoke tests exercise continuous playback and seeking across file boundaries, camera switching, panel dragging/reset/keyboard resizing, metadata, search/bookmarks, all export formats, onroad refusal, mobile layout, and the offline PWA shell. They modify only synthetic fixture params and write screenshots/downloads under ignored `.artifacts/`. `make design-smoke` additionally checks five viewport sizes, control fit, drawer focus and reopening, and reduced motion/transparency with high contrast.
 
 Backend tests cover independent cereal fixtures, malformed logs/index recovery, ignition cancellation of a running FFmpeg process, queued-export cancellation, MCAP contents, HTTP path boundaries, and fail-closed resource checks. Local checks and cross-compilation do **not** certify a specific comma device, AGNOS release, or live camera stream. No physical device deployment has been performed for this implementation.
