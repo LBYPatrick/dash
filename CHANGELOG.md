@@ -4,6 +4,10 @@ All notable changes to Dash are documented here using Keep a Changelog.
 
 ## [Unreleased]
 
+### Changed
+
+- Load OpenStreetMap backgrounds automatically when a GPS route is displayed.
+
 ### Added
 
 - Add a session viewer that fits the viewport, with desktop video/map panels, mobile tabs, and a three-dot actions menu.

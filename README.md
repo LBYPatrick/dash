@@ -11,7 +11,7 @@ Open Dash while parked, choose a drive, scrub a segment, compare camera feeds, a
 - A viewport-sized session viewer with camera footage beside the map/metadata on desktop and Video / Map & data tabs on mobile. Downloads and bookmarks live in the three-dot actions menu.
 - Single-camera preview and multiple feeds with shared play/pause. Alignment is relative to segment start, not frame-accurate telemetry synchronization.
 - Backend ZIP, MP4, and MCAP exports. MP4 can retain HEVC or convert to H.264 for compatibility. MCAP uses Dash's own JSON schemas and stores original recordings as attachments; it does not provide frame-level video channels.
-- GPS route, measured distance, recorded duration, vehicle/version metadata, and library overview when supported logs are present. Missing metadata stays missing. Map tiles load only after an explicit request.
+- GPS route, measured distance, recorded duration, vehicle/version metadata, and library overview when supported logs are present. Missing metadata stays missing. OpenStreetMap backgrounds load automatically; the GPS route remains visible when tiles are unavailable.
 - Parked-only local WebRTC on firmware with the managed `IsLiveStreaming` API. Browser recording is available where MediaRecorder supports the negotiated stream.
 - Installable PWA shell over trusted HTTPS. Recordings and exports are not cached offline.
 

@@ -41,6 +41,14 @@ try {
   );
   await page.getByRole('heading', { name: 'Metadata', exact: true }).waitFor();
   await page.locator('.map-canvas').waitFor();
+  await page
+    .locator('.leaflet-tile-pane img[src^="https://tile.openstreetmap.org/"]')
+    .first()
+    .waitFor({ state: 'attached' });
+  assert.equal(
+    await page.getByRole('button', { name: /Load map background/ }).count(),
+    0,
+  );
   assert.equal(
     await page.evaluate(
       () => document.documentElement.scrollHeight <= innerHeight,

@@ -1496,14 +1496,6 @@ svg {
   color: var(--muted);
   margin: 8px 0;
 }
-.map-enable {
-  position: absolute;
-  z-index: 500;
-  left: 50%;
-  top: 220px;
-  transform: translateX(-50%);
-  font-size: 10px;
-}
 .overview h1,
 .live-view h1 {
   font-size: 35px;
@@ -1638,9 +1630,6 @@ svg {
   .overview h1,
   .live-view h1 {
     font-size: 30px;
-  }
-  .map-enable {
-    font-size: 9px;
   }
 }
 
@@ -1978,13 +1967,6 @@ svg {
   flex-shrink: 0;
   font-size: 9px;
   margin-bottom: 0;
-}
-.session-data .map-enable {
-  font-size: 10px;
-  padding: 7px;
-  min-height: 32px;
-  max-width: calc(100% - 16px);
-  white-space: normal;
 }
 .session-mobile-tabs {
   display: none;

@@ -19,26 +19,22 @@ function draw() {
 }
 onMounted(() => {
   map = L.map(container.value!, { scrollWheelZoom: false }).setView([0, 0], 2);
-  // The route remains visible without external tiles; maps are enabled explicitly.
   draw();
+  L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution:
+      '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+  }).addTo(map);
   observer = new ResizeObserver(() => {
     map.invalidateSize();
     draw();
   });
   observer.observe(container.value!);
 });
-function enableTiles() {
-  L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    attribution:
-      '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
-  }).addTo(map);
-}
 watch(() => props.points, draw);
 onBeforeUnmount(() => {
   observer?.disconnect();
   map?.remove();
 });
-const tiles = ref(false);
 </script>
 <template>
   <section class="trip-map">
@@ -47,19 +43,6 @@ const tiles = ref(false);
       class="map-canvas"
       aria-label="Recorded GPS route"
     ></div>
-    <button
-      v-if="!tiles"
-      class="button map-enable"
-      @click="
-        tiles = true;
-        enableTiles();
-      "
-    >
-      Load map background · OpenStreetMap
-    </button>
-    <p>
-      Recorded GPS positions. Loading the background requests map tiles from
-      OpenStreetMap.
-    </p>
+    <p>Recorded GPS positions.</p>
   </section>
 </template>
