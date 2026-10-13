@@ -10,6 +10,8 @@ All notable changes to Dash are documented here using Keep a Changelog.
 
 ### Changed
 
+- Use a lightweight Leaflet renderer for credential-free OpenStreetMap, loading Mapbox only when configured; fit routes when mobile map panels first become visible.
+
 - Remove fixed-width workspace/pane limits, load cached GPS on first open even when workers are paused, and preserve route layers across theme changes.
 
 - Reuse Shelf’s popup widget and dismissal stack directly; remove the page-wide scrollbar strip and keep scrolling inside content panes.

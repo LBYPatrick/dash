@@ -129,6 +129,18 @@ try {
   await drawer.waitFor({ state: 'hidden' });
   await page.getByRole('button', { name: 'Map & data', exact: true }).click();
   await page.screenshot({ path: '.artifacts/glass-accessibility.png' });
+  const phoneContext = await browser.newContext({
+    viewport: { width: 390, height: 844 },
+  });
+  const phone = await phoneContext.newPage();
+  phone.on('pageerror', (e) => errors.push(e.message));
+  await phone.goto(origin);
+  await phone.getByRole('heading', { name: 'Your drives' }).waitFor();
+  await phone.locator('.drive-row').first().click();
+  await phone.getByRole('button', { name: 'Map & data', exact: true }).click();
+  await phone.locator('.map-canvas').waitFor();
+  await phone.screenshot({ path: '.artifacts/fresh-phone-map.png' });
+  await phoneContext.close();
   assert.deepEqual(errors, []);
   console.log(
     'Design smoke passed: five viewport sizes, camera control fit, drawer focus/Escape/reopen, reduced motion/transparency and high contrast.',

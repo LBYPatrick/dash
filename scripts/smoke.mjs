@@ -86,7 +86,10 @@ try {
   });
   await page.getByRole('heading', { name: 'Metadata', exact: true }).waitFor();
   await page.locator('.map-canvas').waitFor();
-  await page.locator('.mapboxgl-canvas').first().waitFor({ state: 'attached' });
+  await page
+    .locator('.mapboxgl-canvas, .leaflet-overlay-pane svg')
+    .first()
+    .waitFor({ state: 'attached' });
   assert.equal(
     await page.getByRole('button', { name: /Load map background/ }).count(),
     0,
