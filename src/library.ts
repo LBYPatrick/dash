@@ -164,3 +164,18 @@ export function downloadUrl(address: string): string {
   url.searchParams.set('dl', '');
   return url.href;
 }
+
+// Modern route identifiers contain no date. Prefer the recorded capture clock
+// from the lightweight index summary; copying a folder must not redate a trip.
+export function recordingDate(
+  drive: Drive,
+  entries: Record<string, { metadata?: { startUTC?: number } }>,
+): Drive {
+  const segment = drive.segments.find(
+    (part) =>
+      Number.isFinite(entries[part.url]?.metadata?.startUTC) &&
+      entries[part.url]!.metadata!.startUTC! > 0,
+  );
+  const utc = segment && entries[segment.url]?.metadata?.startUTC;
+  return utc ? { ...drive, date: utc * 1000, dated: true } : drive;
+}

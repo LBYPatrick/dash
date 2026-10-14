@@ -14,7 +14,9 @@ import (
 	"testing"
 	"time"
 
+	foxglove "dash.local/backend/internal/mcaptypes/foxglove"
 	"github.com/foxglove/mcap/go/mcap"
+	"google.golang.org/protobuf/proto"
 )
 
 func cameraFixture(t *testing.T, codec string, bframes bool) []byte {
@@ -114,17 +116,17 @@ func TestMCAPVideoAllCamerasAndSegments(t *testing.T) {
 		if schema.Name != "foxglove.CompressedVideo" {
 			continue
 		}
-		if schema.Encoding != "jsonschema" || channel.MessageEncoding != "json" {
+		if schema.Encoding != "protobuf" || channel.MessageEncoding != "protobuf" {
 			t.Fatal("wrong encoding")
 		}
-		var value compressedVideo
-		if err := json.Unmarshal(message.Data, &value); err != nil {
+		var value foxglove.CompressedVideo
+		if err := proto.Unmarshal(message.Data, &value); err != nil {
 			t.Fatal(err)
 		}
-		if value.Timestamp.Sec*1e9+value.Timestamp.Nsec != message.LogTime || message.PublishTime != message.LogTime || value.Timestamp.Nsec >= 1e9 {
+		if uint64(value.Timestamp.Seconds)*1e9+uint64(value.Timestamp.Nanos) != message.LogTime || message.PublishTime != message.LogTime || value.Timestamp.Nanos >= 1e9 {
 			t.Fatal("invalid timestamp")
 		}
-		if value.Format != "h264" || !strings.HasPrefix(value.FrameID, "dash_") || len(value.Data) == 0 {
+		if value.Format != "h264" || !strings.HasPrefix(value.FrameId, "dash_") || len(value.Data) == 0 {
 			t.Fatal("invalid video frame")
 		}
 		if counts[channel.Topic] > 0 && message.LogTime <= lastTime[channel.Topic] {

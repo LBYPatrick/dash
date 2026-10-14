@@ -14,6 +14,7 @@ export interface Telemetry {
   reason?: string;
   duration?: number;
   startMonotonic?: number;
+  startUTC?: number;
   engagement?: { time: number; enabled: boolean; active: boolean }[];
   distanceKm?: number;
   distanceSamples?: number;

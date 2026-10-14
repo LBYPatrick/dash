@@ -74,6 +74,7 @@ import {
   downloadUrl,
   formatBytes,
   groupDrives,
+  recordingDate,
   listFolder,
   type Drive,
   type Entry,
@@ -252,7 +253,12 @@ function indexDrives(rebuild = false) {
   );
 }
 
-const drives = ref<Drive[]>([]);
+const listedDrives = ref<Drive[]>([]);
+const drives = computed(() =>
+  listedDrives.value
+    .map((drive) => recordingDate(drive, indexEntries.value))
+    .sort((a, b) => b.date - a.date),
+);
 const activeId = ref('');
 const segmentIndex = ref(0);
 const files = ref<Entry[]>([]);
@@ -482,7 +488,7 @@ async function connect() {
     connectedAddress.value = normalized;
     address.value = normalized;
     const previousId = activeId.value;
-    drives.value = groupDrives(listing.directories);
+    listedDrives.value = groupDrives(listing.directories);
     activeId.value = drives.value.some((item) => item.id === previousId)
       ? previousId
       : drives.value[0]?.id || '';
@@ -511,7 +517,7 @@ function explore() {
   workspaceHistory.navigate({ view: 'drives' }, true);
   demo.value = true;
   connectedAddress.value = '';
-  drives.value = demoDrives;
+  listedDrives.value = demoDrives;
   activeId.value = demoDrives[0].id;
   segmentIndex.value = 0;
   mobileDetail.value = false;
@@ -538,7 +544,7 @@ function disconnect() {
   connectedAddress.value = '';
   demo.value = false;
   workspaceHistory.navigate({ view: 'drives' }, true);
-  drives.value = [];
+  listedDrives.value = [];
   activeId.value = '';
   files.value = [];
   mobileDetail.value = false;

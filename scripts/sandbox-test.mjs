@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { writeFile } from 'node:fs/promises';
 import { execFileSync, spawnSync } from 'node:child_process';
 const base = `http://127.0.0.1:${process.env.DASH_SANDBOX_PORT || 8089}`;
 const request = async (path, data) =>
@@ -25,7 +26,7 @@ const wait = async (predicate, timeout = 60000) => {
   }
   throw new Error('Sandbox check timed out');
 };
-const drive = '2026-10-12--17-42-08';
+const drive = '000001a3--c20ba54385';
 try {
   const info = await (await request('/api/info')).json();
   assert.equal(info.simulation, true);
@@ -55,9 +56,20 @@ try {
   assert.equal(Object.keys(index.segments).length, 6);
   assert(
     Object.values(index.segments).every(
-      (entry) => entry.thumbnail && entry.metadata.car === 'TEST VEHICLE',
+      (entry) =>
+        entry.thumbnail &&
+        entry.metadata.version === 'dash-synthetic-sunnypilot' &&
+        entry.metadata.startUTC > 0 &&
+        entry.files.some((file) => file.name === 'rlog.zst'),
     ),
   );
+  assert(
+    Object.values(index.segments).some(
+      (entry) => entry.metadata.car === 'DASH SYNTHETIC VEHICLE',
+    ),
+  );
+  for (const [name, entry] of Object.entries(index.segments))
+    assert.equal(entry.metadata.duration, name.endsWith('--0') ? 60 : 8);
   const preview = await request(`/api/video?file=${drive}--0/qcamera.ts`);
   assert.equal(preview.status, 200);
   assert((await preview.arrayBuffer()).byteLength > 1000);
@@ -78,7 +90,10 @@ try {
     });
     const download = await request(`/api/exports/${job.id}/download`);
     assert.equal(download.status, 200);
-    assert((await download.arrayBuffer()).byteLength > 100);
+    const data = Buffer.from(await download.arrayBuffer());
+    assert(data.byteLength > 100);
+    if (format === 'mcap')
+      await writeFile('.artifacts/sandbox-smoke.mcap', data);
   }
   const diagnostic = await request('/api/diagnostics/download');
   assert.equal(diagnostic.status, 200);
@@ -92,6 +107,16 @@ try {
   const inspect = JSON.parse(
     execFileSync('docker', ['inspect', pid], { encoding: 'utf8' }),
   )[0];
+  assert.equal(inspect.State.OOMKilled, false);
+  const memoryPeak = Number(
+    execFileSync('docker', ['exec', pid, 'cat', '/sys/fs/cgroup/memory.peak'], {
+      encoding: 'utf8',
+    }),
+  );
+  assert(memoryPeak <= 384 * 1024 * 1024);
+  console.log(
+    `Sandbox memory peak: ${(memoryPeak / 1024 / 1024).toFixed(1)} MiB`,
+  );
   assert.equal(inspect.HostConfig.NanoCpus, 500000000);
   assert.equal(inspect.HostConfig.Memory, 384 * 1024 * 1024);
   assert.equal(inspect.HostConfig.MemorySwap, 384 * 1024 * 1024);

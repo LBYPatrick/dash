@@ -1,0 +1,90 @@
+syntax = "proto3";
+package dash.v2;
+option go_package = "dash.local/backend/internal/mcaptypes/dashv2";
+import "google/protobuf/timestamp.proto";
+
+// Original file inventory, recorded at segment capture start (not file mtime).
+message Asset {
+  string path = 1;
+  uint32 segment = 2;
+  uint64 bytes = 3;
+  string attachment = 4;
+  uint64 modified_time_nanoseconds = 5;
+}
+
+// Source clock and fields accompanying /dash/Position (foxglove.LocationFix).
+message GpsState {
+  google.protobuf.Timestamp timestamp = 1;
+  uint64 log_monotonic_nanoseconds = 2;
+  uint32 segment = 3;
+  string source_event = 4; // gpsLocation or gpsLocationExternal; never merged.
+  int64 unix_timestamp_millis = 5;
+  double speed_mps = 6;
+  optional double bearing_degrees = 7;
+  optional double horizontal_accuracy_meters = 8;
+  optional double vertical_accuracy_meters = 9;
+  uint32 sensor_source = 10; // cereal GpsLocationData.SensorSource numeric value.
+}
+
+// carState, at its recorded rate. Numeric units are explicit; no comma schema.
+message VehicleState {
+  google.protobuf.Timestamp timestamp = 1;
+  uint64 log_monotonic_nanoseconds = 2;
+  uint32 segment = 3;
+  double speed_mps = 4;
+  double steering_angle_degrees = 5;
+  bool brake_pressed = 6;
+  bool gas_pressed = 7;
+  optional double acceleration_mps2 = 8;
+  optional double steering_torque = 9; // Source units are vehicle-dependent.
+  optional double raw_speed_mps = 10;
+  bool steering_pressed = 11;
+  bool standstill = 12;
+}
+
+// Core selfdriveState, not a sunnypilot MADS interpretation.
+message Engagement {
+  google.protobuf.Timestamp timestamp = 1;
+  uint64 log_monotonic_nanoseconds = 2;
+  uint32 segment = 3;
+  bool enabled = 4;
+  bool active = 5;
+  uint32 state = 6; // cereal SelfdriveState.OpenpilotState numeric value.
+}
+
+// One camera EncodeIdx. Segment numbers from encoderd may differ from loggerd.
+message CameraFrameIndex {
+  google.protobuf.Timestamp timestamp = 1;
+  uint64 log_monotonic_nanoseconds = 2;
+  uint32 segment = 3; // Actual directory (loggerd) segment.
+  string camera = 4;
+  uint32 frame_id = 5;
+  uint32 encode_id = 6;
+  int32 encoder_segment = 7;
+  uint32 presentation_index = 8;
+  uint32 encode_index = 9;
+  uint64 start_of_frame_nanoseconds = 10;
+  uint64 end_of_frame_nanoseconds = 11;
+  uint32 flags = 12;
+  uint32 encoded_bytes = 13;
+}
+
+// Identity events repeat per logger behavior; original monotonic time is retained.
+message SessionInfo {
+  google.protobuf.Timestamp timestamp = 1;
+  uint64 log_monotonic_nanoseconds = 2;
+  uint32 segment = 3;
+  string source_event = 4;
+  optional string firmware_version = 5;
+  optional string car_fingerprint = 6;
+  optional uint64 route_wall_time_nanoseconds = 7;
+  optional uint32 device_type = 8;
+}
+message SegmentBoundary {
+  google.protobuf.Timestamp timestamp = 1;
+  uint64 log_monotonic_nanoseconds = 2;
+  uint32 segment = 3;
+  // Same numeric values as cereal Sentinel.SentinelType.
+  enum Kind { END_OF_SEGMENT = 0; END_OF_ROUTE = 1; START_OF_SEGMENT = 2; START_OF_ROUTE = 3; }
+  Kind kind = 4;
+}

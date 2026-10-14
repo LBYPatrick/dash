@@ -36,13 +36,13 @@ Start with synthetic recordings on your computer. This does not access your car.
 
 **Build-host prerequisites**
 
-| Tool             | Requirement                                                  |
-| ---------------- | ------------------------------------------------------------ |
-| Node.js + npm    | Node 22.12+ or a compatible newer release                    |
-| Go               | 1.27.1+; see [go.mod](dash-backend/go.mod)                   |
-| FFmpeg + ffprobe | 5+, including libx264 and libx265 for fixtures/tests         |
-| System tools     | Git, Make, C compiler for race tests, and bzip2 for fixtures |
-| Python           | 3.9+ for installer/toolchain tests                           |
+| Tool             | Requirement                                                              |
+| ---------------- | ------------------------------------------------------------------------ |
+| Node.js + npm    | Node 22.12+ or a compatible newer release                                |
+| Go               | 1.27.1+; see [go.mod](dash-backend/go.mod)                               |
+| FFmpeg + ffprobe | 5+, including libx264 and libx265 for fixtures/tests                     |
+| System tools     | Git, Make, C compiler for race tests, and bzip2 for legacy fixture tests |
+| Python           | 3.9+ for installer/toolchain tests                                       |
 
 On Linux/macOS, `bash scripts/setup-build-env.sh` installs or prepares host dependencies. See the [build-host guide](docs/delivery.md#build-yourself-and-debug-installation) for supported distributions and macOS prerequisites.
 
@@ -55,7 +55,7 @@ make fixture
 make serve
 ```
 
-Open **<http://127.0.0.1:8088>**. The fixture contains synthetic video and telemetry, not captured road data. Stop the server with Ctrl+C.
+Open **<http://127.0.0.1:8088>**. The simulator contains three synthetic 68-second sessions with native `rlog.zst`/`qlog.zst`, segment rotation, 20 fps cameras and recorded-rate telemetry. It contains no captured road data. [Fixture provenance and regeneration](scripts/fixtures/README.md). Stop the server with Ctrl+C.
 
 For frontend development, leave the backend running and run `make dev` in another terminal. Vite prints its development address and proxies `/api` and `/files` to the backend on port 8088. Without a backend, Dash offers a labeled sample library.
 

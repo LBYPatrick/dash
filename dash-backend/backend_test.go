@@ -4,7 +4,6 @@ import (
 	"archive/zip"
 	"context"
 	"encoding/json"
-	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -16,10 +15,13 @@ import (
 	"testing"
 	"time"
 
+	dashv2 "dash.local/backend/internal/mcaptypes/dashv2"
+	foxglove "dash.local/backend/internal/mcaptypes/foxglove"
 	"github.com/foxglove/mcap/go/mcap"
+	"google.golang.org/protobuf/proto"
 )
 
-const fixtureDrive = "2026-10-12--17-42-08"
+const fixtureDrive = "000001a3--c20ba54385"
 
 func fixtureIndex(t *testing.T) (*Index, *atomic.Bool) {
 	t.Helper()
@@ -184,11 +186,11 @@ func TestZIPAndMCAPExports(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if len(info.Schemas) != 3 || len(info.AttachmentIndexes) != 1 {
+			if len(info.Schemas) != 8 || len(info.AttachmentIndexes) != 1 {
 				t.Fatal("missing MCAP schemas or attachments")
 			}
 			for _, schema := range info.Schemas {
-				if !strings.HasPrefix(schema.Name, "dash.v1.") {
+				if !strings.HasPrefix(schema.Name, "dash.v2.") && schema.Name != "foxglove.LocationFix" {
 					t.Fatal("foreign MCAP schema")
 				}
 			}
@@ -213,16 +215,16 @@ func TestZIPAndMCAPExports(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				if schema.Name == "dash.v1.Asset" {
-					var asset map[string]any
-					if json.Unmarshal(message.Data, &asset) != nil || asset["modifiedTimeNanoseconds"] != fmt.Sprint(source.ModTime().UnixNano()) {
+				if schema.Name == "dash.v2.Asset" {
+					var asset dashv2.Asset
+					if proto.Unmarshal(message.Data, &asset) != nil || asset.ModifiedTimeNanoseconds != uint64(source.ModTime().UnixNano()) {
 						t.Fatal("asset must preserve exact original file time")
 					}
 				}
-				if schema.Name == "dash.v1.Position" {
+				if schema.Name == "foxglove.LocationFix" {
 					positions++
-					var point map[string]float64
-					if json.Unmarshal(message.Data, &point) != nil || point["latitude"] < 37 {
+					var point foxglove.LocationFix
+					if proto.Unmarshal(message.Data, &point) != nil || point.Latitude < 37 {
 						t.Fatal("wrong position")
 					}
 				}

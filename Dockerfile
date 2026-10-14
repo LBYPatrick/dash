@@ -10,7 +10,8 @@ RUN npm ci
 COPY tsconfig.json vite.config.ts index.html ./
 COPY src ./src
 COPY public ./public
-COPY scripts/prepare-fixture.mjs scripts/fixture-clock.mjs ./scripts/
+COPY scripts/prepare-fixture.mjs ./scripts/
+COPY scripts/fixtures ./scripts/fixtures
 COPY dash-backend/internal/telemetry/testdata ./dash-backend/internal/telemetry/testdata
 RUN npm test && npm run build && node scripts/prepare-fixture.mjs
 
@@ -26,6 +27,7 @@ COPY --from=gomodcache / /go/pkg/mod/cache/download/
 RUN go mod download
 COPY dash-backend ./
 COPY public /work/public
+COPY scripts/fixtures /work/scripts/fixtures
 RUN go vet ./... && go test -race ./... && CGO_ENABLED=0 go build -trimpath -o /dash-backend .
 
 FROM debian:bookworm-slim AS sandbox

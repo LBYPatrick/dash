@@ -1,14 +1,35 @@
 package main
 
-import "fmt"
+import (
+	"fmt"
+	"math"
+)
 
 type mcapClock struct {
 	UTC, Monotonic float64
 	Basis          string
+	OffsetNS       *int64
 }
 
 func (c mcapClock) timestamp(monotonic float64) uint64 {
-	return uint64(max(0, (c.UTC+monotonic-c.Monotonic)*1e9))
+	return c.timestampNS(uint64(max(0, math.Round(monotonic*1e9))))
+}
+func (c mcapClock) timestampNS(monotonic uint64) uint64 {
+	if c.OffsetNS != nil {
+		offset := *c.OffsetNS
+		if offset < 0 {
+			difference := uint64(-offset)
+			if monotonic < difference {
+				return 0
+			}
+			return monotonic - difference
+		}
+		if monotonic > math.MaxUint64-uint64(offset) {
+			return 0
+		}
+		return monotonic + uint64(offset)
+	}
+	return uint64(max(0, math.Round(c.UTC*1e9)+float64(monotonic)-math.Round(c.Monotonic*1e9)))
 }
 
 // Resolve once for the entire export. Filesystem timestamps describe copying or
@@ -36,7 +57,7 @@ func mcapClocks(request ExportRequest, assets []ExportAsset, snapshot map[string
 		durations[segment] = duration
 		if gps == nil && len(entry.Points) > 0 {
 			point := entry.Points[0]
-			anchor := mcapClock{point.Time, point.Monotonic, "session GPS UTC mapped to log monotonic time; exposure timestamps unavailable"}
+			anchor := mcapClock{UTC: point.Time, Monotonic: point.Monotonic, Basis: "session GPS UTC mapped to log monotonic time"}
 			gps = &anchor
 		}
 		if duration <= 0 {
@@ -48,6 +69,15 @@ func mcapClocks(request ExportRequest, assets []ExportAsset, snapshot map[string
 	first := request.Segments[0]
 	// A single session-wide filesystem estimate is used only without GPS.
 	fallback := float64(assets[0].Modified.UnixNano())/1e9 - durations[first]
+	wallClock := false
+	for _, segment := range request.Segments {
+		entry := snapshot[fmt.Sprintf("%s--%d", request.Drive, segment)].Metadata
+		if entry.StartUTC > 0 {
+			fallback = entry.StartUTC - offsets[segment]
+			wallClock = true
+			break
+		}
+	}
 	if gps != nil {
 		for _, segment := range request.Segments {
 			entry := snapshot[fmt.Sprintf("%s--%d", request.Drive, segment)].Metadata
@@ -60,7 +90,10 @@ func mcapClocks(request ExportRequest, assets []ExportAsset, snapshot map[string
 	correction := 0.0
 	for _, segment := range request.Segments {
 		entry := snapshot[fmt.Sprintf("%s--%d", request.Drive, segment)].Metadata
-		clock := mcapClock{fallback + offsets[segment] + correction, entry.StartMonotonic, "session file-time estimate + indexed durations; unknown/missing parts assume 60 seconds"}
+		clock := mcapClock{UTC: fallback + offsets[segment] + correction, Monotonic: entry.StartMonotonic, Basis: "session file-time estimate + indexed durations; unknown/missing parts assume 60 seconds"}
+		if wallClock {
+			clock.Basis = "recorded route wall clock + indexed durations; unknown/missing parts assume 60 seconds"
+		}
 		if gps != nil {
 			clock.Basis = "session GPS clock + indexed durations; unknown/missing parts assume 60 seconds"
 		}
@@ -68,6 +101,8 @@ func mcapClocks(request ExportRequest, assets []ExportAsset, snapshot map[string
 			point := entry.Points[0]
 			clock.UTC = point.Time + entry.StartMonotonic - point.Monotonic
 			clock.Basis = "segment GPS UTC mapped to first log event; exposure timestamps unavailable"
+		} else if gps == nil && entry.StartUTC > 0 {
+			clock.UTC = entry.StartUTC
 		} else if gps != nil && (entry.Duration > 0 || len(entry.Speeds) > 0) {
 			clock.UTC = gps.UTC + entry.StartMonotonic - gps.Monotonic
 			clock.Basis = gps.Basis

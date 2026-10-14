@@ -21,6 +21,9 @@ All notable changes to Dash are documented here using Keep a Changelog.
 
 ### Fixed
 
+- Model sunnypilot recordings with native zstd cereal logs, 60-second rotation, full/reduced-rate telemetry and matching 20 fps camera indexes. Exclude repeated route initData from segment durations and date modern route IDs from recorded clocks.
+- Export full-rate telemetry from rlog (qlog fallback), typed Protobuf messages with embedded descriptors, Foxglove GPS fixes, engagement, identity, segment boundaries and camera indexes. Use recorded camera EOF timestamps when present; reject incomplete indexes. This replaces the JSON MCAP v1 contract with v2.
+
 - Keep MCAP assets, telemetry and camera frames on the capture clock; preserve source modification times separately so copied files cannot inflate playback to days. Give synthetic session parts distinct UTC and monotonic clocks.
 
 - Complete selector/action popover transitions, interruption-safe divider resets, immediate keyboard/performance handle resets, and subtle asynchronous task feedback.

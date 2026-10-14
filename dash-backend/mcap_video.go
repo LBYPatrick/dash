@@ -15,25 +15,14 @@ import (
 	"strings"
 	"time"
 
+	foxglove "dash.local/backend/internal/mcaptypes/foxglove"
+	"dash.local/backend/internal/telemetry"
 	"github.com/foxglove/mcap/go/mcap"
+	"google.golang.org/protobuf/proto"
 )
 
 const maxVideoFrame = 8 << 20
 const maxVideoPackets = 12000 // At most ten minutes at the logger's 20 fps.
-
-// JSON encoding is a Foxglove-supported representation of CompressedVideo.
-// Go's []byte marshaler supplies the required base64 string.
-const compressedVideoSchema = `{"$schema":"http://json-schema.org/draft-07/schema#","title":"foxglove.CompressedVideo","type":"object","properties":{"timestamp":{"type":"object","title":"time","properties":{"sec":{"type":"integer","minimum":0},"nsec":{"type":"integer","minimum":0,"maximum":999999999}},"required":["sec","nsec"]},"frame_id":{"type":"string"},"data":{"type":"string","contentEncoding":"base64"},"format":{"type":"string","enum":["h264","h265"]}},"required":["timestamp","frame_id","data","format"]}`
-
-type compressedVideo struct {
-	Timestamp struct {
-		Sec  uint64 `json:"sec"`
-		Nsec uint64 `json:"nsec"`
-	} `json:"timestamp"`
-	FrameID string `json:"frame_id"`
-	Data    []byte `json:"data"`
-	Format  string `json:"format"`
-}
 
 var cameraTopics = map[string]string{
 	"qcamera.ts": "preview", "fcamera.hevc": "road", "ecamera.hevc": "wide_road", "dcamera.hevc": "driver",
@@ -127,9 +116,9 @@ func probeMCAPVideo(ctx context.Context, filename string) (videoProbe, error) {
 }
 func finiteVideo(value float64) bool { return !math.IsNaN(value) && !math.IsInf(value, 0) }
 
-type videoMessageWriter func(uint16, uint64, any) error
+type videoMessageWriter func(uint16, uint64, proto.Message) error
 
-func (e *ExportManager) mcapVideos(ctx context.Context, writer *mcap.Writer, job *ExportJob, assets []ExportAsset, clocks map[int]mcapClock, message videoMessageWriter) error {
+func (e *ExportManager) mcapVideos(ctx context.Context, writer *mcap.Writer, job *ExportJob, assets []ExportAsset, clocks map[int]mcapClock, logs map[int]string, message videoMessageWriter) error {
 	channels := map[string]uint16{}
 	for _, asset := range assets {
 		camera := filepath.Base(asset.Path)
@@ -137,20 +126,23 @@ func (e *ExportManager) mcapVideos(ctx context.Context, writer *mcap.Writer, job
 			continue
 		}
 		if len(channels) == 0 {
-			if err := writer.WriteSchema(&mcap.Schema{ID: 4, Name: "foxglove.CompressedVideo", Encoding: "jsonschema", Data: []byte(compressedVideoSchema)}); err != nil {
+			if err := writeProtobufSchema(writer, videoSchemaID, &foxglove.CompressedVideo{}); err != nil {
 				return err
 			}
 		}
 		if channels[camera] != 0 {
 			continue
 		}
-		id := uint16(4 + len(channels))
+		id := videoSchemaID + uint16(len(channels))
 		channels[camera] = id
-		if err := writer.WriteChannel(&mcap.Channel{ID: id, SchemaID: 4, Topic: "/dash/camera/" + cameraTopics[camera] + "/video", MessageEncoding: "json", Metadata: map[string]string{"source": camera, "timestamps": "GPS-aligned segment start + presentation offset; raw HEVC assumes 20 fps; without GPS uses shared session file-time estimate"}}); err != nil {
+		if err := writer.WriteChannel(&mcap.Channel{ID: id, SchemaID: videoSchemaID, Topic: "/dash/camera/" + cameraTopics[camera] + "/video", MessageEncoding: "protobuf", Metadata: map[string]string{"source": camera, "timestamps": "Recorded EncodeIdx end-of-frame clock when complete; otherwise disclosed segment-start + presentation-offset estimate"}}); err != nil {
 			return err
 		}
 	}
 	previousEnd := map[string]uint64{}
+	previousStep := map[string]uint64{}
+	cachedSegment := -1
+	var frameIndexes map[string][]telemetry.FrameIndex
 	for i, asset := range assets {
 		camera := filepath.Base(asset.Path)
 		channel := channels[camera]
@@ -163,15 +155,40 @@ func (e *ExportManager) mcapVideos(ctx context.Context, writer *mcap.Writer, job
 			return fmt.Errorf("%d/%s video: %w", asset.Segment, camera, err)
 		}
 		clock := clocks[asset.Segment]
+		if cachedSegment != asset.Segment {
+			frameIndexes, err = loadMCAPFrameIndexes(ctx, logs[asset.Segment])
+			if err != nil {
+				return err
+			}
+			cachedSegment = asset.Segment
+		}
+		indexes := frameIndexes[cameraTopics[camera]]
+		timings, err := recordedFrameTimes(indexes, len(probe.Offsets), clock)
+		if err != nil {
+			return fmt.Errorf("%d/%s: %w", asset.Segment, camera, err)
+		}
 		start := clock.timestamp(clock.Monotonic)
 		estimatedStart := start
-		// File mtimes (and occasionally log anchors) can overlap between parts.
-		// Preserve frame order on each channel and disclose any adjustment.
-		start = max(start, previousEnd[camera])
-		previousEnd[camera] = start + uint64(math.Round((probe.Offsets[len(probe.Offsets)-1]+probe.Step)*1e9))
+		basis := clock.Basis + "; estimated presentation offsets"
+		if len(timings) > 0 {
+			start = timings[0]
+			basis = clock.Basis + "; recorded EncodeIdx timestampEof"
+			if start < previousEnd[camera] {
+				return fmt.Errorf("%d/%s: recorded frames overlap previous part", asset.Segment, camera)
+			}
+		} else {
+			if previousEnd[camera] > 0 {
+				start = max(start, previousEnd[camera]+previousStep[camera]-1)
+			}
+			for _, offset := range probe.Offsets {
+				timings = append(timings, start+uint64(math.Round(offset*1e9)))
+			}
+		}
+		previousEnd[camera] = timings[len(timings)-1] + 1
+		previousStep[camera] = uint64(math.Round(probe.Step * 1e9))
 		if err := writer.WriteMetadata(&mcap.Metadata{Name: fmt.Sprintf("dash.video.%d.%s", asset.Segment, cameraTopics[camera]), Metadata: map[string]string{
-			"timeBasis": clock.Basis, "estimatedStartNanoseconds": strconv.FormatUint(estimatedStart, 10), "startNanoseconds": strconv.FormatUint(start, 10),
-			"overlapAdjusted": strconv.FormatBool(start != estimatedStart), "rawHEVC20fps": strconv.FormatBool(strings.HasSuffix(camera, ".hevc")), "bFramesConverted": strconv.FormatBool(probe.BFrames), "frames": strconv.Itoa(len(probe.Offsets)),
+			"timeBasis": basis, "estimatedStartNanoseconds": strconv.FormatUint(estimatedStart, 10), "startNanoseconds": strconv.FormatUint(start, 10),
+			"overlapAdjusted": strconv.FormatBool(len(indexes) == 0 && start != estimatedStart), "rawHEVC20fps": strconv.FormatBool(len(indexes) == 0 && strings.HasSuffix(camera, ".hevc")), "bFramesConverted": strconv.FormatBool(probe.BFrames), "frames": strconv.Itoa(len(probe.Offsets)),
 		}}); err != nil {
 			return err
 		}
@@ -187,10 +204,8 @@ func (e *ExportManager) mcapVideos(ctx context.Context, writer *mcap.Writer, job
 			if frame >= len(probe.Offsets) {
 				return errors.New("more video frames than presentation timestamps")
 			}
-			timestamp := start + uint64(math.Round(probe.Offsets[frame]*1e9))
-			value := compressedVideo{FrameID: "dash_" + cameraTopics[camera] + "_optical", Format: format, Data: data}
-			value.Timestamp.Sec = timestamp / 1e9
-			value.Timestamp.Nsec = timestamp % 1e9
+			timestamp := timings[frame]
+			value := &foxglove.CompressedVideo{Timestamp: protobufTime(timestamp), FrameId: "dash_" + cameraTopics[camera] + "_optical", Format: format, Data: data}
 			frame++
 			return message(channel, timestamp, value)
 		})
@@ -375,4 +390,42 @@ func readAccessUnits(reader io.Reader, codec string, emit func([]byte) error) er
 		return errors.New("no video frames")
 	}
 	return nil
+}
+
+// Only a single part's frame indexes are retained. Encoder segment numbers are
+// not directory numbers: loggerd subtracts a per-encoder offset upstream.
+func loadMCAPFrameIndexes(ctx context.Context, path string) (map[string][]telemetry.FrameIndex, error) {
+	frames := map[string][]telemetry.FrameIndex{}
+	if path == "" {
+		return frames, nil
+	}
+	err := telemetry.Stream(ctx, path, func(record telemetry.Record) error {
+		if record.Frame == nil {
+			return nil
+		}
+		frame := record.Frame
+		if len(frames[frame.Camera]) >= maxVideoPackets {
+			return errors.New("camera index exceeds frame budget")
+		}
+		frames[frame.Camera] = append(frames[frame.Camera], *frame)
+		return nil
+	})
+	return frames, err
+}
+func recordedFrameTimes(frames []telemetry.FrameIndex, count int, clock mcapClock) ([]uint64, error) {
+	if len(frames) == 0 {
+		return nil, nil
+	}
+	if len(frames) != count {
+		return nil, fmt.Errorf("recorded camera index has %d frames but video has %d", len(frames), count)
+	}
+	sort.Slice(frames, func(a, b int) bool { return frames[a].PresentationIndex < frames[b].PresentationIndex })
+	times := make([]uint64, len(frames))
+	for n, frame := range frames {
+		if frame.EndNS == 0 || frame.EndNS > math.MaxInt64 || frame.StartNS > frame.EndNS || (n > 0 && (frame.PresentationIndex <= frames[n-1].PresentationIndex || frame.EndNS <= frames[n-1].EndNS || frame.EncoderSegment != frames[0].EncoderSegment)) {
+			return nil, errors.New("invalid or duplicate camera exposure index")
+		}
+		times[n] = clock.timestampNS(frame.EndNS)
+	}
+	return times, nil
 }

@@ -1,0 +1,195 @@
+{
+  "synthetic": true,
+  "segmentDurationsSeconds": [60, 8],
+  "fps": 20,
+  "recordFront": true,
+  "recordAudio": false,
+  "drives": [
+    "000001a3--c20ba54385",
+    "000001a2--70f9e43b12",
+    "000001a1--36a6f1dc08"
+  ],
+  "files": {
+    "device/000001a3--c20ba54385--0/rlog.zst": {
+      "sha256": "7f20fd9a79d62e791725acd508272dafcb39fda1a255a836c2eabcde72367dfc",
+      "events": {
+        "initData": 1,
+        "sentinel": 2,
+        "carState": 6000,
+        "selfdriveState": 6000,
+        "gpsLocationExternal": 600,
+        "narrowRoadEncodeIdx": 1200,
+        "wideRoadEncodeIdx": 1200,
+        "cabinEncodeIdx": 1200,
+        "qNarrowRoadEncodeIdx": 1200,
+        "carParams": 2
+      }
+    },
+    "device/000001a3--c20ba54385--0/qlog.zst": {
+      "sha256": "0092257f063d86917364b5c4f1b36f659677222373d387234231eb9f1fc2a49b",
+      "events": {
+        "initData": 1,
+        "sentinel": 2,
+        "carState": 600,
+        "selfdriveState": 600,
+        "gpsLocationExternal": 60,
+        "narrowRoadEncodeIdx": 1200,
+        "wideRoadEncodeIdx": 1200,
+        "cabinEncodeIdx": 1200,
+        "qNarrowRoadEncodeIdx": 1200,
+        "carParams": 2
+      }
+    },
+    "device/000001a3--c20ba54385--1/rlog.zst": {
+      "sha256": "657661730a84b95a852d982c5b274903d6a6d294ba57c1cc3b04d305da3261cf",
+      "events": {
+        "initData": 1,
+        "sentinel": 2,
+        "carState": 800,
+        "selfdriveState": 800,
+        "gpsLocationExternal": 80,
+        "narrowRoadEncodeIdx": 160,
+        "wideRoadEncodeIdx": 160,
+        "cabinEncodeIdx": 160,
+        "qNarrowRoadEncodeIdx": 160
+      }
+    },
+    "device/000001a3--c20ba54385--1/qlog.zst": {
+      "sha256": "92f84fba8f0b04ea31fc37610265ec5c5a099ed414feb981bf7221265d623e00",
+      "events": {
+        "initData": 1,
+        "sentinel": 2,
+        "carState": 80,
+        "selfdriveState": 80,
+        "gpsLocationExternal": 8,
+        "narrowRoadEncodeIdx": 160,
+        "wideRoadEncodeIdx": 160,
+        "cabinEncodeIdx": 160,
+        "qNarrowRoadEncodeIdx": 160
+      }
+    },
+    "device/000001a2--70f9e43b12--0/rlog.zst": {
+      "sha256": "48c4ede0fcf47032b2c29b9b151f53e92ddf13aaa6303e76e5cb53344df60029",
+      "events": {
+        "initData": 1,
+        "sentinel": 2,
+        "carState": 6000,
+        "selfdriveState": 6000,
+        "gpsLocationExternal": 600,
+        "narrowRoadEncodeIdx": 1200,
+        "wideRoadEncodeIdx": 1200,
+        "cabinEncodeIdx": 1200,
+        "qNarrowRoadEncodeIdx": 1200,
+        "carParams": 2
+      }
+    },
+    "device/000001a2--70f9e43b12--0/qlog.zst": {
+      "sha256": "b820dc104085b3c3057b281fcdafd550fee31e43b128056c8c98e2ee995c72a1",
+      "events": {
+        "initData": 1,
+        "sentinel": 2,
+        "carState": 600,
+        "selfdriveState": 600,
+        "gpsLocationExternal": 60,
+        "narrowRoadEncodeIdx": 1200,
+        "wideRoadEncodeIdx": 1200,
+        "cabinEncodeIdx": 1200,
+        "qNarrowRoadEncodeIdx": 1200,
+        "carParams": 2
+      }
+    },
+    "device/000001a2--70f9e43b12--1/rlog.zst": {
+      "sha256": "d9946edc8c5a68fdd21e6c67e8379d3bff196e0dd9480d1371578e4e84cecd6d",
+      "events": {
+        "initData": 1,
+        "sentinel": 2,
+        "carState": 800,
+        "selfdriveState": 800,
+        "gpsLocationExternal": 80,
+        "narrowRoadEncodeIdx": 160,
+        "wideRoadEncodeIdx": 160,
+        "cabinEncodeIdx": 160,
+        "qNarrowRoadEncodeIdx": 160
+      }
+    },
+    "device/000001a2--70f9e43b12--1/qlog.zst": {
+      "sha256": "2bbce4319ad1b8f03cbde2826210c5871de97105eca6518ada1c0d3da32673b9",
+      "events": {
+        "initData": 1,
+        "sentinel": 2,
+        "carState": 80,
+        "selfdriveState": 80,
+        "gpsLocationExternal": 8,
+        "narrowRoadEncodeIdx": 160,
+        "wideRoadEncodeIdx": 160,
+        "cabinEncodeIdx": 160,
+        "qNarrowRoadEncodeIdx": 160
+      }
+    },
+    "device/000001a1--36a6f1dc08--0/rlog.zst": {
+      "sha256": "2e1094e24cf38cf48993c6f427163f1c972ebc75db281b7a9c262e093f75359d",
+      "events": {
+        "initData": 1,
+        "sentinel": 2,
+        "carState": 6000,
+        "selfdriveState": 6000,
+        "gpsLocationExternal": 600,
+        "narrowRoadEncodeIdx": 1200,
+        "wideRoadEncodeIdx": 1200,
+        "cabinEncodeIdx": 1200,
+        "qNarrowRoadEncodeIdx": 1200,
+        "carParams": 2
+      }
+    },
+    "device/000001a1--36a6f1dc08--0/qlog.zst": {
+      "sha256": "bd07227aed2d82721a65e5edf6af6893ceeb9806910d82e1142321ca5c074507",
+      "events": {
+        "initData": 1,
+        "sentinel": 2,
+        "carState": 600,
+        "selfdriveState": 600,
+        "gpsLocationExternal": 60,
+        "narrowRoadEncodeIdx": 1200,
+        "wideRoadEncodeIdx": 1200,
+        "cabinEncodeIdx": 1200,
+        "qNarrowRoadEncodeIdx": 1200,
+        "carParams": 2
+      }
+    },
+    "device/000001a1--36a6f1dc08--1/rlog.zst": {
+      "sha256": "f9435b3a132fdb7176a8d80fbc441a0ac8731df4f2303a12de0d9426bd71f532",
+      "events": {
+        "initData": 1,
+        "sentinel": 2,
+        "carState": 800,
+        "selfdriveState": 800,
+        "gpsLocationExternal": 80,
+        "narrowRoadEncodeIdx": 160,
+        "wideRoadEncodeIdx": 160,
+        "cabinEncodeIdx": 160,
+        "qNarrowRoadEncodeIdx": 160
+      }
+    },
+    "device/000001a1--36a6f1dc08--1/qlog.zst": {
+      "sha256": "3c1bcebb175cd8466786c226083a2486052df2c8fa6e1c208020c145adcecb0d",
+      "events": {
+        "initData": 1,
+        "sentinel": 2,
+        "carState": 80,
+        "selfdriveState": 80,
+        "gpsLocationExternal": 8,
+        "narrowRoadEncodeIdx": 160,
+        "wideRoadEncodeIdx": 160,
+        "cabinEncodeIdx": 160,
+        "qNarrowRoadEncodeIdx": 160
+      }
+    }
+  },
+  "schemaSha256": {
+    "car.capnp": "b971083a0cb3aed287ca9c54572d470fb798e633bc47611717f697b9e735f5a1",
+    "custom.capnp": "d439fdd23e665ec2d74039619c903219386ac6ce3ddadfbc279ae669b9dd1cd6",
+    "deprecated.capnp": "b3aa5c13de40001ed7376cef858500fb003f7698f96131cd0db18d878fa1af0d",
+    "include/c++.capnp": "fb306076cd38c27af1aed20fac6395e9a46fbe5b5df6a248b5f1b6845a079c44",
+    "log.capnp": "14e70c3adff300eb121369ef17a133e8df97c77916e8482d742b08a3b5d2c4e2"
+  }
+}

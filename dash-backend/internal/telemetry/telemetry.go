@@ -3,17 +3,10 @@
 package telemetry
 
 import (
-	"compress/bzip2"
 	"context"
 	"errors"
-	"fmt"
 	"io"
 	"math"
-	"os"
-	"strings"
-
-	capnp "capnproto.org/go/capnp/v3"
-	"github.com/klauspost/compress/zstd"
 )
 
 type Position struct {
@@ -37,6 +30,7 @@ type Engagement struct {
 	Active  bool    `json:"active"`
 }
 type Metadata struct {
+	StartUTC        float64        `json:"startUTC,omitempty"`
 	DistanceSamples int            `json:"distanceSamples,omitempty"`
 	StartMonotonic  float64        `json:"startMonotonic"`
 	Engagement      []Engagement   `json:"engagement,omitempty"`
@@ -69,124 +63,55 @@ func finite(values ...float64) bool {
 	return true
 }
 
-// Offsets and union tags are the stable cereal wire layout, verified against
-// sunnypilot master log.capnp and opendbc car.capnp. See SCHEMA.md and fixtures.
+// Decode builds a bounded display summary. initData is reused by loggerd across
+// parts; its route-start timestamp must never extend later segment durations.
 func Decode(ctx context.Context, filename string) (Metadata, error) {
 	result := Metadata{Status: "ready"}
-	file, err := os.Open(filename)
+	var span CaptureSpan
+	var wallOffset float64
+	err := Stream(ctx, filename, func(record Record) error {
+		mono := float64(record.MonotonicNS) / 1e9
+		span.Observe(record)
+		if record.Kind == 0 && record.WallTimeNS > 946684800000000000 && record.WallTimeNS < math.MaxInt64 {
+			wallOffset = float64(record.WallTimeNS)/1e9 - mono
+		}
+		if record.Version != "" {
+			result.Version = record.Version
+		}
+		if record.Car != "" {
+			result.Car = record.Car
+		}
+		if sample := record.Position; sample != nil && (len(result.Points) == 0 || mono-result.Points[len(result.Points)-1].Monotonic >= 1) {
+			result.Points = append(result.Points, *sample)
+		}
+		if sample := record.Vehicle; sample != nil && (len(result.Speeds) == 0 || mono-result.Speeds[len(result.Speeds)-1].Time >= 1) {
+			result.Speeds = append(result.Speeds, *sample)
+		}
+		if sample := record.Engagement; sample != nil {
+			n := len(result.Engagement)
+			if n == 0 || mono-result.Engagement[n-1].Time >= 1 || sample.Enabled != result.Engagement[n-1].Enabled || sample.Active != result.Engagement[n-1].Active {
+				result.Engagement = append(result.Engagement, *sample)
+			}
+		}
+		if len(result.Points) > 7200 || len(result.Speeds) > 7200 || len(result.Engagement) > 7200 {
+			return errors.New("segment exceeds telemetry sample budget")
+		}
+		return nil
+	})
 	if err != nil {
 		return result, err
 	}
-	defer file.Close()
-	var source io.Reader = file
-	if strings.HasSuffix(filename, ".bz2") {
-		source = bzip2.NewReader(file)
+	start, end, observed := span.Bounds()
+	if observed {
+		result.StartMonotonic = float64(start) / 1e9
+		result.Duration = float64(end-start) / 1e9
 	}
-	if strings.HasSuffix(filename, ".zst") {
-		decoder, err := zstd.NewReader(file, zstd.WithDecoderConcurrency(1), zstd.WithDecoderMaxMemory(64<<20))
-		if err != nil {
-			return result, err
-		}
-		defer decoder.Close()
-		source = decoder
+	if len(result.Points) > 0 {
+		point := result.Points[0]
+		result.StartUTC = point.Time + result.StartMonotonic - point.Monotonic
+	} else if wallOffset != 0 && observed {
+		result.StartUTC = result.StartMonotonic + wallOffset
 	}
-	limited := &io.LimitedReader{R: contextReader{ctx, source}, N: 256 << 20}
-	decoder := capnp.NewDecoder(limited)
-	decoder.MaxMessageSize = 16 << 20
-	first, last := math.Inf(1), float64(0)
-	count := 0
-	for {
-		if err := ctx.Err(); err != nil {
-			return result, err
-		}
-		message, err := decoder.Decode()
-		if errors.Is(err, io.EOF) {
-			break
-		}
-		if err != nil {
-			return result, fmt.Errorf("decode cereal: %w", err)
-		}
-		root, err := message.Root()
-		if err != nil {
-			return result, err
-		}
-		event := root.Struct()
-		if !event.IsValid() || event.Size().DataSize < 16 {
-			return result, errors.New("invalid cereal event")
-		}
-		mono := float64(event.Uint64(0)) / 1e9
-		if mono < first {
-			first = mono
-		}
-		if mono > last {
-			last = mono
-		}
-		count++
-		kind := event.Uint16(8)
-		payload, err := event.Ptr(0)
-		if err != nil {
-			return result, err
-		}
-		value := payload.Struct()
-		if !value.IsValid() {
-			continue
-		}
-		if len(result.Points) > 7200 || len(result.Speeds) > 7200 || len(result.Engagement) > 7200 {
-			return result, errors.New("segment exceeds telemetry sample budget")
-		}
-		switch kind {
-		case 128: // Event.selfdriveState @130 (valid is the second non-union field).
-			if event.Bit(80) || value.Size().DataSize < 3 {
-				continue
-			}
-			sample := Engagement{mono, value.Bit(16), value.Bit(17)}
-			if len(result.Engagement) == 0 || mono-result.Engagement[len(result.Engagement)-1].Time >= 1 || sample.Enabled != result.Engagement[len(result.Engagement)-1].Enabled || sample.Active != result.Engagement[len(result.Engagement)-1].Active {
-				result.Engagement = append(result.Engagement, sample)
-			}
-
-		case 20, 47: // gpsLocation, gpsLocationExternal
-			if event.Bit(80) {
-				continue
-			} // Event.valid defaults to true (wire XOR).
-			lat, lon := math.Float64frombits(value.Uint64(8)), math.Float64frombits(value.Uint64(16))
-			altitude := math.Float64frombits(value.Uint64(24))
-			speed := float64(math.Float32frombits(value.Uint32(4)))
-			utc := float64(int64(value.Uint64(40))) / 1000
-			valid := value.Uint16(0)&1 != 0 || value.Bit(480)
-			if valid && finite(lat, lon, altitude, speed, utc) && lat >= -90 && lat <= 90 && lon >= -180 && lon <= 180 && utc > 946684800 {
-				if len(result.Points) == 0 || mono-result.Points[len(result.Points)-1].Monotonic >= 1 {
-					result.Points = append(result.Points, Position{lat, lon, altitude, math.Max(0, speed), utc, mono})
-				}
-			}
-		case 21: // carState
-			if event.Bit(80) {
-				continue
-			}
-			speed := float64(math.Float32frombits(value.Uint32(0)))
-			angle := float64(math.Float32frombits(value.Uint32(16)))
-			if finite(speed, angle) && (len(result.Speeds) == 0 || mono-result.Speeds[len(result.Speeds)-1].Time >= 1) {
-				result.Speeds = append(result.Speeds, VehicleState{mono, math.Max(0, speed), angle, value.Bit(65), value.Bit(64)})
-			}
-		case 0: // initData
-			p, err := value.Ptr(3)
-			if err == nil {
-				result.Version = p.Text()
-			}
-		case 67: // carParams
-			p, err := value.Ptr(1)
-			if err == nil {
-				result.Car = p.Text()
-			}
-		}
-	}
-	if limited.N == 0 {
-		return result, errors.New("qlog exceeds 256 MiB decoded limit")
-	}
-	if count == 0 {
-		return result, errors.New("qlog contains no cereal events")
-	}
-	result.StartMonotonic = first
-	result.Duration = math.Max(0, last-first)
 	for i := 1; i < len(result.Points); i++ {
 		a, b := result.Points[i-1], result.Points[i]
 		dt := b.Time - a.Time

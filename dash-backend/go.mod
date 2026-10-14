@@ -7,6 +7,7 @@ require (
 	github.com/foxglove/mcap/go/mcap v1.9.0
 	github.com/klauspost/compress v1.20.3
 	golang.org/x/sys v0.48.0
+	google.golang.org/protobuf v1.36.11
 	modernc.org/sqlite v1.60.1
 )
 

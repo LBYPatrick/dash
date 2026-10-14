@@ -18,8 +18,10 @@ import (
 	"sync"
 	"time"
 
+	dashv2 "dash.local/backend/internal/mcaptypes/dashv2"
 	"github.com/foxglove/mcap/go/mcap"
 	"golang.org/x/sys/unix"
+	"google.golang.org/protobuf/proto"
 )
 
 const maxExportBytes int64 = 8 << 30
@@ -406,12 +408,6 @@ func (e *ExportManager) mp4(ctx context.Context, job *ExportJob, request ExportR
 	return runFFmpeg(limited, args...)
 }
 
-var dashSchemaFields = map[string]map[string]string{
-	"Asset":        {"path": "string", "segment": "integer", "bytes": "integer", "attachment": "string", "modifiedTimeNanoseconds": "string"},
-	"Position":     {"latitude": "number", "longitude": "number", "altitude": "number", "speed": "number", "time": "number", "monotonic": "number"},
-	"VehicleState": {"time": "number", "speed": "number", "steeringAngle": "number", "brakePressed": "boolean", "gasPressed": "boolean"},
-}
-
 func (e *ExportManager) mcap(ctx context.Context, job *ExportJob, request ExportRequest, assets []ExportAsset) error {
 	file, err := os.Create(job.output)
 	if err != nil {
@@ -422,33 +418,21 @@ func (e *ExportManager) mcap(ctx context.Context, job *ExportJob, request Export
 	if err != nil {
 		return err
 	}
-	if err := writer.WriteHeader(&mcap.Header{Profile: "dash.v1", Library: "dash-backend/0.1"}); err != nil {
+	if err := writer.WriteHeader(&mcap.Header{Profile: "dash.v2", Library: "dash-backend/0.1"}); err != nil {
 		return err
 	}
-	names := []string{"Asset", "Position", "VehicleState"}
-	for n, name := range names {
-		properties := map[string]any{}
-		for field, kind := range dashSchemaFields[name] {
-			properties[field] = map[string]string{"type": kind}
-		}
-		data, _ := json.Marshal(map[string]any{"$schema": "http://json-schema.org/draft-07/schema#", "title": "dash.v1." + name, "type": "object", "properties": properties})
-		id := uint16(n + 1)
-		if err := writer.WriteSchema(&mcap.Schema{ID: id, Name: "dash.v1." + name, Encoding: "jsonschema", Data: data}); err != nil {
-			return err
-		}
-		if err := writer.WriteChannel(&mcap.Channel{ID: id, SchemaID: id, Topic: "/dash/" + name, MessageEncoding: "json"}); err != nil {
-			return err
-		}
+	if err := mcapTelemetrySchemas(writer); err != nil {
+		return err
 	}
-	if err := writer.WriteMetadata(&mcap.Metadata{Name: "dash.drive", Metadata: map[string]string{"id": request.Drive, "recordings": "Camera frames use foxglove.CompressedVideo; original videos and logs are also retained as attachments.", "timeBasis": "GPS measured UTC; vehicle monotonic timestamps mapped to GPS. Video uses segment-start GPS alignment plus presentation offsets (raw HEVC at 20 fps), not exact exposure timestamps. Asset LogTime uses the segment capture clock; original filesystem time is retained as attachment CreateTime and modifiedTimeNanoseconds. Without GPS uses a shared session file-time estimate, indexed durations and a disclosed 60-second assumption for unknown parts."}}); err != nil {
+	if err := writer.WriteMetadata(&mcap.Metadata{Name: "dash.drive", Metadata: map[string]string{"id": request.Drive, "recordings": "Typed Protobuf messages at recorded rates, with original video/log attachments. Video uses EncodeIdx EOF timing when complete; otherwise disclosed presentation-offset estimates.", "timeBasis": "GPS UTC mapped to log monotonic time; without GPS, one shared session file-time estimate. Asset LogTime is capture start; filesystem dates appear only in attachment CreateTime and Asset.modified_time_nanoseconds."}}); err != nil {
 		return err
 	}
 	sequence := uint32(0)
-	message := func(channel uint16, timestamp uint64, value any) error {
+	message := func(channel uint16, timestamp uint64, value proto.Message) error {
 		if ctx.Err() != nil {
 			return ctx.Err()
 		}
-		data, err := json.Marshal(value)
+		data, err := proto.Marshal(value)
 		if err != nil {
 			return err
 		}
@@ -459,7 +443,10 @@ func (e *ExportManager) mcap(ctx context.Context, job *ExportJob, request Export
 	if err != nil {
 		return err
 	}
-	clocks := mcapClocks(request, assets, snapshot)
+	logs, clocks, err := resolveMCAPLogs(ctx, request, assets, snapshot)
+	if err != nil {
+		return err
+	}
 	for i, asset := range assets {
 		if ctx.Err() != nil {
 			return ctx.Err()
@@ -478,25 +465,18 @@ func (e *ExportManager) mcap(ctx context.Context, job *ExportJob, request Export
 		if err != nil {
 			return err
 		}
-		if err := message(1, timestamp, map[string]any{"path": name, "segment": asset.Segment, "bytes": asset.Size, "attachment": name, "modifiedTimeNanoseconds": strconv.FormatUint(modified, 10)}); err != nil {
+		if err := message(1, timestamp, &dashv2.Asset{Path: name, Segment: uint32(asset.Segment), Bytes: uint64(asset.Size), Attachment: name, ModifiedTimeNanoseconds: modified}); err != nil {
 			return err
 		}
 	}
 	for _, segment := range request.Segments {
-		entry := snapshot[fmt.Sprintf("%s--%d", request.Drive, segment)].Metadata
-		for _, point := range entry.Points {
-			if err := message(2, uint64(max(0, point.Time*1e9)), point); err != nil {
-				return err
-			}
-		}
-		clock := clocks[segment]
-		for _, sample := range entry.Speeds {
-			if err := message(3, clock.timestamp(sample.Time), sample); err != nil {
+		if path := logs[segment]; path != "" {
+			if err := mcapLogTelemetry(ctx, writer, segment, path, clocks[segment], message); err != nil {
 				return err
 			}
 		}
 	}
-	if err := e.mcapVideos(ctx, writer, job, assets, clocks, message); err != nil {
+	if err := e.mcapVideos(ctx, writer, job, assets, clocks, logs, message); err != nil {
 		return err
 	}
 	return writer.Close()

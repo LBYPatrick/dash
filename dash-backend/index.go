@@ -12,7 +12,6 @@ import (
 	"path/filepath"
 	"regexp"
 	"sort"
-	"strings"
 	"sync"
 	"time"
 
@@ -277,7 +276,7 @@ func (i *Index) scanSegment(ctx context.Context, name string, generation uint64)
 	if err != nil {
 		return err
 	}
-	entry := IndexedSegment{Metadata: telemetry.Metadata{Status: "missing", Reason: "No qlog in this segment."}, Files: []FileInfo{}}
+	entry := IndexedSegment{Metadata: telemetry.Metadata{Status: "missing", Reason: "No telemetry log in this segment."}, Files: []FileInfo{}}
 	for _, child := range children {
 		if child.IsDir() {
 			continue
@@ -299,7 +298,7 @@ func (i *Index) scanSegment(ctx context.Context, name string, generation uint64)
 	var oldHash, oldRaw string
 	_ = i.db.QueryRow("SELECT fingerprint,entry FROM segments WHERE name=?", name).Scan(&oldHash, &oldRaw)
 	var old IndexedSegment
-	if oldHash == fingerprint && json.Unmarshal([]byte(oldRaw), &old) == nil && old.Metadata.Status != "error" && old.MediaVersion == 1 && old.TelemetryVersion == 3 {
+	if oldHash == fingerprint && json.Unmarshal([]byte(oldRaw), &old) == nil && old.Metadata.Status != "error" && old.MediaVersion == 1 && old.TelemetryVersion == 4 {
 		if old.Thumbnail == "" {
 			return nil
 		}
@@ -308,7 +307,7 @@ func (i *Index) scanSegment(ctx context.Context, name string, generation uint64)
 		}
 	}
 	entry.MediaVersion = 1
-	entry.TelemetryVersion = 3
+	entry.TelemetryVersion = 4
 	for n, file := range entry.Files {
 		if !cameras[file.Name] || file.Size > 256<<20 {
 			continue
@@ -330,16 +329,15 @@ func (i *Index) scanSegment(ctx context.Context, name string, generation uint64)
 			entry.Files[n].Duration = duration
 		}
 	}
-	var qlog, camera string
+	var camera string
+	var logPaths []string
 	for _, file := range entry.Files {
-		if strings.HasPrefix(file.Name, "qlog") && (file.Name == "qlog" || file.Name == "qlog.zst" || file.Name == "qlog.bz2") {
-			qlog = filepath.Join(folder, file.Name)
-		}
+		logPaths = append(logPaths, filepath.Join(folder, file.Name))
 		if cameras[file.Name] && (camera == "" || file.Name == "qcamera.ts") {
 			camera = filepath.Join(folder, file.Name)
 		}
 	}
-	if qlog != "" {
+	if qlog := telemetry.PreferredLog(logPaths, false); qlog != "" {
 		meta, err := telemetry.Decode(ctx, qlog)
 		if err != nil {
 			if ctx.Err() != nil {

@@ -44,15 +44,15 @@ try {
     () => document.querySelector('video')?.readyState >= 1,
   );
   await page.waitForFunction(
-    () => Math.abs(document.querySelector('video').duration - 16) < 0.2,
+    () => Math.abs(document.querySelector('video').duration - 68) < 0.2,
   );
   assert.equal(await page.getByLabel('Choose recording segment').count(), 0);
   await page.locator('video').evaluate(async (video) => {
-    video.currentTime = 7.8;
+    video.currentTime = 59.8;
     await video.play();
   });
   await page.waitForFunction(
-    () => document.querySelector('video').currentTime > 8.5,
+    () => document.querySelector('video').currentTime > 60.5,
   );
   await page.locator('video').evaluate((video) => video.pause());
   await page.locator('video').evaluate((video) => {
@@ -72,7 +72,7 @@ try {
     const video = document.querySelector('video');
     return (
       video.readyState >= 2 &&
-      Math.abs(video.duration - 4) < 0.2 &&
+      Math.abs(video.duration - 68) < 0.2 &&
       Math.abs(video.currentTime - 3) < 0.2
     );
   });
@@ -82,7 +82,7 @@ try {
     const video = document.querySelector('video');
     return (
       video.readyState >= 2 &&
-      Math.abs(video.duration - 16) < 0.2 &&
+      Math.abs(video.duration - 68) < 0.2 &&
       Math.abs(video.currentTime - 3) < 0.2
     );
   });
@@ -276,7 +276,7 @@ try {
     true,
   );
   const rejected = await page.request.post(`${origin}/api/exports`, {
-    data: { drive: '2026-10-12--17-42-08', segments: [0], format: 'zip' },
+    data: { drive: '000001a3--c20ba54385', segments: [0], format: 'zip' },
   });
   assert.equal(rejected.status(), 409);
   await setDriving('parked');

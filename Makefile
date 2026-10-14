@@ -19,7 +19,7 @@ build-arm64:
 	cd dash-backend && CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -trimpath -ldflags='-s -w' -o ../.artifacts/dash-backend-linux-arm64 .
 format:
 	npm run format
-	cd dash-backend && gofmt -w *.go internal/telemetry/*.go
+	cd dash-backend && gofmt -w *.go internal/telemetry/*.go internal/mcaptypes/*/*.go
 test:
 	python3 scripts/setup-toolchains.test.py
 	python3 scripts/fetch-release.test.py
@@ -32,6 +32,11 @@ check:
 	cd dash-backend && go vet ./...
 	$(MAKE) test
 	$(MAKE) build
+.PHONY: generate-mcap-schemas regenerate-telemetry-fixtures
+generate-mcap-schemas:
+	bash scripts/generate-mcap-schemas.sh
+regenerate-telemetry-fixtures:
+	$(or $(PYTHON),python3) scripts/fixtures/generate.py
 fixture:
 	node scripts/prepare-fixture.mjs
 serve:
@@ -104,4 +109,4 @@ release:
 
 .PHONY: help
 help:
-	@printf '%s\n' 'Dash workflows:' '  make install / dev / build / check' '  make fixture / serve / smoke / design-smoke / appearance-smoke / shelf-smoke / viewer-smoke / statistics-smoke / mobile-scroll-smoke / map-smoke / index-ui-smoke / updates-smoke / mobile-flow-smoke / live-capture-smoke / motion-smoke / i18n-smoke' '  make sandbox-up / sandbox-test / sandbox-smoke / sandbox-logs / sandbox-down' '  make setup-build-env / build-env-check' '  make device-install-source DEVICE=comma@DEVICE_IP / source-release / source-install-smoke' '  make device-check DEVICE=comma@DEVICE_IP' '  make device-install DEVICE=comma@DEVICE_IP [CHANNEL=main|nightly|dev] [RELEASE=TAG]' '  make release CHANNEL=dev BUILD=1 / ota-smoke'
+	@printf '%s\n' 'Dash workflows:' '  make install / dev / build / check' '  make generate-mcap-schemas / regenerate-telemetry-fixtures [PYTHON=path]' '  make fixture / serve / smoke / design-smoke / appearance-smoke / shelf-smoke / viewer-smoke / statistics-smoke / mobile-scroll-smoke / map-smoke / index-ui-smoke / updates-smoke / mobile-flow-smoke / live-capture-smoke / motion-smoke / i18n-smoke' '  make sandbox-up / sandbox-test / sandbox-smoke / sandbox-logs / sandbox-down' '  make setup-build-env / build-env-check' '  make device-install-source DEVICE=comma@DEVICE_IP / source-release / source-install-smoke' '  make device-check DEVICE=comma@DEVICE_IP' '  make device-install DEVICE=comma@DEVICE_IP [CHANNEL=main|nightly|dev] [RELEASE=TAG]' '  make release CHANNEL=dev BUILD=1 / ota-smoke'

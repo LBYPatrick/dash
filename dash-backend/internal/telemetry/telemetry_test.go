@@ -20,7 +20,7 @@ func TestDecodeIndependentCerealFixture(t *testing.T) {
 	if len(result.Points) != 11 || len(result.Speeds) != 11 {
 		t.Fatalf("unexpected sample counts %d/%d", len(result.Points), len(result.Speeds))
 	}
-	if result.DistanceSamples != 10 || result.Duration != 11 || result.DistanceKM < .06 || result.DistanceKM > .08 {
+	if result.DistanceSamples != 10 || result.Duration != 10 || result.DistanceKM < .06 || result.DistanceKM > .08 {
 		t.Fatalf("unexpected trip: duration=%v distance=%v", result.Duration, result.DistanceKM)
 	}
 	if result.Points[0].Latitude != 37.77 || result.Points[0].Time != 1791840000 || result.Speeds[0].Speed != 7 || !result.Speeds[0].GasPressed {
@@ -85,5 +85,108 @@ func TestRecordedSelfdriveEngagement(t *testing.T) {
 	}
 	if !metadata.Engagement[1].Enabled || !metadata.Engagement[1].Active || metadata.Engagement[2].Active {
 		t.Fatal("engaged and override states differ from wire")
+	}
+}
+
+// These files were encoded and round-tripped with the pinned upstream schemas,
+// independently of the hand-written Go wire adapter under test.
+func TestNativeSunnypilotRecordings(t *testing.T) {
+	root := "../../../scripts/fixtures/device/000001a3--c20ba54385--"
+	for _, part := range []struct {
+		number   string
+		duration float64
+	}{{"0", 60}, {"1", 8}} {
+		for _, kind := range []string{"rlog", "qlog"} {
+			path := root + part.number + "/" + kind + ".zst"
+			summary, err := Decode(context.Background(), path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if summary.Duration != part.duration || summary.Version != "dash-synthetic-sunnypilot" {
+				t.Fatalf("wrong native segment metadata: %+v", summary)
+			}
+			if part.number == "1" && summary.StartMonotonic != 160 {
+				t.Fatal("route initData expanded segment start", summary.StartMonotonic)
+			}
+			vehicles, engagement, gps, frames, boundaries := 0, 0, 0, 0, 0
+			err = Stream(context.Background(), path, func(record Record) error {
+				if record.Vehicle != nil {
+					vehicles++
+					if record.CarFields.Acceleration == nil || record.CarFields.SteeringTorque == nil || record.CarFields.RawSpeed == nil {
+						t.Fatal("lost vehicle fields")
+					}
+					if vehicles == 1 && part.number == "0" && (record.Vehicle.Speed != 8 || *record.CarFields.Acceleration != .25 || !record.Vehicle.GasPressed) {
+						t.Fatal("wire layout differs from upstream", record.Vehicle, record.CarFields)
+					}
+				}
+				if record.Engagement != nil {
+					engagement++
+					state := record.SelfdriveState
+					wantActive := state == 2 || state == 3 || state == 4
+					wantEnabled := state == 1 || wantActive
+					if record.Engagement.Active != wantActive || record.Engagement.Enabled != wantEnabled {
+						t.Fatal("synthetic engagement differs from upstream state machine", record.Engagement, state)
+					}
+				}
+				if record.Position != nil {
+					gps++
+					if record.GPS.Source != 6 || record.GPS.HorizontalAccuracy == nil || record.Position.Monotonic < 100 {
+						t.Fatal("wrong GPS fields")
+					}
+				}
+				if record.Frame != nil {
+					frames++
+					if record.Frame.EndNS-record.Frame.StartNS != 5000000 || record.Frame.EncoderSegment < 4 {
+						t.Fatal("wrong frame index")
+					}
+				}
+				if record.Boundary != nil {
+					boundaries++
+				}
+				return nil
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			rate, gpsRate := 100, 10
+			if kind == "qlog" {
+				rate, gpsRate = 10, 1
+			}
+			if vehicles != int(part.duration)*rate || engagement != vehicles || gps != int(part.duration)*gpsRate || frames != int(part.duration)*20*4 || boundaries != 2 {
+				t.Fatalf("wrong native rates %s/%s: vehicle=%d engagement=%d gps=%d frames=%d boundaries=%d", part.number, kind, vehicles, engagement, gps, frames, boundaries)
+			}
+		}
+	}
+}
+
+func TestPreferredLog(t *testing.T) {
+	paths := []string{"/x/qlog.bz2", "/x/rlog.bz2", "/x/qlog.zst", "/x/rlog.zst"}
+	if PreferredLog(paths, true) != "/x/rlog.zst" || PreferredLog(paths, false) != "/x/qlog.zst" {
+		t.Fatal("wrong source preference")
+	}
+	if PreferredLog([]string{"/x/rlog.zst"}, false) != "/x/rlog.zst" || PreferredLog([]string{"/x/qlog.zst"}, true) != "/x/qlog.zst" {
+		t.Fatal("missing fallback")
+	}
+}
+
+func TestRecordedStreamCancelsBetweenEvents(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	count := 0
+	err := Stream(ctx, "../../../scripts/fixtures/device/000001a3--c20ba54385--0/rlog.zst", func(Record) error { count++; cancel(); return nil })
+	if err != context.Canceled || count != 1 {
+		t.Fatal("raw-rate decoding continued after cancellation", count, err)
+	}
+}
+
+func TestSegmentSentinelsOverrideQueuedReceiveTimes(t *testing.T) {
+	var span CaptureSpan
+	start, end := uint16(2), uint16(0)
+	for _, record := range []Record{{MonotonicNS: 100000000000, Kind: 71, Valid: true, Boundary: &start}, {MonotonicNS: 90000000000, Kind: 21, Valid: true}, {MonotonicNS: 108000000000, Kind: 71, Valid: true, Boundary: &end}, {MonotonicNS: 109000000000, Kind: 14, Valid: true}} {
+		span.Observe(record)
+	}
+	first, last, seen := span.Bounds()
+	if !seen || first != 100000000000 || last != 108000000000 {
+		t.Fatal("queued messages stretched sentinel boundaries", first, last)
 	}
 }
