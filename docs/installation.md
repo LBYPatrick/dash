@@ -2,7 +2,7 @@
 
 ## Requirements
 
-The target needs Linux ARM64 (typical device architecture; the installer checks `uname -m`), systemd, unified cgroup v2 exposing `cpu`, `memory`, and `pids`, FFmpeg 5 or later (including `-fps_mode` support, libx264 and the `h264_metadata`/`hevc_metadata` bitstream filters) and ffprobe in the service PATH, a `comma` user/group, and read access to recordings and firmware params. Dash writes only its cache and the managed live-stream flag/ownership marker. It requires writable `/data/dash`, `/data/params`, and permission to install a unit into `/etc/systemd/system`.
+The target needs Linux ARM64 (typical device architecture; the installer checks `uname -m`), systemd, unified cgroup v2 exposing `cpu`, `memory`, and `pids`, system CA certificates, FFmpeg 5 or later (including `-fps_mode` support, libx264 and the `h264_metadata`/`hevc_metadata` bitstream filters) and ffprobe in the service PATH, a `comma` user/group, and read access to recordings and firmware params. Dash writes only its cache and the managed live-stream flag/ownership marker. It requires writable `/data/dash`, `/data/params`, and permission to install a unit into `/etc/systemd/system`.
 
 Enable device SSH and configure your key using the [official device connection instructions](https://docs.comma.ai/how-to/connect-to-comma/). The device hotspot address is commonly `192.168.43.1`; use the address shown by your actual network. SSH and the HTTP interface must be reachable from the client. There is no internet or account requirement after installation.
 
@@ -26,11 +26,13 @@ make device-check DEVICE=comma@DEVICE_IP
 make device-install DEVICE=comma@DEVICE_IP
 ```
 
-The first command is read-only and verifies compatibility, parked state, FFmpeg/H.264/MCAP filters, sudo access, permissions, and 2 GiB free storage. The second builds the native binary/PWA locally, stages files over SSH/SCP, rechecks parked state, installs the systemd service, and verifies actual kernel limits. A failed activation restores previous binary/PWA assets if available and leaves the service stopped. No SSH command is run automatically against your car during local sandbox testing.
+The first command is read-only and verifies compatibility, parked state, FFmpeg/H.264/MCAP filters, sudo access, permissions, and 2 GiB free storage. The second downloads and verifies the latest successful `main` CI release, stages its prebuilt binary/PWA over SSH/SCP, rechecks parked state, installs the systemd service, and verifies actual kernel limits. The SSH client requires Python 3.9+ standard library; no build toolchain is needed for installation. Add `CHANNEL=nightly` or `CHANNEL=dev`, and optionally `RELEASE=TAG`, to select another channel or pinned build. See [delivery and OTA](delivery.md). A failed activation restores previous binary/PWA assets if available and leaves the service stopped. No SSH command is run automatically against your car during local sandbox testing.
+
+For unpublished code or debugging on Linux/macOS, run `make setup-build-env` then `make device-install-source DEVICE=comma@DEVICE_IP`. That separate route builds and checks on the host, transfers only the finished binary/PWA, installs the same systemd service and disables OTA for the local build. `make source-release` packages without contacting a device. See [build-yourself installation](delivery.md#build-yourself-and-debug-installation).
 
 ## Files and startup
 
-`/data/dash/dash-backend` serves `/data/dash/dist`, reads `/data/media/0/realdata`, keeps disposable files in `/data/dash/cache`, and observes `/data/params/d`. It detects firmware capabilities in `/data/openpilot`. Override paths by editing a systemd drop-in, not firmware startup scripts. The unit source and installation helpers remain in `/data/dash`.
+`/data/dash/dash-bootstrap` supervises `/data/dash/current/dash-backend`, which serves `/data/dash/current/dist`, reads `/data/media/0/realdata`, keeps disposable files in `/data/dash/cache`, and observes `/data/params/d`. It detects firmware capabilities in `/data/openpilot`. Override paths by editing a systemd drop-in, not firmware startup scripts. The unit source and installation helpers remain in `/data/dash`.
 
 ```sh
 sudo systemctl status dash.service
@@ -54,7 +56,7 @@ Logs go to the journal; journal retention/persistence follows the device's journ
 
 ## Verified limits
 
-The unit sets CPUQuota 50%, CPUWeight 10, Nice 15, MemoryHigh 256 MiB, MemoryMax 384 MiB, MemorySwapMax 0, TasksMax 64, and LimitNOFILE 1024. These are shared by Dash and subprocesses, not allocated separately per worker. The backend's `--require-systemd-limits` checks `/proc/self/cgroup` and the actual `cpu.max`, `memory.high`, `memory.max`, `memory.swap.max`, and `pids.max` files **before initializing workers**. Unlimited, missing, or excessive values cause startup failure. The installer also checks the running service and disables it if verification fails.
+The unit sets CPUQuota 50%, CPUWeight 10, Nice 15, MemoryHigh 256 MiB, MemoryMax 384 MiB, MemorySwapMax 0, TasksMax 64, and LimitNOFILE 1024. These are shared by Dash and subprocesses, not allocated separately per worker. The backend's `--require-systemd-limits` checks `/proc/self/cgroup` and the actual `cpu.max`, `memory.high`, `memory.max`, `memory.swap.max`, and `pids.max` files **before initializing workers**. Unlimited, missing, or excessive values cause startup failure. The installer also waits up to 55 seconds for a readiness marker published after ten seconds of backend health, verifies its bootstrap PID against systemd MainPID and its child PID against the service cgroup, and checks that its release matches `current`. It disables the service if startup health or kernel-limit verification fails.
 
 The smaller Go memory target and sampled FFmpeg RSS limit are additional safeguards, not substitutes for kernel limits. Memory exhaustion can terminate Dash; it is not possible to guarantee that arbitrary input never causes a process OOM. The aggregate hard limit bounds Dash's memory consumption. Only one indexing segment, conversion, export, or Dash live session can own the compute slot.
 
@@ -90,7 +92,7 @@ Only road, wide-road, or driver camera selection is exposed. There are no vehicl
 
 ## AGNOS updates and removal
 
-AGNOS documents `/data` as persisting across OS updates, unlike the other system partitions. Keep the binary, PWA, cache, certificates, and unit source there. `/etc/systemd/system/dash.service`, its enablement link, and OS-installed FFmpeg may be lost during an update. This persistence distinction is documented in the [AGNOS 8 release notes](https://blog.comma.ai/094release/).
+AGNOS documents `/data` as persisting across OS updates, unlike the other system partitions. Keep the bootstrap, versioned releases, update configuration/journal, PWA, cache, certificates, and unit source there. `/etc/systemd/system/dash.service`, its enablement link, and OS-installed FFmpeg may be lost during an update. This persistence distinction is documented in the [AGNOS 8 release notes](https://blog.comma.ai/094release/).
 
 After an AGNOS update, while parked, verify dependencies and run:
 

@@ -45,10 +45,15 @@ if ! systemctl restart dash.service; then
   journalctl -u dash.service -n 30 --no-pager
   exit 1
 fi
-sleep 2
-if ! bash /data/dash/verify-service.sh; then
+DASH_HEALTHY=false
+for DASH_ATTEMPT in {1..55}; do
+  if bash /data/dash/verify-service.sh >/dev/null 2>&1; then DASH_HEALTHY=true; break; fi
+  if ! systemctl is-active --quiet dash.service; then break; fi
+  sleep 1
+done
+if ! "$DASH_HEALTHY" || ! bash /data/dash/verify-service.sh; then
   systemctl disable --now dash.service
-  echo 'Resource verification failed. Dash has been stopped and disabled.'
+  echo 'Startup health/resource verification failed. Dash has been stopped and disabled.'
   journalctl -u dash.service -n 30 --no-pager
   exit 1
 fi

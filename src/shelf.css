@@ -1352,3 +1352,38 @@ body,
     margin-left: auto;
   }
 }
+
+#app .update-settings {
+  margin-top: 24px;
+}
+#app .update-settings h3 {
+  margin: 0 0 8px;
+}
+#app .update-settings .field-label {
+  margin-top: 16px;
+}
+#app .update-settings .update-automatic {
+  margin-top: 8px;
+  padding-bottom: 12px;
+}
+#app .update-settings .update-release {
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+#app .update-settings .update-release a {
+  display: block;
+  color: var(--green);
+  margin-top: 4px;
+}
+#app .update-progress {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 12px;
+  margin-bottom: 12px;
+}
+#app .update-progress progress {
+  width: 100%;
+  min-width: 0;
+  accent-color: var(--green);
+}

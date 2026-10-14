@@ -4,6 +4,10 @@ All notable changes to Dash are documented here using Keep a Changelog.
 
 ## [Unreleased]
 
+### Added
+
+- Separate Linux/macOS build-host setup and source-to-device SSH installer, with architecture detection, full local checks, verified minimal payloads, shared systemd activation and OTA disabled for local builds.
+
 ### Security
 
 - Remove the copied local Mapbox token and all Mapbox build configuration; maps no longer require credentials.
@@ -65,6 +69,9 @@ All notable changes to Dash are documented here using Keep a Changelog.
 - Move Overview, Recordings, Live and device switching into the desktop top bar and a mobile side drawer.
 
 ### Added
+
+- Add `main`/`nightly`/`dev` delivery branches with channel-only CI, immutable GitHub build releases and per-channel OTA manifests; install verified prebuilt binary/PWA bundles over SSH, defaulting to latest main.
+- Add Shelf-style managed updates in Settings with parked-only check/download/install, bounded SHA-256-verified extraction, systemd-supervised activation, process-group cleanup, durable startup rollback, channel selection and diagnostic reporting; exercise real Linux activation and failure recovery in Docker.
 
 - Add dashboard totals and D3 activity graphs with period/group/unit controls, metric cards, deliberate bar-to-drive filtering, keyboard/table alternatives and bounded mobile history paging. Distinguish missing GPS from measured zero without fetching detailed telemetry for the dashboard.
 

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref } from 'vue';
 import Sheet from './Sheet.vue';
+import UpdatesPanel from './UpdatesPanel.vue';
 import { Settings, Sun, Moon, Monitor, CircleHelp } from '../icons';
 import { theme, performanceMode, preferencesSaved } from '../appearance';
 import { backendOrigin, indexStatus } from '../indexer';
@@ -88,6 +89,7 @@ const themes = [
           {{ indexStatus.errors }} files could not be indexed. Rebuild to retry.
         </p>
       </section>
+      <UpdatesPanel v-if="backendOrigin" />
       <button
         class="settings-help button full-width"
         type="button"

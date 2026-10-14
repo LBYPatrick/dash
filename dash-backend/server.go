@@ -23,6 +23,7 @@ import (
 )
 
 type Server struct {
+	updates                         *UpdateManager
 	simulationMu                    sync.Mutex
 	diagnostics                     *Diagnostics
 	simulation                      bool
@@ -126,9 +127,11 @@ func (s *Server) getAPI(w http.ResponseWriter, r *http.Request) {
 	switch r.URL.Path {
 	case "/api/diagnostics/download":
 		s.downloadDiagnostics(w, r)
+	case "/api/updates":
+		s.updateAPI(w, r)
 	case "/api/info":
 		_, ffmpeg := exec.LookPath("ffmpeg")
-		writeJSON(w, 200, map[string]any{"simulation": s.simulation, "kind": "dash-backend", "version": 1, "metadata": true, "ffmpeg": ffmpeg == nil, "recordings": "/files/", "driving": s.index.state(), "managedLive": s.managedLive(), "resources": map[string]any{"heavyJobs": 1, "heapMiB": 128, "ffmpegRSSMiB": 192, "reservedRAMMiB": 512}})
+		writeJSON(w, 200, map[string]any{"build": currentBuild(), "simulation": s.simulation, "kind": "dash-backend", "version": 1, "metadata": true, "ffmpeg": ffmpeg == nil, "recordings": "/files/", "driving": s.index.state(), "managedLive": s.managedLive(), "resources": map[string]any{"heavyJobs": 1, "heapMiB": 128, "ffmpegRSSMiB": 192, "reservedRAMMiB": 512}})
 	case "/api/index":
 		snapshot, err := s.index.snapshot()
 		if err != nil {
@@ -352,6 +355,8 @@ func (s *Server) post(w http.ResponseWriter, r *http.Request) {
 	r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
 	defer r.Body.Close()
 	switch r.URL.Path {
+	case "/api/updates":
+		s.updateAPI(w, r)
 	case "/api/index/rebuild":
 		if err := s.index.rebuild(); err != nil {
 			fail(w, 409, err)

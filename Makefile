@@ -1,6 +1,9 @@
 .DEFAULT_GOAL := help
 
-.PHONY: install dev build build-arm64 test check format serve fixture smoke design-smoke appearance-smoke shelf-smoke viewer-smoke statistics-smoke mobile-scroll-smoke map-smoke index-ui-smoke
+# Project-local SDKs installed by setup-build-env; no shell profile edits.
+export PATH := $(CURDIR)/.artifacts/toolchains/node/bin:$(CURDIR)/.artifacts/toolchains/go/bin:$(PATH)
+
+.PHONY: install dev build build-arm64 test check format serve fixture smoke design-smoke appearance-smoke shelf-smoke viewer-smoke statistics-smoke mobile-scroll-smoke map-smoke index-ui-smoke updates-smoke
 install:
 	npm ci
 	cd dash-backend && go mod download
@@ -18,11 +21,14 @@ format:
 	npm run format
 	cd dash-backend && gofmt -w *.go internal/telemetry/*.go
 test:
+	python3 scripts/setup-toolchains.test.py
+	python3 scripts/fetch-release.test.py
 	bash scripts/install-backend.test.sh
 	npm test
 	cd dash-backend && go test -race ./...
 check:
 	npm run format:check
+	cd dash-backend && test -z "$$(gofmt -l .)"
 	cd dash-backend && go vet ./...
 	$(MAKE) test
 	$(MAKE) build
@@ -48,8 +54,10 @@ map-smoke:
 	node scripts/map-smoke.mjs
 index-ui-smoke:
 	node scripts/index-ui-smoke.mjs
+updates-smoke:
+	node scripts/updates-smoke.mjs
 
-.PHONY: sandbox-up sandbox-down sandbox-test sandbox-smoke sandbox-logs device-check device-install
+.PHONY: sandbox-up sandbox-down sandbox-test sandbox-smoke sandbox-logs device-check device-install release ota-smoke
 sandbox-up:
 	node scripts/sandbox-up.mjs
 sandbox-down:
@@ -62,9 +70,30 @@ sandbox-logs:
 	docker compose logs --tail=200 -f dash
 device-check:
 	bash scripts/install-backend.sh --check "$(DEVICE)"
+.PHONY: setup-build-env build-env-check device-install-source source-release source-install-smoke
+setup-build-env:
+	bash scripts/setup-build-env.sh
+build-env-check:
+	bash scripts/setup-build-env.sh --check
+device-install-source:
+	bash scripts/install-backend.sh --source "$(DEVICE)"
+source-install-smoke:
+	node scripts/install-source-smoke.mjs
+source-release:
+	$(MAKE) check
+	node scripts/release.mjs --source
+
 device-install:
-	bash scripts/install-backend.sh "$(DEVICE)"
+	bash scripts/install-backend.sh --channel "$(or $(CHANNEL),main)" $(if $(RELEASE),--release "$(RELEASE)") $(if $(REPOSITORY),--repo "$(REPOSITORY)") "$(DEVICE)"
+
+ota-smoke:
+	npm run build
+	node scripts/ota-smoke.mjs
+
+release:
+	npm run build
+	DASH_RELEASE_CHANNEL="$(CHANNEL)" DASH_RELEASE_SEQUENCE="$(BUILD)" node scripts/release.mjs
 
 .PHONY: help
 help:
-	@printf '%s\n' 'Dash workflows:' '  make install / dev / build / check' '  make fixture / serve / smoke / design-smoke / appearance-smoke / shelf-smoke / viewer-smoke / statistics-smoke / mobile-scroll-smoke / map-smoke / index-ui-smoke' '  make sandbox-up / sandbox-test / sandbox-smoke / sandbox-logs / sandbox-down' '  make device-check DEVICE=comma@DEVICE_IP' '  make device-install DEVICE=comma@DEVICE_IP'
+	@printf '%s\n' 'Dash workflows:' '  make install / dev / build / check' '  make fixture / serve / smoke / design-smoke / appearance-smoke / shelf-smoke / viewer-smoke / statistics-smoke / mobile-scroll-smoke / map-smoke / index-ui-smoke / updates-smoke' '  make sandbox-up / sandbox-test / sandbox-smoke / sandbox-logs / sandbox-down' '  make setup-build-env / build-env-check' '  make device-install-source DEVICE=comma@DEVICE_IP / source-release / source-install-smoke' '  make device-check DEVICE=comma@DEVICE_IP' '  make device-install DEVICE=comma@DEVICE_IP [CHANNEL=main|nightly|dev] [RELEASE=TAG]' '  make release CHANNEL=dev BUILD=1 / ota-smoke'

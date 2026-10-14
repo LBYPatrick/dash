@@ -4,7 +4,7 @@ A local drive library for sunnypilot devices. A Vue PWA and a required Go servic
 
 Open Dash while parked, choose a drive, scrub one recording timeline, switch cameras, enter a timestamp to millisecond precision or change playback speed, and export the complete session. Resize the desktop library or viewer panels; double-click a divider to reset. The map follows the playhead until you explore it or choose Full route. Viewer options toggle cached road snapshots and recorded engagement status. The interface works on a phone connected to the device hotspot or another computer on the same LAN.
 
-Desktop navigation stays centered between the device switcher and app controls. On phones, open the navigation drawer to switch views/devices or find installation help; Settings stays in the top bar. The player timer and seek bar show millisecond precision, with smooth playback updates that respect performance and reduced-motion settings. Video seeking remains limited by the source frames and browser.
+Desktop navigation lives in the resizable sidebar. Help and Settings form an icon group beside Dash, with Shelf hover/focus labels. On phones, use the drawer for views/devices and Settings for Help. The player timer and seek bar show millisecond precision, with smooth playback updates that respect performance and reduced-motion settings. Video seeking remains limited by the source frames and browser.
 
 The Overview dashboard shows retained-drive totals and D3 activity graphs. Choose a period and tap a total to graph GPS distance, recorded time, or drive count. Group by drive, day, or month; hover/focus to inspect, select a bar to filter the drive list, then open a recording. Arrow keys inspect bars, Enter selects, and Escape clears. A table alternative and paged charts/lists keep large histories usable on phones. Units and graph preferences are remembered; returning from a recording preserves the selected period. Missing telemetry stays unavailable, and partial coverage is shown explicitly.
 
@@ -20,6 +20,12 @@ The Overview dashboard shows retained-drive totals and D3 activity graphs. Choos
 - GPS route, measured distance, recorded duration, vehicle/version metadata, and library overview when supported logs are present. Missing metadata stays missing. Maps use MapLibre GL JS with OpenStreetMap Shortbread vector tiles, Dash light/dark styles and local system fonts. No map account or API key is required. The recorded GPS overlay remains available if tiles fail; browsers without WebGL show a static route preview. Rendering and one bounded map worker run on the viewing browser. Tile service configuration is read from the served `map-config.json`, so operators can change the Shortbread source without rebuilding. See [map configuration and service policy](docs/maps.md).
 - Parked-only local WebRTC on firmware with the managed `IsLiveStreaming` API. Browser recording is available where MediaRecorder supports the negotiated stream.
 - Installable PWA shell over trusted HTTPS. Recordings and exports are not cached offline.
+
+## Delivery and installation
+
+`main`, `nightly`, and `dev` are delivery branches. Work on feature branches targeting `dev`; only commits to the three channel branches run CI and create GitHub Releases. CI ships Linux ARM64/AMD64 Go binaries with a matching prebuilt PWA. `make device-install DEVICE=comma@DEVICE_IP` downloads the latest `main` release by default; use `CHANNEL=nightly|dev` and optionally `RELEASE=TAG` to select another build. The SSH client needs Python 3.9+, not a local source build.
+
+Managed devices use Shelf's check/download/restart flow in Settings, with three channels, parked-only processing, checksum verification, a stable systemd-supervised bootstrap and startup rollback. No compiler, Node, Git checkout, PAT or Docker is needed on a device. See [delivery, OTA and channel operations](docs/delivery.md) for artifacts, trust, persistence, first publication, local OTA simulation and bootstrap upgrades.
 
 ## Run locally
 
@@ -55,12 +61,21 @@ From this repository on your development computer:
 
 ```sh
 make device-check DEVICE=comma@DEVICE_IP    # Read-only SSH preflight
-make device-install DEVICE=comma@DEVICE_IP  # Build, upload, install, verify
+make device-install DEVICE=comma@DEVICE_IP  # Download latest main, upload, install, verify
 ```
 
 You can also invoke `bash scripts/install-backend.sh [--check] comma@DEVICE_IP` directly. Installation requires confirmed parked state and rechecks it before activation. The installer retains previous assets and restores them if service verification fails, keeping the service stopped.
 
-The installer cross-compiles Go for the detected Linux architecture, uploads the PWA and binary into `/data/dash`, installs `dash.service`, enables boot startup, and checks the live kernel controls. It requires SSH key access and noninteractive sudo. Open `http://DEVICE_IP:8088` from the same network. Trusted HTTPS is needed for service-worker installation on a LAN address; see the installation guide.
+The default installer downloads a verified CI release for the detected Linux architecture, uploads the prebuilt PWA and binary into `/data/dash`, installs `dash.service`, enables boot startup, and checks the live kernel controls. It requires SSH key access and noninteractive sudo. Open `http://DEVICE_IP:8088` from the same network. Trusted HTTPS is needed for service-worker installation on a LAN address; see the installation guide.
+
+For local debugging or building from source on Linux/macOS:
+
+```sh
+make setup-build-env                          # Host tools + npm/Go dependencies
+make device-install-source DEVICE=comma@DEVICE_IP
+```
+
+This separate route runs local checks, cross-compiles on the host and transfers the same minimal payload. It marks the build `local` (including dirty-worktree status) and disables OTA. No compiler or source checkout goes on the device. `make source-release` builds an inspectable bundle without SSH. See [build-yourself installation](docs/delivery.md#build-yourself-and-debug-installation) for prerequisites, setup behavior and returning to a channel release.
 
 ## Driving and resource policy
 

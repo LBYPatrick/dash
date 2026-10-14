@@ -2,8 +2,10 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"flag"
 	"log"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -29,7 +31,46 @@ func main() {
 	simulation := flag.Bool("simulation", false, "Developer sandbox: allow synthetic driving-state changes; never enable on a device")
 	containerLimits := flag.Bool("require-container-limits", false, "Verify Docker CPU, memory, swap and PID controls")
 	healthCheck := flag.Bool("health-check", false, "Check local HTTP readiness without starting workers")
+	supervise := flag.Bool("supervise", false, "Run the installed release with startup health checks and rollback")
+	updateHome := flag.String("update-home", "", "Managed release installation directory")
+	readyFile := flag.String("ready-file", "", "Internal supervisor readiness marker")
+	version := flag.Bool("version", false, "Print build identity as JSON and exit")
 	flag.Parse()
+	if *version {
+		_ = json.NewEncoder(os.Stdout).Encode(currentBuild())
+		return
+	}
+	if *supervise {
+		if *updateHome == "" {
+			log.Fatal("--supervise requires --update-home")
+		}
+		if *requiredLimits {
+			if err := verifySystemdLimits(); err != nil {
+				log.Fatal(err)
+			}
+		}
+		if *containerLimits {
+			directory, err := currentCgroup()
+			if err != nil {
+				log.Fatal(err)
+			}
+			if err := verifyKernelLimits(directory, false); err != nil {
+				log.Fatal(err)
+			}
+		}
+		if !*requiredLimits && !*containerLimits {
+			log.Fatal("supervisor requires verified systemd or container limits")
+		}
+		ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+		defer cancel()
+		if err := runSupervisor(ctx, *updateHome, paramsState(*params), supervisorArgs(os.Args[1:])); err != nil {
+			log.Fatal(err)
+		}
+		return
+	}
+	if *updateHome != "" && os.Getenv("DASH_SUPERVISED") != "1" {
+		log.Fatal("managed updates require the installed supervisor")
+	}
 	if *healthCheck {
 		client := &http.Client{Timeout: 2 * time.Second}
 		response, err := client.Get("http://127.0.0.1:8088/api/info")
@@ -109,6 +150,13 @@ func main() {
 	server := newServer(ctx, index, exports, appPath, *params, *firmware, *upstream)
 	server.diagnostics = diagnostics
 	server.simulation = *simulation
+	updates, err := newUpdater(ctx, *updateHome, index.state, cancel)
+	if err != nil {
+		log.Printf("updates unavailable: %v", err)
+		updates = &UpdateManager{ctx: ctx, state: index.state, status: UpdateState{Current: currentBuild(), Phase: "unavailable", Message: "Updates are unavailable: " + err.Error() + ". Repair the installation over SSH."}}
+	}
+	server.updates = updates
+	go updates.automaticChecks()
 	go func() {
 		ticker := time.NewTicker(15 * time.Second)
 		defer ticker.Stop()
@@ -134,10 +182,23 @@ func main() {
 		_ = httpServer.Shutdown(shutdown)
 	}()
 	log.Printf("dash-backend on %s; state=%s; heavy jobs=1; Go heap target=128 MiB", *address, index.state())
+	listener, listenErr := net.Listen("tcp", *address)
+	if listenErr != nil {
+		log.Fatal(listenErr)
+	}
+	if *readyFile != "" {
+		if *updateHome == "" || filepath.Dir(*readyFile) != filepath.Join(*updateHome, "cache") {
+			log.Fatal("invalid internal readiness path")
+		}
+		if err := atomicJSON(*readyFile, map[string]any{"pid": os.Getpid(), "revision": buildRevision, "tag": currentBuild().Tag}); err != nil {
+			log.Fatal(err)
+		}
+		defer os.Remove(*readyFile)
+	}
 	if *cert != "" {
-		err = httpServer.ListenAndServeTLS(*cert, *key)
+		err = httpServer.ServeTLS(listener, *cert, *key)
 	} else {
-		err = httpServer.ListenAndServe()
+		err = httpServer.Serve(listener)
 	}
 	if err != nil && err != http.ErrServerClosed {
 		log.Fatal(err)

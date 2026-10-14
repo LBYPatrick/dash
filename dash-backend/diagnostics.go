@@ -107,6 +107,11 @@ func (s *Server) downloadDiagnostics(w http.ResponseWriter, r *http.Request) {
 	}
 	var result strings.Builder
 	fmt.Fprintln(&result, "Dash backend diagnostics v1")
+	fmt.Fprintf(&result, "Dash build: %s channel=%s revision=%s\n", buildVersion, buildChannel, buildRevision)
+	if s.updates != nil {
+		update := s.updates.snapshot()
+		fmt.Fprintf(&result, "Updates: managed=%t channel=%s phase=%s message=%s\n", update.Managed, update.Channel, update.Phase, update.Message)
+	}
 	fmt.Fprintf(&result, "Generated: %s\nStarted: %s\nRuntime: %s %s/%s\nDriving state: %s\nSimulation: %t\nCompute slot occupied: %t\n", time.Now().UTC().Format(time.RFC3339), s.diagnostics.started.UTC().Format(time.RFC3339), runtime.Version(), runtime.GOOS, runtime.GOARCH, s.index.state(), s.simulation, len(computeSlot) > 0)
 	if build, ok := debug.ReadBuildInfo(); ok {
 		for _, setting := range build.Settings {
