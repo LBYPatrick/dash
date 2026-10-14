@@ -311,9 +311,12 @@ try {
         .getByRole('button', { name: 'Viewer options', exact: true })
         .boundingBox();
       assert(
-        Math.abs(timer.y + timer.height / 2 - options.y - options.height / 2) <
-          2,
-        'Phone controls should share one row',
+        options.y >= timer.y + timer.height - 1,
+        'Phone secondary controls belong below the primary transport row',
+      );
+      assert(
+        timer.height >= 44 && options.height >= 44 && options.width >= 44,
+        'Phone controls must retain usable touch targets',
       );
     }
     const result = await new AxeBuilder({ page })

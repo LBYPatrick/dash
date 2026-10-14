@@ -3,7 +3,7 @@
 # Project-local SDKs installed by setup-build-env; no shell profile edits.
 export PATH := $(CURDIR)/.artifacts/toolchains/node/bin:$(CURDIR)/.artifacts/toolchains/go/bin:$(PATH)
 
-.PHONY: install dev build build-arm64 test check format serve fixture smoke design-smoke appearance-smoke shelf-smoke viewer-smoke statistics-smoke mobile-scroll-smoke map-smoke index-ui-smoke updates-smoke
+.PHONY: install dev build build-arm64 test check format serve fixture smoke design-smoke appearance-smoke shelf-smoke viewer-smoke statistics-smoke mobile-scroll-smoke map-smoke index-ui-smoke updates-smoke mobile-flow-smoke live-capture-smoke motion-smoke
 install:
 	npm ci
 	cd dash-backend && go mod download
@@ -56,6 +56,12 @@ index-ui-smoke:
 	node scripts/index-ui-smoke.mjs
 updates-smoke:
 	node scripts/updates-smoke.mjs
+mobile-flow-smoke:
+	node scripts/mobile-flow-smoke.mjs
+live-capture-smoke:
+	node scripts/live-capture-smoke.mjs
+motion-smoke:
+	node scripts/motion-smoke.mjs
 
 .PHONY: sandbox-up sandbox-down sandbox-test sandbox-smoke sandbox-logs device-check device-install release ota-smoke
 sandbox-up:
@@ -96,4 +102,4 @@ release:
 
 .PHONY: help
 help:
-	@printf '%s\n' 'Dash workflows:' '  make install / dev / build / check' '  make fixture / serve / smoke / design-smoke / appearance-smoke / shelf-smoke / viewer-smoke / statistics-smoke / mobile-scroll-smoke / map-smoke / index-ui-smoke / updates-smoke' '  make sandbox-up / sandbox-test / sandbox-smoke / sandbox-logs / sandbox-down' '  make setup-build-env / build-env-check' '  make device-install-source DEVICE=comma@DEVICE_IP / source-release / source-install-smoke' '  make device-check DEVICE=comma@DEVICE_IP' '  make device-install DEVICE=comma@DEVICE_IP [CHANNEL=main|nightly|dev] [RELEASE=TAG]' '  make release CHANNEL=dev BUILD=1 / ota-smoke'
+	@printf '%s\n' 'Dash workflows:' '  make install / dev / build / check' '  make fixture / serve / smoke / design-smoke / appearance-smoke / shelf-smoke / viewer-smoke / statistics-smoke / mobile-scroll-smoke / map-smoke / index-ui-smoke / updates-smoke / mobile-flow-smoke / live-capture-smoke / motion-smoke' '  make sandbox-up / sandbox-test / sandbox-smoke / sandbox-logs / sandbox-down' '  make setup-build-env / build-env-check' '  make device-install-source DEVICE=comma@DEVICE_IP / source-release / source-install-smoke' '  make device-check DEVICE=comma@DEVICE_IP' '  make device-install DEVICE=comma@DEVICE_IP [CHANNEL=main|nightly|dev] [RELEASE=TAG]' '  make release CHANNEL=dev BUILD=1 / ota-smoke'

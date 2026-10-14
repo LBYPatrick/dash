@@ -1,13 +1,14 @@
 <script setup lang="ts">
 import {
   computed,
+  useId,
   nextTick,
   ref,
   watch,
   onMounted,
   onBeforeUnmount,
 } from 'vue';
-import { Film, CircleAlert, Play, Pause } from '../icons';
+import { Film, CircleAlert, Play, Pause, X } from '../icons';
 import type Hls from 'hls.js';
 import SelectMenu from './SelectMenu.vue';
 import SessionActions from './SessionActions.vue';
@@ -26,6 +27,7 @@ const props = withDefaults(
     sample?: boolean;
     controls?: boolean;
     segments?: TimelineSegment[];
+    controlsTarget?: HTMLElement;
   }>(),
   { controls: true },
 );
@@ -34,6 +36,7 @@ const emit = defineEmits<{
   timeupdate: [time: number, duration: number];
   positionframe: [time: number];
   loaded: [];
+  fullscreenRequested: [];
 }>();
 const video = ref<HTMLVideoElement>();
 const error = ref('');
@@ -45,6 +48,7 @@ const time = ref(0),
   timestamp = ref(''),
   timestampError = ref('');
 const timestampInput = ref<HTMLInputElement>();
+const timestampErrorId = useId();
 const timestampButton = ref<HTMLButtonElement>();
 const options = readStored<{ snapshots?: boolean; engagement?: boolean }>(
   'dash.viewerOptions',
@@ -188,9 +192,27 @@ function loaded() {
   sync();
   emit('loaded');
 }
+type SafariVideo = HTMLVideoElement & { webkitEnterFullscreen?: () => void };
+const fullscreenSupported = ref(
+  !!document.fullscreenEnabled ||
+    'webkitEnterFullscreen' in HTMLVideoElement.prototype,
+);
+const inFullscreen = ref(false);
+function fullscreenChanged() {
+  inFullscreen.value = document.fullscreenElement === root.value;
+}
 async function fullscreen() {
+  if (!document.fullscreenElement) {
+    emit('fullscreenRequested');
+    await nextTick();
+  }
   try {
-    await video.value?.parentElement?.requestFullscreen();
+    if (document.fullscreenElement) await document.exitFullscreen();
+    else if (document.fullscreenEnabled && root.value?.requestFullscreen)
+      await root.value.requestFullscreen();
+    else if ((video.value as SafariVideo)?.webkitEnterFullscreen)
+      (video.value as SafariVideo).webkitEnterFullscreen!();
+    else throw new Error('Fullscreen unavailable');
   } catch {
     error.value = 'Fullscreen is unavailable in this browser.';
   }
@@ -280,6 +302,7 @@ function playbackError() {
     retry = setTimeout(() => void initialize(), 2000);
 }
 onMounted(() => {
+  document.addEventListener('fullscreenchange', fullscreenChanged);
   document.addEventListener('visibilitychange', sync);
   motionPreference.addEventListener('change', motionChanged);
   void initialize();
@@ -293,6 +316,7 @@ onMounted(() => {
   if (root.value) resizeObserver.observe(root.value);
 });
 onBeforeUnmount(() => {
+  document.removeEventListener('fullscreenchange', fullscreenChanged);
   document.removeEventListener('visibilitychange', sync);
   motionPreference.removeEventListener('change', motionChanged);
   cleanup();
@@ -300,7 +324,11 @@ onBeforeUnmount(() => {
 });
 </script>
 <template>
-  <div ref="root" class="player">
+  <div
+    ref="root"
+    class="player"
+    :class="{ 'enhanced-player': source && controls }"
+  >
     <video
       v-if="source"
       ref="video"
@@ -347,179 +375,213 @@ onBeforeUnmount(() => {
         Retry playback
       </button>
     </div>
-    <div v-if="source && controls" class="enhanced-controls">
-      <div
-        v-if="snapshots"
-        class="snapshot-strip"
-        aria-label="Road recording snapshots"
-      >
-        <button
-          v-for="frame in snapshotFrames"
-          :key="frame.start"
-          type="button"
-          :aria-label="`Seek to ${formatTimestamp(frame.start)}`"
-          @click="seek(frame.start)"
+    <Teleport
+      :to="controlsTarget || 'body'"
+      :disabled="!controlsTarget || inFullscreen"
+    >
+      <div v-if="source && controls" class="enhanced-controls">
+        <div
+          v-if="snapshots"
+          class="snapshot-strip"
+          aria-label="Road recording snapshots"
         >
-          <img :src="frame.thumbnail" alt="" loading="lazy" /><span>{{
-            formatTimestamp(frame.start)
-          }}</span>
-        </button>
-        <span v-if="!snapshotFrames.length" class="muted"
-          >Snapshots appear after parked indexing.</span
-        >
-      </div>
-      <div
-        v-if="engagement && hasEngagement"
-        class="engagement-row"
-        role="status"
-      >
-        <span class="status-dot" :class="{ amber: status !== 'Engaged' }"></span
-        >{{ status }}
-      </div>
-      <svg
-        v-if="engagement && hasEngagement && bands.length && duration"
-        class="engagement-track"
-        viewBox="0 0 1000 8"
-        preserveAspectRatio="none"
-        role="img"
-        aria-label="Recorded engagement timeline"
-      >
-        <title>
-          Green: engaged. Gray: enabled but inactive. Blue: disengaged. Blank:
-          no recorded state.
-        </title>
-        <rect
-          v-for="(band, index) in bands"
-          :key="index"
-          :x="(band.start / duration) * 1000"
-          :width="
-            (Math.max(0, Math.min(duration, band.end) - band.start) /
-              duration) *
-            1000
-          "
-          height="8"
-          :class="`engagement-${band.state}`"
-        />
-      </svg>
-      <label class="video-timeline"
-        ><span class="sr-only">Recording timeline</span
-        ><input
-          type="range"
-          aria-label="Recording timeline"
-          min="0"
-          :max="duration || 1"
-          step="0.001"
-          :aria-valuetext="formatTimestamp(time, 3)"
-          :value="time"
-          :disabled="!duration"
-          @input="seekSlider"
-      /></label>
-      <div class="playback-toolbar">
-        <button
-          type="button"
-          class="player-control"
-          :aria-label="paused ? 'Play recording' : 'Pause recording'"
-          :disabled="!duration"
-          @click="togglePlay"
-        >
-          <Play v-if="paused" :size="16" /><Pause v-else :size="16" />
-        </button>
-        <button
-          type="button"
-          class="player-control"
-          aria-label="Back 10 seconds"
-          :disabled="!duration"
-          @click="seek(time - 10)"
-        >
-          −10
-        </button>
-        <button
-          type="button"
-          class="player-control"
-          aria-label="Forward 10 seconds"
-          :disabled="!duration"
-          @click="seek(time + 10)"
-        >
-          +10
-        </button>
-        <form
-          v-if="editingTime"
-          class="timestamp-form"
-          @submit.prevent="submitTime"
-          @keydown.esc.prevent.stop="closeTime"
-        >
-          <input
-            ref="timestampInput"
-            v-model="timestamp"
-            aria-label="Playback timestamp"
-            placeholder="m:ss.SSS"
-            autocomplete="off"
-          /><button type="submit" class="player-control">Go</button>
-        </form>
-        <button
-          v-else
-          type="button"
-          ref="timestampButton"
-          class="timestamp-button player-control"
-          aria-label="Enter playback timestamp"
-          :disabled="!duration"
-          @click="editTime"
-        >
-          <span>{{ formatTimestamp(time, 3) }}</span
-          ><span class="timestamp-total">
-            / {{ formatTimestamp(duration, 3) }}</span
-          >
-        </button>
-        <slot name="camera" />
-        <SelectMenu
-          class="playback-speed"
-          v-model="rate"
-          aria-label="Playback speed"
-          :options="
-            [0.25, 0.5, 0.75, 1, 1.25, 1.5, 2, 4].map((value) => ({
-              value,
-              label: `${value}×`,
-            }))
-          "
-        />
-        <button
-          type="button"
-          class="player-control fullscreen-control"
-          aria-label="Fullscreen recording"
-          @click="fullscreen"
-        >
-          ⛶
-        </button>
-        <SessionActions label="Viewer options"
-          ><button
+          <button
+            v-for="frame in snapshotFrames"
+            :key="frame.start"
             type="button"
-            :aria-pressed="snapshots"
-            @click="snapshots = !snapshots"
+            :aria-label="`Seek to ${formatTimestamp(frame.start)}`"
+            @click="seek(frame.start)"
           >
-            {{ snapshots ? 'Hide' : 'Show' }} snapshots</button
-          ><button
-            type="button"
-            :aria-pressed="engagement && hasEngagement"
-            :disabled="!hasEngagement"
-            :title="
-              hasEngagement
-                ? undefined
-                : 'No engagement data was recorded for this session.'
+            <img :src="frame.thumbnail" alt="" loading="lazy" /><span>{{
+              formatTimestamp(frame.start)
+            }}</span>
+          </button>
+          <span v-if="!snapshotFrames.length" class="muted"
+            >Snapshots appear after parked indexing.</span
+          >
+        </div>
+        <div
+          v-if="engagement && hasEngagement"
+          class="engagement-row"
+          role="status"
+        >
+          <span
+            class="status-dot"
+            :class="{ amber: status !== 'Engaged' }"
+          ></span
+          >{{ status }}
+        </div>
+        <svg
+          v-if="engagement && hasEngagement && bands.length && duration"
+          class="engagement-track"
+          viewBox="0 0 1000 8"
+          preserveAspectRatio="none"
+          role="img"
+          aria-label="Recorded engagement timeline"
+        >
+          <title>
+            Green: engaged. Gray: enabled but inactive. Blue: disengaged. Blank:
+            no recorded state.
+          </title>
+          <rect
+            v-for="(band, index) in bands"
+            :key="index"
+            :x="(band.start / duration) * 1000"
+            :width="
+              (Math.max(0, Math.min(duration, band.end) - band.start) /
+                duration) *
+              1000
             "
-            @click="engagement = !engagement"
+            height="8"
+            :class="`engagement-${band.state}`"
+          />
+        </svg>
+        <label class="video-timeline"
+          ><span class="sr-only">Recording timeline</span
+          ><input
+            type="range"
+            aria-label="Recording timeline"
+            min="0"
+            :max="duration || 1"
+            step="0.001"
+            :aria-valuetext="formatTimestamp(time, 3)"
+            :value="time"
+            :disabled="!duration"
+            @input="seekSlider"
+        /></label>
+        <div class="playback-toolbar">
+          <button
+            type="button"
+            class="player-control"
+            :aria-label="paused ? 'Play recording' : 'Pause recording'"
+            :disabled="!duration"
+            @click="togglePlay"
           >
-            {{
-              hasEngagement
-                ? `${engagement ? 'Hide' : 'Show'} engagement status`
-                : 'Engagement not recorded'
-            }}
-          </button></SessionActions
+            <Play v-if="paused" :size="16" /><Pause v-else :size="16" />
+          </button>
+          <button
+            type="button"
+            class="player-control"
+            aria-label="Back 10 seconds"
+            :disabled="!duration"
+            @click="seek(time - 10)"
+          >
+            −10
+          </button>
+          <button
+            type="button"
+            class="player-control"
+            aria-label="Forward 10 seconds"
+            :disabled="!duration"
+            @click="seek(time + 10)"
+          >
+            +10
+          </button>
+          <form
+            v-if="editingTime"
+            class="timestamp-form"
+            @submit.prevent="submitTime"
+            @keydown.esc.prevent.stop="closeTime"
+          >
+            <input
+              ref="timestampInput"
+              v-model="timestamp"
+              aria-label="Playback timestamp"
+              :aria-invalid="timestampError ? true : undefined"
+              :aria-describedby="timestampError ? timestampErrorId : undefined"
+              placeholder="m:ss.SSS"
+              autocomplete="off"
+              inputmode="text"
+              enterkeyhint="go"
+              autocapitalize="off"
+              spellcheck="false"
+            /><button type="submit" class="player-control">Go</button>
+            <button
+              type="button"
+              class="player-control"
+              aria-label="Cancel timestamp entry"
+              @click="closeTime"
+            >
+              <X :size="16" />
+            </button>
+          </form>
+          <button
+            v-else
+            type="button"
+            ref="timestampButton"
+            class="timestamp-button player-control"
+            aria-label="Enter playback timestamp"
+            :disabled="!duration"
+            @click="editTime"
+          >
+            <span>{{ formatTimestamp(time, 3) }}</span
+            ><span class="timestamp-total">
+              / {{ formatTimestamp(duration, 3) }}</span
+            >
+          </button>
+          <div class="playback-secondary">
+            <slot name="camera" />
+            <SelectMenu
+              class="playback-speed"
+              v-model="rate"
+              aria-label="Playback speed"
+              :options="
+                [0.25, 0.5, 0.75, 1, 1.25, 1.5, 2, 4].map((value) => ({
+                  value,
+                  label: `${value}×`,
+                }))
+              "
+            />
+            <button
+              type="button"
+              v-if="fullscreenSupported"
+              class="player-control fullscreen-control"
+              :aria-label="
+                inFullscreen
+                  ? 'Exit fullscreen recording'
+                  : 'Fullscreen recording'
+              "
+              @click="fullscreen"
+            >
+              ⛶
+            </button>
+            <SessionActions label="Viewer options"
+              ><button
+                type="button"
+                :aria-pressed="snapshots"
+                @click="snapshots = !snapshots"
+              >
+                {{ snapshots ? 'Hide' : 'Show' }} snapshots</button
+              ><button
+                type="button"
+                :aria-pressed="engagement && hasEngagement"
+                :disabled="!hasEngagement"
+                :title="
+                  hasEngagement
+                    ? undefined
+                    : 'No engagement data was recorded for this session.'
+                "
+                @click="engagement = !engagement"
+              >
+                {{
+                  hasEngagement
+                    ? `${engagement ? 'Hide' : 'Show'} engagement status`
+                    : 'Engagement not recorded'
+                }}
+              </button></SessionActions
+            >
+          </div>
+        </div>
+        <p
+          v-if="timestampError"
+          :id="timestampErrorId"
+          class="inline-error"
+          role="alert"
         >
+          {{ timestampError }}
+        </p>
       </div>
-      <p v-if="timestampError" class="inline-error" role="alert">
-        {{ timestampError }}
-      </p>
-    </div>
+    </Teleport>
     <span v-if="sample" class="sample-label">ILLUSTRATED SAMPLE</span>
   </div>
 </template>

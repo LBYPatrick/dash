@@ -1,9 +1,14 @@
 <script setup lang="ts">
-import { onBeforeUnmount, ref, watch } from 'vue';
+import { onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { Radio, Video, Square, Download } from '../icons';
 import SelectMenu from './SelectMenu.vue';
 import { indexStatus } from '../indexer';
 import { saveBlob } from '../media';
+import {
+  retainedLiveCapture as recordingBlob,
+  beginLiveCapture,
+  finishLiveCapture,
+} from '../liveCapture';
 const endpoint = '/api/stream';
 let heartbeat: ReturnType<typeof setInterval> | undefined;
 const camera = ref('road');
@@ -17,7 +22,6 @@ let recorder: MediaRecorder | undefined;
 let stream: MediaStream | undefined;
 let request: AbortController | undefined;
 let timeout: ReturnType<typeof setTimeout> | undefined;
-const recordingBlob = ref<Blob>();
 let recordingBytes = 0;
 async function stop() {
   const hadPeer = !!peer;
@@ -154,8 +158,8 @@ function toggleRecording() {
   }
   try {
     const parts: Blob[] = [];
+    let captureRun = 0;
     recordingBytes = 0;
-    recordingBlob.value = undefined;
     recorder = new MediaRecorder(stream, { mimeType: mime });
     recorder.ondataavailable = (event) => {
       if (event.data.size) {
@@ -172,13 +176,14 @@ function toggleRecording() {
     };
     recorder.onstop = () => {
       recording.value = false;
-      recordingBlob.value = new Blob(parts, { type: mime });
+      finishLiveCapture(captureRun, new Blob(parts, { type: mime }));
     };
     recorder.onerror = () => {
       status.value = 'Recording failed. Try another browser.';
       recording.value = false;
     };
     recorder.start(1000);
+    captureRun = beginLiveCapture();
     recording.value = true;
   } catch (error) {
     status.value = (error as Error).message;
@@ -201,7 +206,15 @@ watch(
     }
   },
 );
+function backgrounded() {
+  if (document.hidden && (connected.value || busy.value || recording.value)) {
+    void stop();
+    status.value = 'Live view stopped when Dash moved to the background.';
+  }
+}
+onMounted(() => document.addEventListener('visibilitychange', backgrounded));
 onBeforeUnmount(() => {
+  document.removeEventListener('visibilitychange', backgrounded);
   void stop();
 });
 </script>
@@ -232,6 +245,13 @@ onBeforeUnmount(() => {
         {{ busy || connected ? 'Disconnect' : 'Start live view' }}
       </button>
     </div>
+    <p
+      v-if="indexStatus.driving !== 'parked' && !connected"
+      class="settings-note"
+      role="status"
+    >
+      Live view is available when the vehicle is confirmed parked.
+    </p>
     <div class="live-player">
       <video
         ref="video"
@@ -249,15 +269,23 @@ onBeforeUnmount(() => {
       </Transition>
     </div>
     <div class="live-actions">
-      <span role="status">{{ connected ? status : 'No active stream' }}</span
+      <span role="status">{{ status }}</span
       ><button class="button" :disabled="!connected" @click="toggleRecording">
         <Square v-if="recording" :size="15" /><Video v-else :size="16" />{{
-          recording ? 'Stop recording' : 'Record this feed'
+          recording
+            ? 'Stop recording'
+            : recordingBlob
+              ? 'Record new clip'
+              : 'Record this feed'
         }}</button
       ><button v-if="recordingBlob" class="button" @click="downloadRecording">
         <Download :size="16" />Save recording
       </button>
     </div>
+    <p v-if="recordingBlob && !recording" class="capture-note" role="status">
+      Your clip stays available when switching Dash views. A new recording
+      replaces it; refreshing or closing this tab discards it.
+    </p>
     <div class="drive-note">
       <p>
         Keep this tab open while recording. Capture stops at approximately 128

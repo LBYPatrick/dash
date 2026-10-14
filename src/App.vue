@@ -40,6 +40,9 @@ import Sheet from './components/Sheet.vue';
 import SelectMenu from './components/SelectMenu.vue';
 import SessionActions from './components/SessionActions.vue';
 import RecordingPlayer from './components/RecordingPlayer.vue';
+import SessionFacts from './components/SessionFacts.vue';
+import { WorkspaceHistory, type WorkspaceRoute } from './workspaceHistory';
+import { retainedLiveCapture } from './liveCapture';
 import ResizablePanels from './components/ResizablePanels.vue';
 import SidebarResize from './components/SidebarResize.vue';
 import DeviceSwitcher from './components/DeviceSwitcher.vue';
@@ -64,6 +67,7 @@ import {
   recordingAddress,
   distanceKm,
   type Position,
+  type Telemetry,
 } from './indexer';
 import {
   downloadUrl,
@@ -99,11 +103,69 @@ function showHelp() {
   }
   helpDialog.value?.showModal();
 }
-function navigate(destination: 'drives' | 'overview' | 'live') {
-  view.value = destination;
-  mobileDetail.value = destination !== 'drives';
-  navigationDrawer.value?.close();
+const returnView = ref<'drives' | 'overview'>('drives');
+const backLabel = computed(() =>
+  returnView.value === 'overview' ? 'Back to Overview' : 'All drives',
+);
+const scrollPositions = new Map<string, number>();
+const routeKey = (route: WorkspaceRoute) =>
+  route.driveId ? `drive:${route.driveId}` : route.view;
+function rememberScroll() {
+  const pane = document.querySelector<HTMLElement>(
+    view.value === 'drives' && !mobileDetail.value
+      ? '.drive-scroll'
+      : '.detail',
+  );
+  if (pane)
+    scrollPositions.set(
+      view.value === 'drives' && mobileDetail.value && activeId.value
+        ? `drive:${activeId.value}`
+        : view.value,
+      pane.scrollTop,
+    );
 }
+async function applyWorkspace(route: WorkspaceRoute) {
+  rememberScroll();
+  view.value = route.view;
+  returnView.value = route.returnView || 'drives';
+  const drive =
+    route.driveId && drives.value.find((item) => item.id === route.driveId);
+  if (drive) {
+    if (activeId.value !== drive.id) sessionPane.value = 'video';
+    activeId.value = drive.id;
+    segmentIndex.value = 0;
+  }
+  mobileDetail.value = route.view !== 'drives' || !!drive;
+  navigationDrawer.value?.close();
+  await nextTick();
+  const pane = document.querySelector<HTMLElement>(
+    route.view === 'drives' && !route.driveId ? '.drive-scroll' : '.detail',
+  );
+  if (pane) pane.scrollTop = scrollPositions.get(routeKey(route)) || 0;
+}
+const workspaceHistory = new WorkspaceHistory((route) => {
+  void applyWorkspace(route);
+});
+function navigate(destination: 'drives' | 'overview' | 'live') {
+  rememberScroll();
+  workspaceHistory.navigate({ view: destination });
+}
+function returnFromDrive() {
+  rememberScroll();
+  workspaceHistory.back({ view: returnView.value });
+}
+const mobileViewport = window.matchMedia('(max-width: 900px)');
+const narrow = ref(mobileViewport.matches);
+const mobilePlaybackDock = ref<HTMLDivElement>();
+const transportTarget = computed(() =>
+  narrow.value ? mobilePlaybackDock.value : undefined,
+);
+function viewportChanged(event: MediaQueryListEvent) {
+  narrow.value = event.matches;
+}
+mobileViewport.addEventListener('change', viewportChanged);
+const tripDetails = ref<InstanceType<typeof Sheet>>();
+
 function switchDevice() {
   if (navigationDrawer.value?.open) {
     navigationDrawer.value.close();
@@ -167,7 +229,7 @@ const driveMetadata = computed(
   () =>
     active.value?.segments
       .map((segment) => indexEntries.value[segment.url]?.metadata)
-      .filter((meta) => meta?.status === 'ready') || [],
+      .filter((meta): meta is Telemetry => meta?.status === 'ready') || [],
 );
 const thumbnail = (drive: Drive) =>
   demo.value
@@ -279,6 +341,9 @@ function tell(message: string) {
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => (notice.value = ''), 4500);
 }
+watch(retainedLiveCapture, (clip) => {
+  if (clip?.size) tell('Live clip ready. Save it from Live.');
+});
 function saveDrive() {
   if (!active.value) return;
   const key = bookmarkKey(active.value.id);
@@ -296,11 +361,13 @@ function saveDrive() {
   );
 }
 function selectDrive(drive: Drive) {
+  rememberScroll();
   sessionPane.value = 'video';
-  view.value = 'drives';
-  activeId.value = drive.id;
-  segmentIndex.value = 0;
-  mobileDetail.value = true;
+  workspaceHistory.navigate({
+    view: 'drives',
+    driveId: drive.id,
+    returnView: view.value === 'overview' ? 'overview' : 'drives',
+  });
 }
 async function loadFiles() {
   fileRequest?.abort();
@@ -345,7 +412,13 @@ watch(activeId, () => {
 let metadataRequest: AbortController | undefined;
 async function loadMetadata() {
   metadataRequest?.abort();
-  if (demo.value || !active.value) return;
+  if (
+    demo.value ||
+    !active.value ||
+    view.value !== 'drives' ||
+    (narrow.value && !mobileDetail.value)
+  )
+    return;
   const drive = active.value;
   const request = new AbortController();
   metadataRequest = request;
@@ -371,6 +444,9 @@ async function loadMetadata() {
 watch(
   [
     activeId,
+    view,
+    mobileDetail,
+    narrow,
     () => indexStatus.value.completed,
     // The initial metadata request can finish before the index snapshot.
     // Retry once its target entry exists, including when workers are paused.
@@ -402,12 +478,13 @@ async function connect() {
     demo.value = false;
     connectedAddress.value = normalized;
     address.value = normalized;
+    const previousId = activeId.value;
     drives.value = groupDrives(listing.directories);
-    query.value = '';
-    filter.value = 'all';
-    activeId.value = drives.value[0]?.id || '';
+    activeId.value = drives.value.some((item) => item.id === previousId)
+      ? previousId
+      : drives.value[0]?.id || '';
     segmentIndex.value = 0;
-    mobileDetail.value = false;
+    await applyWorkspace(workspaceHistory.current);
     backendOrigin.value = location.origin;
     indexDrives();
     connectionDialog.value?.close();
@@ -428,7 +505,7 @@ function explore() {
   stopIndexing();
   busy.value = false;
   backendOrigin.value = '';
-  view.value = 'drives';
+  workspaceHistory.navigate({ view: 'drives' }, true);
   demo.value = true;
   connectedAddress.value = '';
   drives.value = demoDrives;
@@ -457,6 +534,7 @@ function disconnect() {
   filesBusy.value = false;
   connectedAddress.value = '';
   demo.value = false;
+  workspaceHistory.navigate({ view: 'drives' }, true);
   drives.value = [];
   activeId.value = '';
   files.value = [];
@@ -490,6 +568,8 @@ onMounted(() => {
   window.addEventListener('keydown', dismissTipOnEscape);
 });
 onBeforeUnmount(() => {
+  workspaceHistory.dispose();
+  mobileViewport.removeEventListener('change', viewportChanged);
   hideTip();
   window.removeEventListener('resize', hideTip);
   window.removeEventListener('scroll', hideTip, true);
@@ -875,6 +955,17 @@ onBeforeUnmount(() => {
         >
           <ArrowLeft :size="16" /> Recordings
         </button>
+        <KeepAlive>
+          <RecordingDashboard
+            v-if="view === 'overview'"
+            :key="connectedAddress"
+            v-model="dashboardSelection"
+            :drives="drives"
+            :entries="indexEntries"
+            :demo="demo"
+            @open="selectDrive"
+          />
+        </KeepAlive>
         <LiveView v-if="view === 'live' && !demo" />
         <div v-else-if="view === 'live'" class="no-selection">
           <Wifi :size="35" />
@@ -884,24 +975,16 @@ onBeforeUnmount(() => {
             library does not simulate a live connection.
           </p>
         </div>
-        <RecordingDashboard
-          v-else-if="view === 'overview'"
-          :key="connectedAddress"
-          v-model="dashboardSelection"
-          :drives="drives"
-          :entries="indexEntries"
-          :demo="demo"
-          @open="selectDrive"
-        />
-        <template v-else-if="active">
+        <template v-else-if="view === 'drives' && active">
           <div class="detail-heading">
+            <button
+              class="mobile-back icon-button session-return"
+              :aria-label="backLabel"
+              @click="returnFromDrive"
+            >
+              <ArrowLeft :size="20" />
+            </button>
             <div>
-              <button
-                class="mobile-back text-button"
-                @click="mobileDetail = false"
-              >
-                <ArrowLeft :size="16" /> All drives
-              </button>
               <div class="eyebrow">
                 {{ demo ? 'SAMPLE DRIVE' : 'DRIVE REVIEW' }}
               </div>
@@ -1027,12 +1110,14 @@ onBeforeUnmount(() => {
           >
             <button
               :class="{ selected: sessionPane === 'video' }"
+              :aria-pressed="sessionPane === 'video'"
               @click="sessionPane = 'video'"
             >
               Video
             </button>
             <button
               :class="{ selected: sessionPane === 'data' }"
+              :aria-pressed="sessionPane === 'data'"
               @click="sessionPane = 'data'"
             >
               Map &amp; data
@@ -1062,6 +1147,8 @@ onBeforeUnmount(() => {
                     :source="selectedSource || undefined"
                     :sample="demo"
                     :segments="timelineSegments"
+                    :controls-target="transportTarget"
+                    @fullscreen-requested="sessionPane = 'video'"
                     @positionframe="playbackTime = $event"
                     @timeupdate="
                       (time, duration) => {
@@ -1093,52 +1180,43 @@ onBeforeUnmount(() => {
             <template #data>
               <aside class="session-data">
                 <section v-if="driveMetadata.length" class="trip-details">
-                  <div class="section-heading">
-                    <div>
-                      <h2>Metadata</h2>
-                      <p>
-                        {{ driveMetadata.length }} /
-                        {{ active.segments.length }} segments decoded
-                      </p>
-                    </div>
-                  </div>
-                  <div class="stat-grid">
-                    <div>
-                      <small>Measured distance</small
-                      ><strong
-                        >{{
-                          driveMetadata
-                            .reduce(
-                              (sum, meta) => sum + (meta?.distanceKm || 0),
-                              0,
-                            )
-                            .toFixed(1)
-                        }}
-                        <span>km</span></strong
-                      >
-                    </div>
-                    <div>
-                      <small>Recorded time</small
-                      ><strong
-                        >{{
-                          (
-                            driveMetadata.reduce(
-                              (sum, meta) => sum + (meta?.duration || 0),
-                              0,
-                            ) / 60
-                          ).toFixed(1)
-                        }}
-                        <span>min</span></strong
-                      >
-                    </div>
-                    <div>
-                      <small>Vehicle</small
-                      ><strong class="vehicle-name">{{
-                        driveMetadata.find((meta) => meta?.car)?.car ||
-                        'Not recorded'
-                      }}</strong>
-                    </div>
-                  </div>
+                  <SessionFacts
+                    class="desktop-session-facts"
+                    :metadata="driveMetadata"
+                    :total="active.segments.length"
+                  />
+                  <button
+                    type="button"
+                    class="mobile-trip-summary"
+                    aria-label="Trip details"
+                    @click="tripDetails?.showModal()"
+                  >
+                    <span>Trip details</span
+                    ><span
+                      >{{
+                        (
+                          driveMetadata.reduce(
+                            (sum, meta) => sum + (meta?.duration || 0),
+                            0,
+                          ) / 60
+                        ).toFixed(1)
+                      }}
+                      min · {{ driveMetadata.length }} /
+                      {{ active.segments.length }} parts
+                      <ChevronRight :size="14"
+                    /></span>
+                  </button>
+                  <Sheet
+                    ref="tripDetails"
+                    title="Trip details"
+                    close-label="Close trip details"
+                    class="trip-facts-sheet"
+                    ><div class="modal-inner">
+                      <SessionFacts
+                        :metadata="driveMetadata"
+                        :total="active.segments.length"
+                      /></div
+                  ></Sheet>
                   <TripMap
                     :key="active.id"
                     v-if="drivePoints.length"
@@ -1158,8 +1236,13 @@ onBeforeUnmount(() => {
               </aside>
             </template>
           </ResizablePanels>
+          <div
+            ref="mobilePlaybackDock"
+            class="mobile-playback-dock"
+            aria-label="Recording playback controls"
+          ></div>
         </template>
-        <div v-else class="no-selection">
+        <div v-else-if="view === 'drives'" class="no-selection">
           <HardDrive :size="42" />
           <h1>Select a drive</h1>
           <p>

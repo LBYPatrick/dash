@@ -5,6 +5,8 @@ import './style.css';
 import './glass.css';
 import './appearance.css';
 import './shelf.css';
+import './mobile.css';
+import './viewport';
 import './appearance';
 // Keyboard navigation stays immediate; pointer interactions use surface motion.
 document.addEventListener('keydown', (event) => {

@@ -118,3 +118,7 @@ Theme changes update paint properties without replacing sources or the camera. O
 ## Delivery settings
 
 Settings uses the shared Shelf popup and select menu for channel selection, automatic-check preference and check/download/restart progress. Downloads belong to the backend and survive popup dismissal; no change of channel implicitly downloads. Restart waits for backend health before reloading the PWA, including LAN HTTP without a service worker. Onroad/unknown state disables actions. Local source builds show their identity and an explanation instead of OTA controls. `make updates-smoke` exercises the managed flow, narrow layout and contrast/accessibility against a mocked update API; `make ota-smoke` exercises actual native activation/rollback and local-source startup under Linux cgroup limits.
+
+## Mobile flows and motion follow-up
+
+See [the mobile/motion audit](mobile-motion-audit.md) for shared transport across mobile panels, compact Trip details, contextual browser history, retained Overview/live capture state, restored fullscreen, safe areas/touch targets, and verified interruptible popovers/divider resets. Read-only findings and execution records are in [plans](../plans/README.md).

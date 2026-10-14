@@ -6,6 +6,9 @@ All notable changes to Dash are documented here using Keep a Changelog.
 
 ### Added
 
+- Shared mobile playback controls across video/map panels, compact Trip details, supported fullscreen and touch/keyboard-safe timestamp editing.
+- Contextual browser navigation and retained Overview state, plus live clips that remain downloadable after changing views.
+
 - Separate Linux/macOS build-host setup and source-to-device SSH installer, with architecture detection, full local checks, verified minimal payloads, shared systemd activation and OTA disabled for local builds.
 
 ### Security
@@ -15,6 +18,8 @@ All notable changes to Dash are documented here using Keep a Changelog.
 - Remove the embedded browser map token from source and local Git history; use ignored `.env` configuration and credential-free OpenStreetMap defaults. Exclude env files from Docker build contexts.
 
 ### Fixed
+
+- Complete selector/action popover transitions, interruption-safe divider resets, immediate keyboard/performance handle resets, and subtle asynchronous task feedback.
 
 - Export every camera as `foxglove.CompressedVideo` MCAP messages with decoder headers and frame timestamps, converting B-frames under parked-only worker limits; retain original attachments and independent Dash telemetry schemas.
 - Start downloads automatically when export preparation finishes, retaining a retry link for browser download restrictions.
