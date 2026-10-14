@@ -1,101 +1,173 @@
-# Dash
+<p align="center">
+  <img src="public/icon.svg" alt="Dash" width="80" />
+</p>
 
-A local drive library for sunnypilot devices. A Vue PWA and a required Go service, **dash-backend**, serve the interface, recordings, index, and exports from one address. No login, copyparty, cloud account, or Python runtime for Dash. Device installation uses systemd; Docker is optional for development.
+<h1 align="center">Dash</h1>
 
-Open Dash while parked, choose a drive, scrub one recording timeline, switch cameras, enter a timestamp to millisecond precision or change playback speed, and export the complete session. Resize the desktop library or viewer panels; double-click a divider to reset. The map follows the playhead until you explore it or choose Full route. Viewer options toggle cached road snapshots and recorded engagement status. The interface works on a phone connected to the device hotspot or another computer on the same LAN.
+<p align="center">
+  <strong>Your drive recordings, directly from your device.</strong><br />
+  A local Vue PWA and Go backend for sunnypilot devices.
+</p>
 
-Desktop navigation lives in the resizable sidebar. Help and Settings form an icon group beside Dash, with Shelf hover/focus labels. On phones, use the drawer for views/devices and Settings for Help. Playback controls stay available below both Video and Map & data; Trip details opens the full metadata popup. Browser Back and the session back button restore the previous view, including Overview state. Supported phones can open fullscreen playback. Unsaved live clips survive switching views until replaced or the tab is refreshed/closed. The player timer and seek bar show millisecond precision, with smooth playback updates that respect performance and reduced-motion settings. Video seeking remains limited by the source frames and browser.
+<p align="center">
+  <a href="#try-it-locally">Quick start</a> ·
+  <a href="#install-on-your-device">Install</a> ·
+  <a href="docs/delivery.md">Updates</a> ·
+  <a href="#development">Develop</a>
+</p>
 
-The Overview dashboard shows retained-drive totals and D3 activity graphs. Choose a period and tap a total to graph GPS distance, recorded time, or drive count. Group by drive, day, or month; hover/focus to inspect, select a bar to filter the drive list, then open a recording. Arrow keys inspect bars, Enter selects, and Escape clears. A table alternative and paged charts/lists keep large histories usable on phones. Units and graph preferences are remembered; returning from a recording preserves the selected period. Missing telemetry stays unavailable, and partial coverage is shown explicitly.
+---
 
-## Included
+Dash turns your device's recordings into a searchable drive library. Connect over its hotspot or your LAN to review footage, follow the route, explore driving statistics, and download a whole session. The required **dash-backend** serves the PWA, API, recordings, and exports from one address. No login, cloud account, copyparty, or map token is needed.
 
-- Glass controls with restrained corners, readable text, sliding selection highlights, animated menus/sheets, and system typography. Settings offers Light / Dark / System themes and an opaque performance mode; preferences persist per browser. Reduced motion, reduced transparency and increased contrast preferences are respected; effects render on the client.
-- Searchable, sortable drive library with thumbnails and browser-local bookmarks.
-- Incremental SQLite indexing, disposable cache recovery, and a rebuild action. Original recordings are read-only.
-- A viewport-sized session viewer with camera footage beside the map/metadata on desktop, a draggable divider that remembers the panel widths, and Video / Map & data tabs on mobile. Downloads and bookmarks live in the three-dot actions menu. Overview, Recordings, Live, device switching, settings and help share the resizable desktop sidebar. Mobile uses a compact header and navigation drawer.
-- Continuous, seekable HLS playback across recording files, with automatic transitions and one selected camera at a time. Missing or unreadable camera files are omitted.
-- Backend full-session ZIP, MP4, raw-video ZIP, and MCAP exports. No segment selection; the backend discovers every session part. Raw-video ZIP preserves the selected camera’s original files without conversion. MP4 can retain HEVC or convert to H.264 for compatibility. MCAP includes `foxglove.CompressedVideo` channels for every available camera, Dash's own telemetry JSON schemas, and original recordings as attachments. Downloads start automatically after preparation, with a retry link if your browser blocks them.
-- Playback-synchronized GPS follow uses interpolated positions while video plays, capped at 30 updates per second; performance/reduced-motion modes use native media events. Paused, buffering, hidden and offscreen maps stop frame-driven work.
-- GPS route, measured distance, recorded duration, vehicle/version metadata, and library overview when supported logs are present. Missing metadata stays missing. Maps use MapLibre GL JS with OpenStreetMap Shortbread vector tiles, Dash light/dark styles and local system fonts. No map account or API key is required. The recorded GPS overlay remains available if tiles fail; browsers without WebGL show a static route preview. Rendering and one bounded map worker run on the viewing browser. Tile service configuration is read from the served `map-config.json`, so operators can change the Shortbread source without rebuilding. See [map configuration and service policy](docs/maps.md).
-- Parked-only local WebRTC on firmware with the managed `IsLiveStreaming` API. Browser recording is available where MediaRecorder supports the negotiated stream.
-- Installable PWA shell over trusted HTTPS. Recordings and exports are not cached offline.
+| Review                                                     | Explore                                               | Take it with you                                                            |
+| ---------------------------------------------------------- | ----------------------------------------------------- | --------------------------------------------------------------------------- |
+| Thumbnails, search, sorting, and saved drives              | Playback-synchronized GPS map with Follow             | Full-session MP4 and original-video ZIP                                     |
+| One timeline across recording parts, with camera switching | Recorded vehicle data and optional engagement overlay | ZIP of original assets                                                      |
+| Timestamp entry to milliseconds and playback speed         | D3 dashboard with filters and a table alternative     | MCAP with `foxglove.CompressedVideo` and independent Dash telemetry schemas |
 
-## Delivery and installation
+Desktop offers resizable library and video/map panels. Mobile keeps playback controls available across Video and Map tabs, with trip details in a sheet. Light, dark, and system themes include an opaque performance mode and reduced-motion support.
 
-`main`, `nightly`, and `dev` are delivery branches. Work on feature branches targeting `dev`; only commits to the three channel branches run CI and create GitHub Releases. CI ships Linux ARM64/AMD64 Go binaries with a matching prebuilt PWA. `make device-install DEVICE=comma@DEVICE_IP` downloads the latest `main` release by default; use `CHANNEL=nightly|dev` and optionally `RELEASE=TAG` to select another build. The SSH client needs Python 3.9+, not a local source build.
+Live view and bounded browser recording are available **only on compatible firmware with managed WebRTC support**. Metadata and statistics depend on the logs actually recorded; unavailable data stays unavailable.
 
-Managed devices use Shelf's check/download/restart flow in Settings, with three channels, parked-only processing, checksum verification, a stable systemd-supervised bootstrap and startup rollback. No compiler, Node, Git checkout, PAT or Docker is needed on a device. See [delivery, OTA and channel operations](docs/delivery.md) for artifacts, trust, persistence, first publication, local OTA simulation and bootstrap upgrades.
+## Try it locally
 
-## Run locally
+Start with synthetic recordings on your computer. This does not access your car.
 
-Requires Node 22.12+ (or a compatible newer release), Go 1.27.1+, and FFmpeg/ffprobe with H.264 encoding support.
+**Build-host prerequisites**
+
+| Tool             | Requirement                                                  |
+| ---------------- | ------------------------------------------------------------ |
+| Node.js + npm    | Node 22.12+ or a compatible newer release                    |
+| Go               | 1.27.1+; see [go.mod](dash-backend/go.mod)                   |
+| FFmpeg + ffprobe | 5+, including libx264 and libx265 for fixtures/tests         |
+| System tools     | Git, Make, C compiler for race tests, and bzip2 for fixtures |
+| Python           | 3.9+ for installer/toolchain tests                           |
+
+On Linux/macOS, `bash scripts/setup-build-env.sh` installs or prepares host dependencies. See the [build-host guide](docs/delivery.md#build-yourself-and-debug-installation) for supported distributions and macOS prerequisites.
 
 ```sh
+git clone git@github.com:LBYPatrick/dash.git
+cd dash
 make install
 make build
 make fixture
 make serve
 ```
 
-Open <http://127.0.0.1:8088>. The fixture contains **synthetic** illustrated video and generated telemetry, not real driving data. Without a connected backend, the UI offers a clearly labeled sample library.
+Open **<http://127.0.0.1:8088>**. The fixture contains synthetic video and telemetry, not captured road data. Stop the server with Ctrl+C.
 
-For frontend development, keep the backend running and run `make dev`; Vite proxies `/api` and `/files`. To use actual local recordings, launch the binary with explicit `--root`, `--params`, `--cache`, and `--app` paths. Missing driving-state params disable processing.
+For frontend development, leave the backend running and run `make dev` in another terminal. Vite prints its development address and proxies `/api` and `/files` to the backend on port 8088. Without a backend, Dash offers a labeled sample library.
 
-## Verify without a device
+### Virtual device with Docker
 
 ```sh
 make sandbox-up
 make sandbox-test
 ```
 
-Open <http://127.0.0.1:8089> and select Parked in the sandbox control to index synthetic recordings. Select Onroad or Unknown to verify worker lockout. The sandbox uses the actual Linux backend with enforced Docker CPU/memory/PID limits, without mounting device data or SSH keys. See [sandbox and diagnostics](docs/sandbox.md) for details and limits of the simulation.
+Open **<http://127.0.0.1:8089>**. Choose **Parked** in the sandbox control to allow indexing; choose **Onroad** or **Unknown** to test worker lockout. The sandbox runs the Linux backend under enforced resource limits with synthetic recordings. It mounts no device data or SSH keys.
 
-Backend diagnostics are downloadable from the device card in the frontend, including while onroad. Reports include bounded recent logs and runtime status; they exclude footage and GPS samples.
+Use `make sandbox-logs` to follow logs and `make sandbox-down` to stop it. Docker is a development tool; devices use systemd. See [sandbox and diagnostics](docs/sandbox.md).
 
-## Install on a device
+## Install on your device
 
-Dash installs alongside sunnypilot through SSH; you do not need to merge it into sunnypilot. A firmware distributor can package the same service and assets. The device must meet the requirements in [installation and operations](docs/installation.md), especially **unified cgroup v2 with CPU, memory, and PID controllers**. Unsupported configurations are rejected rather than running without enforced limits.
+Dash installs alongside sunnypilot over SSH. A firmware merge is not required. **Physical comma-device installation and live camera compatibility have not yet been validated.** Check your actual firmware and AGNOS image before deploying.
 
-From this repository on your development computer:
+The target needs systemd, unified cgroup v2 with CPU/memory/PID controllers, FFmpeg 5+ with the required encoders/filters, SSH access, and noninteractive sudo. Installation requires confirmed parked state. The [installation guide](docs/installation.md) covers the complete requirements; the installer rejects unsupported configurations.
+
+### From a release
+
+Your computer needs this checkout, Make, SSH/SCP, and Python 3.9+. No local Node/Go build is needed.
 
 ```sh
-make device-check DEVICE=comma@DEVICE_IP    # Read-only SSH preflight
-make device-install DEVICE=comma@DEVICE_IP  # Download latest main, upload, install, verify
+make device-check DEVICE=comma@DEVICE_IP    # Read-only compatibility check
+make device-install DEVICE=comma@DEVICE_IP # Latest main release
 ```
 
-You can also invoke `bash scripts/install-backend.sh [--check] comma@DEVICE_IP` directly. Installation requires confirmed parked state and rechecks it before activation. The installer retains previous assets and restores them if service verification fails, keeping the service stopped.
-
-The default installer downloads a verified CI release for the detected Linux architecture, uploads the prebuilt PWA and binary into `/data/dash`, installs `dash.service`, enables boot startup, and checks the live kernel controls. It requires SSH key access and noninteractive sudo. Open `http://DEVICE_IP:8088` from the same network. Trusted HTTPS is needed for service-worker installation on a LAN address; see the installation guide.
-
-For local debugging or building from source on Linux/macOS:
+Choose another channel or pin a build:
 
 ```sh
-make setup-build-env                          # Host tools + npm/Go dependencies
+make device-install DEVICE=comma@DEVICE_IP CHANNEL=nightly
+make device-install DEVICE=comma@DEVICE_IP CHANNEL=dev RELEASE=TAG
+```
+
+The installer verifies the downloaded release, transfers the Go binary and prebuilt site, installs under `/data/dash`, enables `dash.service`, and verifies the live kernel resource limits. A channel must have a published release before this route can work.
+
+Open **`http://DEVICE_IP:8088`** from the same network. Trusted HTTPS is required to install the PWA on a LAN address; ordinary HTTP still serves the interface. See [HTTPS setup](docs/installation.md#local-https-and-pwa-installation).
+
+### From your own source build
+
+Build on a Linux/macOS computer and transfer the finished assets:
+
+```sh
+bash scripts/setup-build-env.sh
 make device-install-source DEVICE=comma@DEVICE_IP
 ```
 
-This separate route runs local checks, cross-compiles on the host and transfers the same minimal payload. It marks the build `local` (including dirty-worktree status) and disables OTA. No compiler or source checkout goes on the device. `make source-release` builds an inspectable bundle without SSH. See [build-yourself installation](docs/delivery.md#build-yourself-and-debug-installation) for prerequisites, setup behavior and returning to a channel release.
+This route runs local checks, cross-compiles for the target, and uses the same systemd installer. Source builds are labeled `local` and have OTA disabled. `make source-release` creates an inspectable bundle without contacting a device. No compiler, Node, Python, Docker, or source checkout is installed on the device for Dash. [Source-install details →](docs/delivery.md#build-yourself-and-debug-installation)
 
-## Driving and resource policy
+## Processing and privacy
 
-Heavy processing is permitted only when firmware params explicitly report `IsOnroad=0` and `IsOffroad=1`. Onroad, missing, invalid, or contradictory state blocks workers. A 100 ms watchdog cancels indexing, exports, conversion, and live sessions when that condition changes. The HTTP service remains available for existing cached information and original downloads. This is a software cancellation policy, not a hard real-time guarantee; firmware state accuracy and scheduling still matter.
+Heavy workers run only when firmware explicitly reports **`IsOnroad=0` and `IsOffroad=1`**. Onroad, unknown, missing, or contradictory state blocks them; a 100 ms watchdog cancels active work when state changes. Cached information and existing original downloads remain available. This is software cancellation, not a hard real-time guarantee.
 
-One heavy operation runs at a time. The installed systemd service caps the **whole Dash cgroup, including FFmpeg**, at 50% of one CPU core, 384 MiB memory, no swap, and 64 tasks. It applies memory pressure at 256 MiB. Go has a 128 MiB soft memory target, FFmpeg a monitored 192 MiB RSS ceiling, and work pauses when device available memory falls below 512 MiB. Kernel enforcement is verified by the backend before workers start and by the installer after startup. Firmware-owned WebRTC processes are outside Dash's cgroup; Dash requests their shutdown through the managed firmware API.
+One heavy operation runs at a time. The installed service enforces these limits across Dash **and its child processes**:
 
-See [operations and persistence](docs/installation.md) for lifecycle, logs, update recovery, and limitations; [SCHEMA.md](dash-backend/SCHEMA.md) describes telemetry and MCAP semantics.
+| Resource        | Service limit                                        |
+| --------------- | ---------------------------------------------------- |
+| CPU             | 50% of one core                                      |
+| Memory          | 256 MiB pressure threshold; 384 MiB hard maximum     |
+| Swap / tasks    | No swap; 64 tasks                                    |
+| Low-memory gate | Heavy work pauses below 512 MiB device available RAM |
 
-## Verification
+Go also has a 128 MiB soft memory target; FFmpeg has a monitored 192 MiB RSS ceiling. Firmware-owned WebRTC processes are outside Dash's cgroup. Systemd provides restart limits, journal logging, and process-group cleanup. See [resource controls and lifecycle](docs/installation.md#verified-limits).
+
+Recordings are read-only. SQLite indexes, previews, and exports are disposable cache. Rebuild the index in Settings; download bounded backend logs through the device card's **Download backend diagnostics** action.
+
+Dash has **no authentication**: anyone who can reach its port can access recordings and request parked work. Keep it on a trusted hotspot/LAN. Maps load OpenStreetMap tiles automatically and require internet for their background; the tile provider sees the requested area. GPS overlays remain available when tiles fail. The PWA caches its shell, not footage, exports, or map tiles. [Map configuration and usage policy →](docs/maps.md)
+
+## Releases and updates
+
+| Branch / channel | Purpose     |
+| ---------------- | ----------- |
+| `main`           | Stable      |
+| `nightly`        | Preview     |
+| `dev`            | Development |
+
+Only commits to these three branches trigger CI and publish release artifacts. Feature branches and PR updates trigger no CI; work on a feature branch targeting `dev`, then promote through `nightly` to `main`.
+
+Managed builds use Settings to check, download, and restart into an update while parked. OTA requires internet, verifies checksums, and uses a systemd-supervised bootstrap with startup rollback. Local source builds update through SSH instead. [Artifacts, tags, trust, and OTA details →](docs/delivery.md)
+
+**After AGNOS updates:** `/data/dash` persists, but the systemd unit, enablement, and OS-installed FFmpeg may need restoration. Dash OTA does not restore OS dependencies. Follow [AGNOS recovery](docs/installation.md#agnos-updates-and-removal) before restarting Dash.
+
+## Development
 
 ```sh
-make check          # formatting, Go vet, frontend tests, Go race tests, builds
-make build-arm64    # Linux ARM64 cross-build
-# With make serve running against make fixture:
-make smoke          # Chrome browser integration tests
+make format       # Prettier and gofmt
+make check        # Formatting, vet, installer tests, frontend/Go race tests, build
+make build-arm64  # Production PWA and Linux ARM64 binary
+make help         # Available workflows
 ```
 
-Set `CHROME_PATH` if Chrome is not at the macOS default path. Smoke tests exercise continuous playback and seeking across file boundaries, camera switching, panel dragging/reset/keyboard resizing, metadata, search/bookmarks, all export formats, onroad refusal, mobile layout, and the offline PWA shell. They modify only synthetic fixture params and write screenshots/downloads under ignored `.artifacts/`. `make map-smoke` verifies maps, failure recovery, attribution and mobile lazy initialization; `make mobile-scroll-smoke` uses Chromium touch gestures to verify mobile dashboard/library scrolling and a fixed viewer after rotation, resizing, and sheet dismissal; physical-device Safari remains unverified. `make design-smoke` additionally checks five viewport sizes, control fit, drawer focus and reopening, and reduced motion/transparency with high contrast. `make statistics-smoke` checks dashboard filtering, units/ranges/grouping, keyboard/table interactions, restored selection, dense/partial histories, summary-only requests and mobile contrast. `make viewer-smoke` checks sidebar persistence/reset, enhanced seeking/speed, follow, optional rows and mobile fit against the synthetic Docker sandbox. `make shelf-smoke` checks shared popup/menu accessibility, keyboard focus, content sizing and mobile overflow; see [the component and flow audit](docs/ui-audit.md). `make appearance-smoke` runs rendered contrast audits in both themes, with and without performance mode, and verifies persistence, System theme changes, cross-tab sync and stable window geometry across tabs.
+With `make serve` running against `make fixture`, run `make smoke` for browser integration tests. Chrome is required; set `CHROME_PATH` if needed. These tests change synthetic params and write artifacts under ignored `.artifacts/`. Specialized viewer, map, statistics, mobile, appearance, and motion checks are listed by `make help` and explained in the audit guides.
 
-Backend tests cover independent cereal fixtures, malformed logs/index recovery, ignition cancellation of a running FFmpeg process, queued-export cancellation, MCAP frame decoding and contents, HTTP path boundaries, and fail-closed resource checks. Local checks and cross-compilation do **not** certify a specific comma device, AGNOS release, or live camera stream. No physical device deployment has been performed for this implementation.
+```text
+src/             Vue interface, playback, maps, and dashboard
+public/          PWA icons, map configuration, and sample media
+dash-backend/    Go service, index, telemetry, exports, OTA, and systemd helpers
+scripts/         Host setup, SSH installation, packaging, and browser checks
+docs/            Installation, delivery, sandbox, and UI guides
+```
 
-The [mobile and motion audit](docs/mobile-motion-audit.md) documents the implemented flows, restrained animation decisions and physical-device limits. `make mobile-flow-smoke`, `make live-capture-smoke` and `make motion-smoke` exercise the new browser flows without accessing a car; live signaling/recording and exports in those tests are browser-only doubles.
+Keep secrets in ignored `.env` files; never commit credentials, device keys, or private recordings. Run `make check` locally before proposing a merge. Browser tests and cross-builds do not certify device safety or physical Safari behavior.
+
+## Guides
+
+- [Installation, systemd, HTTPS, and recovery](docs/installation.md)
+- [Delivery channels, source builds, and OTA](docs/delivery.md)
+- [Docker sandbox and diagnostics](docs/sandbox.md)
+- [Maps and tile-service policy](docs/maps.md)
+- [Telemetry and MCAP format](dash-backend/SCHEMA.md)
+- [UI component audit](docs/ui-audit.md) · [Mobile and motion audit](docs/mobile-motion-audit.md)
+
+Shelf-derived components retain their [upstream license notice](LICENSES/Shelf.txt).
