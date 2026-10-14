@@ -109,25 +109,22 @@ try {
         assert(
           await page.evaluate(
             () =>
-              getComputedStyle(document.querySelector('.topbar'))
+              getComputedStyle(document.querySelector('.detail'))
                 .backgroundColor !==
               getComputedStyle(document.querySelector('.sidebar'))
                 .backgroundColor,
           ),
-          'Light sidebar and topbar must use distinct surfaces',
+          'Light sidebar and content must use distinct surfaces',
         );
-      const stable = await page.locator('.topbar').boundingBox();
+      const stable = await page.locator('.sidebar').boundingBox();
       assert.equal(stable.x, 0);
-      assert.equal(
-        stable.width,
-        await page.evaluate(() => innerWidth),
-        'No page-wide scrollbar gap beside window chrome',
-      );
+      assert.equal(await page.locator('.topbar').isVisible(), false);
       for (const view of ['Overview', 'Live', 'Recordings']) {
         await page.getByRole('button', { name: view, exact: true }).click();
-        const bounds = await page.locator('.topbar').boundingBox();
+        const bounds = await page.locator('.sidebar').boundingBox();
         assert.equal(bounds.x, stable.x);
         assert.equal(bounds.width, stable.width);
+        assert.equal(bounds.height, stable.height);
         await audit(`${theme} ${view} / performance ${performance}`);
       }
       await page.getByLabel('Session actions', { exact: true }).click();

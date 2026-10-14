@@ -61,6 +61,7 @@ import {
   stopIndexing,
   recordingAddress,
   distanceKm,
+  type Position,
 } from './indexer';
 import {
   downloadUrl,
@@ -109,13 +110,20 @@ function switchDevice() {
 }
 const sort = ref<'newest' | 'oldest' | 'longest'>('newest');
 const exportDialog = ref<InstanceType<typeof ExportDialog>>();
-const drivePoints = computed(() =>
-  (
+const drivePoints = computed<Position[]>((previous) => {
+  const points = (
     active.value?.segments.flatMap(
       (segment) => indexEntries.value[segment.url]?.metadata?.points || [],
     ) || []
-  ).sort((a, b) => a.time - b.time),
-);
+  ).sort((a, b) => a.time - b.time);
+  // Summary polling preserves detailed GPS objects. Keep the route identity
+  // stable so it is not rebuilt every 2.5 seconds during playback.
+  return previous &&
+    previous.length === points.length &&
+    points.every((point, index) => point === previous[index])
+    ? previous
+    : points;
+});
 const timelineSegments = computed<TimelineSegment[]>(() => {
   let offset = 0;
   const camera = selectedSource.value
@@ -509,21 +517,7 @@ onBeforeUnmount(() => {
             ><span></span><span></span></span
           ><span class="brand-name">dash</span></a
         >
-        <DeviceSwitcher
-          v-if="connected"
-          class="toolbar-device"
-          :name="deviceName"
-          @switch="switchDevice"
-        />
       </div>
-      <WorkspaceNavigation
-        v-if="connected"
-        class="desktop-navigation"
-        :view="view"
-        :device-name="deviceName"
-        :show-device="false"
-        @navigate="navigate"
-      />
       <span v-if="connected" class="mobile-page-title">{{
         view === 'drives'
           ? 'Recordings'
@@ -641,138 +635,167 @@ onBeforeUnmount(() => {
       :data-sidebar-resetting="sidebarResetting || undefined"
     >
       <aside class="sidebar">
-        <div class="sidebar-heading">
-          <h2>
-            Your drives<span
-              :aria-label="`${visibleDrives.length} of ${drives.length} drives`"
-              >{{
-                query || filter === 'saved'
-                  ? `${visibleDrives.length} / ${drives.length}`
-                  : drives.length
-              }}</span
-            >
-          </h2>
-          <button
-            class="icon-button"
-            :disabled="busy"
-            aria-label="Refresh drives"
-            @click="
-              demo ? tell('You’re viewing the sample library.') : connect()
-            "
+        <div class="desktop-sidebar-nav">
+          <a
+            class="brand"
+            href="#"
+            aria-label="Dash home"
+            @click.prevent="navigate('drives')"
           >
-            <RefreshCw :size="17" :class="{ spinning: busy }" />
-          </button>
-        </div>
-        <label class="search"
-          ><Search :size="16" /><input
-            v-model="query"
-            type="search"
-            placeholder="Find a date or drive…"
-            aria-label="Search drives"
-        /></label>
-        <div v-if="connectionError" class="inline-error" role="alert">
-          {{ connectionError
-          }}<button class="text-button" @click="openConnection">
-            Check connection <ArrowRight :size="14" />
-          </button>
-        </div>
-        <div
-          class="library-tools"
-          role="group"
-          aria-label="Drive list controls"
-        >
-          <button
-            type="button"
-            class="saved-filter"
-            aria-label="Saved drives only"
-            :aria-pressed="filter === 'saved'"
-            :title="
-              filter === 'saved' ? 'Show all drives' : 'Show saved drives only'
-            "
-            @click="filter = filter === 'saved' ? 'all' : 'saved'"
-          >
-            <Bookmark
-              :size="14"
-              :fill="filter === 'saved' ? 'currentColor' : 'none'"
-            />
-            Saved
-          </button>
-          <SelectMenu
-            v-model="sort"
-            class="library-sort"
-            aria-label="Sort drives"
-            :options="
-              [
-                { value: 'newest', label: 'Newest first' },
-                { value: 'oldest', label: 'Oldest first' },
-                { value: 'longest', label: 'Most segments' },
-              ] as const
-            "
+            <span class="brand-mark" aria-hidden="true"
+              ><span></span><span></span></span
+            ><span class="brand-name">dash</span>
+          </a>
+          <DeviceSwitcher
+            class="sidebar-device"
+            :name="deviceName"
+            @switch="switchDevice"
+          />
+          <WorkspaceNavigation
+            :view="view"
+            :device-name="deviceName"
+            :show-device="false"
+            @navigate="navigate"
           />
         </div>
-        <div class="drive-scroll">
-          <div v-for="group in groups" :key="group.label" class="drive-group">
-            <h3>{{ group.label }}</h3>
+        <div v-show="view === 'drives'" class="sidebar-library">
+          <div class="sidebar-heading">
+            <h2>
+              Your drives<span
+                :aria-label="`${visibleDrives.length} of ${drives.length} drives`"
+                >{{
+                  query || filter === 'saved'
+                    ? `${visibleDrives.length} / ${drives.length}`
+                    : drives.length
+                }}</span
+              >
+            </h2>
             <button
-              v-for="drive in group.drives"
-              :key="drive.id"
-              class="drive-row"
-              :class="{ active: drive.id === activeId }"
-              :aria-current="drive.id === activeId ? 'true' : undefined"
-              @click="selectDrive(drive)"
-            >
-              <span class="drive-glyph"
-                ><img
-                  v-if="thumbnail(drive)"
-                  :src="thumbnail(drive)"
-                  alt=""
-                  loading="lazy" /><ListVideo v-else :size="20" /></span
-              ><span class="drive-row-text"
-                ><strong
-                  >{{ timeLabel(drive.date) }}
-                  <Bookmark
-                    v-if="isSaved(drive.id)"
-                    :size="12"
-                    fill="currentColor" /></strong
-                ><small
-                  >{{ drive.segments.length }} segments <span>·</span>
-                  {{ drive.dated ? 'Recorded drive' : 'File timestamp' }}</small
-                ></span
-              ><ChevronRight :size="15" />
-            </button>
-          </div>
-          <div v-if="!visibleDrives.length" class="empty-list">
-            <Search :size="25" />
-            <h3>
-              {{
-                query
-                  ? 'No matching drives'
-                  : filter === 'saved'
-                    ? 'A place for your favorites'
-                    : 'No drives here yet'
-              }}
-            </h3>
-            <p>
-              {{
-                query
-                  ? 'Try another date or clear your search.'
-                  : filter === 'saved'
-                    ? 'Bookmark a drive to find it here later. Recordings stay on your device.'
-                    : 'Choose the folder containing your openpilot segment directories, usually realdata.'
-              }}
-            </p>
-            <button
-              v-if="query || filter === 'saved'"
-              class="text-button"
+              class="icon-button"
+              :disabled="busy"
+              aria-label="Refresh drives"
               @click="
-                query = '';
-                filter = 'all';
+                demo ? tell('You’re viewing the sample library.') : connect()
               "
             >
-              Show all drives</button
-            ><button v-else class="text-button" @click="openConnection">
-              Change folder
+              <RefreshCw :size="17" :class="{ spinning: busy }" />
             </button>
+          </div>
+          <label class="search"
+            ><Search :size="16" /><input
+              v-model="query"
+              type="search"
+              placeholder="Find a date or drive…"
+              aria-label="Search drives"
+          /></label>
+          <div v-if="connectionError" class="inline-error" role="alert">
+            {{ connectionError
+            }}<button class="text-button" @click="openConnection">
+              Check connection <ArrowRight :size="14" />
+            </button>
+          </div>
+          <div
+            class="library-tools"
+            role="group"
+            aria-label="Drive list controls"
+          >
+            <button
+              type="button"
+              class="saved-filter"
+              aria-label="Saved drives only"
+              :aria-pressed="filter === 'saved'"
+              :title="
+                filter === 'saved'
+                  ? 'Show all drives'
+                  : 'Show saved drives only'
+              "
+              @click="filter = filter === 'saved' ? 'all' : 'saved'"
+            >
+              <Bookmark
+                :size="14"
+                :fill="filter === 'saved' ? 'currentColor' : 'none'"
+              />
+              Saved
+            </button>
+            <SelectMenu
+              v-model="sort"
+              class="library-sort"
+              aria-label="Sort drives"
+              :options="
+                [
+                  { value: 'newest', label: 'Newest first' },
+                  { value: 'oldest', label: 'Oldest first' },
+                  { value: 'longest', label: 'Most segments' },
+                ] as const
+              "
+            />
+          </div>
+          <div class="drive-scroll">
+            <div v-for="group in groups" :key="group.label" class="drive-group">
+              <h3>{{ group.label }}</h3>
+              <button
+                v-for="drive in group.drives"
+                :key="drive.id"
+                class="drive-row"
+                :class="{ active: drive.id === activeId }"
+                :aria-current="drive.id === activeId ? 'true' : undefined"
+                @click="selectDrive(drive)"
+              >
+                <span class="drive-glyph"
+                  ><img
+                    v-if="thumbnail(drive)"
+                    :src="thumbnail(drive)"
+                    alt=""
+                    loading="lazy" /><ListVideo v-else :size="20" /></span
+                ><span class="drive-row-text"
+                  ><strong
+                    >{{ timeLabel(drive.date) }}
+                    <Bookmark
+                      v-if="isSaved(drive.id)"
+                      :size="12"
+                      fill="currentColor" /></strong
+                  ><small
+                    >{{ drive.segments.length }} segments <span>·</span>
+                    {{
+                      drive.dated ? 'Recorded drive' : 'File timestamp'
+                    }}</small
+                  ></span
+                ><ChevronRight :size="15" />
+              </button>
+            </div>
+            <div v-if="!visibleDrives.length" class="empty-list">
+              <Search :size="25" />
+              <h3>
+                {{
+                  query
+                    ? 'No matching drives'
+                    : filter === 'saved'
+                      ? 'A place for your favorites'
+                      : 'No drives here yet'
+                }}
+              </h3>
+              <p>
+                {{
+                  query
+                    ? 'Try another date or clear your search.'
+                    : filter === 'saved'
+                      ? 'Bookmark a drive to find it here later. Recordings stay on your device.'
+                      : 'Choose the folder containing your openpilot segment directories, usually realdata.'
+                }}
+              </p>
+              <button
+                v-if="query || filter === 'saved'"
+                class="text-button"
+                @click="
+                  query = '';
+                  filter = 'all';
+                "
+              >
+                Show all drives</button
+              ><button v-else class="text-button" @click="openConnection">
+                Change folder
+              </button>
+            </div>
           </div>
         </div>
         <div class="index-footer">
@@ -801,6 +824,17 @@ onBeforeUnmount(() => {
           ><small v-if="indexStatus.errors"
             >{{ indexStatus.errors }} indexing errors · retry on refresh</small
           >
+        </div>
+        <div class="sidebar-utilities">
+          <SettingsPopup labeled />
+          <button
+            type="button"
+            class="sidebar-help"
+            aria-label="Help and installation"
+            @click="showHelp"
+          >
+            <CircleHelp :size="17" />Help
+          </button>
         </div>
         <div class="sidebar-footer">
           <ShieldCheck :size="15" /><span
@@ -1047,6 +1081,7 @@ onBeforeUnmount(() => {
                     :source="selectedSource || undefined"
                     :sample="demo"
                     :segments="timelineSegments"
+                    @positionframe="playbackTime = $event"
                     @timeupdate="
                       (time, duration) => {
                         playbackTime = time;

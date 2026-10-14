@@ -18,6 +18,13 @@ const props = defineProps<{ points: Position[]; position?: Position }>();
 const following = defineModel<boolean>('following', { required: true });
 let marker: CircleMarker | undefined;
 function updatePosition() {
+  // Hidden mobile panels catch up on resize instead of panning offscreen.
+  if (
+    document.hidden ||
+    !container.value?.clientWidth ||
+    !container.value.clientHeight
+  )
+    return;
   if (!map || !props.position) {
     if (marker) {
       marker.remove();
@@ -39,8 +46,10 @@ function updatePosition() {
       interactive: false,
     }).addTo(map);
   else marker.setLatLng(point);
-  if (following.value)
-    map.setView(point, Math.max(map.getZoom(), 16), { animate: false });
+  if (following.value) {
+    if (map.getZoom() < 16) map.setView(point, 16, { animate: false });
+    else map.panTo(point, { animate: false });
+  }
 }
 function follow() {
   following.value = true;
@@ -85,9 +94,11 @@ function draw(fit = true) {
   route.setLatLngs(points).setStyle({
     color: resolvedTheme.value === 'dark' ? '#a4e8cd' : '#286b50',
   });
-  if (fit) {
-    fitted = false;
+  // Index summaries refresh independently of playback. Updating the route
+  // must never reset the camera or fight a user's current view.
+  if (fit && !fitted) {
     fitRoute();
+    updatePosition();
   }
 }
 onMounted(() => {
@@ -122,8 +133,8 @@ onMounted(() => {
     map?.invalidateSize({ animate: false, pan: false });
     if (!fitted) {
       fitRoute();
-      updatePosition();
     }
+    updatePosition();
   });
   observer.observe(container.value!);
 });

@@ -8,7 +8,15 @@ All notable changes to Dash are documented here using Keep a Changelog.
 
 - Remove the embedded browser map token from source and local Git history; use ignored `.env` configuration and credential-free OpenStreetMap defaults. Exclude env files from Docker build contexts.
 
+### Fixed
+
+- Smooth map Follow with media-clock GPS interpolation and incremental pans; stop background index polls from resetting the camera; avoid per-update Mapbox GeoJSON worker messages and stop updates when paused, buffering or hidden.
+
+- Restore mobile dashboard and detail-page scrolling by bounding content panes to the available viewport; retain the fixed session viewer.
+
 ### Changed
+
+- Remove the connected desktop top bar and consolidate navigation, device switching, drive browsing and utilities into the resizable sidebar; retain the mobile header/drawer.
 
 - Simplify the drive-library controls into a quiet heading, primary search, and one compact Saved/sort row; show filtered counts without badges.
 

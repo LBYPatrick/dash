@@ -4,6 +4,7 @@ import Sheet from './Sheet.vue';
 import { Settings, Sun, Moon, Monitor } from '../icons';
 import { theme, performanceMode, preferencesSaved } from '../appearance';
 import { vGlassTabs } from '../glassTabs';
+defineProps<{ labeled?: boolean }>();
 const dialog = ref<InstanceType<typeof Sheet>>();
 const themes = [
   { value: 'light', label: 'Light', icon: Sun },
@@ -13,12 +14,12 @@ const themes = [
 </script>
 <template>
   <button
-    class="icon-button"
+    :class="labeled ? 'sidebar-settings' : 'icon-button'"
     aria-label="Settings"
     aria-haspopup="dialog"
     @click="dialog?.showModal()"
   >
-    <Settings :size="19" />
+    <Settings :size="labeled ? 17 : 19" /><span v-if="labeled">Settings</span>
   </button>
   <Sheet
     ref="dialog"

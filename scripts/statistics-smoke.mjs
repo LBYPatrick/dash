@@ -262,11 +262,20 @@ try {
     /—/,
   );
   assert.equal(await dense.locator('.activity-bar').count(), 0);
+  await dense
+    .getByRole('dialog', { name: 'Navigation', exact: true })
+    .waitFor({ state: 'hidden' });
   const missingAudit = await new AxeBuilder({ page: dense })
     .withTags(['wcag2a', 'wcag2aa', 'wcag21aa', 'wcag22aa'])
     .analyze();
   assert.deepEqual(
-    missingAudit.violations.map((v) => v.id),
+    missingAudit.violations.map((v) => ({
+      id: v.id,
+      nodes: v.nodes.map((n) => ({
+        target: n.target,
+        summary: n.failureSummary,
+      })),
+    })),
     [],
   );
   await denseContext.close();

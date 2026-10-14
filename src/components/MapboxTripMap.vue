@@ -3,6 +3,7 @@ import { onMounted, onBeforeUnmount, ref, watch } from 'vue';
 import {
   Map,
   AttributionControl,
+  Marker,
   LngLatBounds,
   type GeoJSONSource,
 } from 'mapbox-gl';
@@ -11,29 +12,37 @@ import { resolvedTheme } from '../appearance';
 import type { Position } from '../indexer';
 const props = defineProps<{ points: Position[]; position?: Position }>();
 const following = defineModel<boolean>('following', { required: true });
+let marker: Marker | undefined;
 function updatePosition() {
-  const source = map?.getSource('playback-position') as
-    GeoJSONSource | undefined;
-  if (!source) return;
-  source.setData({
-    type: 'FeatureCollection',
-    features: props.position
-      ? [
-          {
-            type: 'Feature',
-            properties: {},
-            geometry: {
-              type: 'Point',
-              coordinates: [props.position.longitude, props.position.latitude],
-            },
-          },
-        ]
-      : [],
-  });
-  if (following.value && props.position)
-    map?.jumpTo({
-      center: [props.position.longitude, props.position.latitude],
+  // Hidden mobile panels catch up on resize instead of panning offscreen.
+  if (
+    document.hidden ||
+    !container.value?.clientWidth ||
+    !container.value.clientHeight
+  )
+    return;
+  if (!map || !props.position) {
+    marker?.remove();
+    marker = undefined;
+    return;
+  }
+  const point: [number, number] = [
+    props.position.longitude,
+    props.position.latitude,
+  ];
+  if (!marker) {
+    const element = document.createElement('div');
+    element.className = 'playback-map-marker';
+    element.setAttribute('aria-hidden', 'true');
+    marker = new Marker({ element }).setLngLat(point).addTo(map);
+  } else marker.setLngLat(point);
+  if (following.value)
+    map.jumpTo({
+      center: point,
       zoom: Math.max(map.getZoom(), 16),
+      // Full-route fitting uses asymmetric padding; do not retain that camera
+      // offset when returning to the playback position.
+      padding: 0,
     });
 }
 function follow() {
@@ -89,9 +98,11 @@ function draw(fit = true) {
           ]
         : [],
   });
-  if (fit) {
-    fitted = false;
+  // Index summaries refresh independently of playback. Updating the route
+  // must never reset the camera or fight a user's current view.
+  if (fit && !fitted) {
     fitRoute();
+    updatePosition();
   }
 }
 onMounted(() => {
@@ -186,21 +197,6 @@ onMounted(() => {
         'line-width': 3,
       },
     });
-    map.addSource('playback-position', {
-      type: 'geojson',
-      data: { type: 'FeatureCollection', features: [] },
-    });
-    map.addLayer({
-      id: 'playback-marker',
-      type: 'circle',
-      source: 'playback-position',
-      paint: {
-        'circle-radius': 6,
-        'circle-color': '#006ac6',
-        'circle-stroke-color': '#fff',
-        'circle-stroke-width': 2,
-      },
-    });
     draw(false);
     updatePosition();
   });
@@ -208,8 +204,8 @@ onMounted(() => {
     map?.resize();
     if (!fitted) {
       fitRoute();
-      updatePosition();
     }
+    updatePosition();
   });
   observer.observe(container.value!);
   fitRoute();
@@ -235,6 +231,8 @@ onBeforeUnmount(() => {
   const previous = map;
   map = undefined;
   styleGeneration++;
+  marker?.remove();
+  marker = undefined;
   previous?.remove();
 });
 </script>

@@ -69,3 +69,21 @@ Playback motion is functional state indication: it reads the media clock with `r
 | Count badge and detached sort label                     | Plain filtered/total count; sort shows its current choice | Reduces noise while preserving context           |
 
 Search, saved filtering, empty-state recovery and sort keyboard behavior are verified by `make shelf-smoke`. Controls remain usable at the minimum sidebar width and keep larger touch targets on phones. Frequent filtering has immediate feedback without a positional animation; no new dependencies or backend work are needed.
+
+## Mobile scroll regression
+
+On mobile the workspace switches from grid to block layout. Its detail pane previously grew to its content height while the fixed workspace clipped it: in the reproduced case the pane was 1,287px tall inside a 792px workspace, leaving no inner overflow to scroll. The mobile detail pane now has `height: 100%`, so dashboard/live content scrolls within the available workspace; the session viewer retains its explicit `overflow: hidden`. Scrollable detail and library panes contain overscroll without blocking native touch panning.
+
+`make mobile-scroll-smoke` sends Chromium native touch-scroll gestures, verifies bottom content is reachable in portrait/landscape and a resized viewport, scrolls a browser-only extended drive list, and checks that the viewer and outer document remain fixed after opening/closing a sheet. These are browser-level regression checks, not physical-device Safari certification.
+
+## Desktop navigation and map follow
+
+| Before                                                  | After                                                                   | Why                                                           |
+| ------------------------------------------------------- | ----------------------------------------------------------------------- | ------------------------------------------------------------- |
+| Desktop top bar above a separate library                | Device, destinations and utilities in the resizable sidebar             | Give the content the full available height                    |
+| Library shown next to Overview and Live                 | Contextual drive browsing only under Recordings                         | Keep the navigation useful without competing with the page    |
+| Index refresh reapplies full-route bounds               | Fit once per session; preserve GPS route identity across summary polls  | Keep background indexing from fighting Follow or exploration  |
+| Follow jumps at native media event cadence              | Interpolated GPS positions from the existing media clock, at most 30 Hz | Keep movement synchronized without trailing easing animations |
+| Mapbox marker sends GeoJSON to a worker on every update | Lightweight DOM marker; Leaflet uses incremental pans                   | Avoid unnecessary work during playback                        |
+
+The frame clock stops while paused, seeking, buffering, hidden, or unmounted. Reduced motion and performance mode retain native `timeupdate`; hidden mobile map panels skip renderer updates and catch up when revealed. No backend work is added. Viewer smoke supplies a browser-only GPS track to verify intermediate marker movement, Follow centering/panning, stopped motion on pause, camera stability across an index refresh, and controlled visibility cleanup. Both the optional Mapbox preview and Docker's default Leaflet renderer are exercised. Desktop checks cover the absent top bar, navigation/control fit, sidebar resizing, utility sheets, light/dark contrast, and stable pane geometry when switching views.

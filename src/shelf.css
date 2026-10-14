@@ -107,7 +107,7 @@ dialog::backdrop {
   backdrop-filter: none !important;
   -webkit-backdrop-filter: none !important;
 }
-/* The toolbar has three roles: device context, destinations and app controls. */
+/* Mobile header and disconnected welcome controls. */
 #app .topbar {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
@@ -150,52 +150,11 @@ dialog::backdrop {
   height: 8px;
   margin-bottom: 5px;
 }
-#app .topbar .device-switcher {
-  min-width: 0;
-  max-width: 220px;
-  min-height: 32px;
-  height: 32px;
-  padding: 4px 8px;
-  gap: 6px;
-  background: transparent;
-  font-size: 13px;
-  font-weight: 550;
-  border-radius: 6px;
-}
 #app .device-switcher > svg {
   flex-shrink: 0;
 }
-#app .desktop-navigation {
-  margin: 0;
-  justify-self: center;
-}
 #app .workspace-navigation {
   gap: 12px;
-}
-#app .topbar .workspace-nav {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  margin: 0;
-  padding: 3px;
-  gap: 2px;
-  border-radius: 8px;
-  background: var(--fill-3);
-}
-#app .topbar .workspace-nav::before {
-  background: var(--color-base-100);
-}
-#app .topbar .workspace-nav button {
-  min-height: 26px;
-  min-width: 88px;
-  padding: 3px 12px;
-  font-size: 12px;
-  font-weight: 550;
-  color: var(--ink);
-  border-radius: 6px;
-}
-#app .topbar .workspace-nav button.chosen {
-  color: var(--color-primary-text);
-  font-weight: 650;
 }
 #app .header-actions {
   grid-column: 3;
@@ -238,7 +197,6 @@ dialog::backdrop {
       max(8px, env(safe-area-inset-right));
   }
   #app .topbar[data-connected] .brand,
-  #app .toolbar-device,
   #app .topbar[data-connected] .desktop-help {
     display: none;
   }
@@ -853,6 +811,17 @@ body,
   min-height: 0;
   overflow-y: auto;
 }
+@media (max-width: 900px) {
+  /* Mobile uses block layout instead of grid stretching. Bound the detail
+     pane to its workspace so overflowing pages scroll inside the app shell. */
+  #app .workspace > .detail {
+    height: 100%;
+  }
+}
+#app .workspace > .detail,
+#app .drive-scroll {
+  overscroll-behavior-y: contain;
+}
 #app .workspace > .session-view {
   overflow: hidden;
   scrollbar-gutter: auto;
@@ -1186,4 +1155,161 @@ body,
   #app .player-control {
     padding-inline: 5px;
   }
+}
+
+/* Desktop has one navigation surface. The mobile header and drawer retain
+   their own compact layout; neither shares space with the desktop sidebar. */
+#app .desktop-sidebar-nav,
+#app .sidebar-utilities {
+  display: none;
+}
+#app .sidebar-library {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+#app .workspace-nav button {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+@media (min-width: 901px) {
+  #app .topbar[data-connected] {
+    display: none;
+  }
+  #app .sidebar {
+    padding: 20px 16px 0;
+    border-right: 0;
+  }
+  #app .desktop-sidebar-nav {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    flex-shrink: 0;
+    margin-bottom: 24px;
+  }
+  #app .desktop-sidebar-nav .brand {
+    align-self: flex-start;
+    padding-inline: 8px;
+  }
+  #app .sidebar-device {
+    width: 100%;
+    max-width: none;
+    min-height: 32px;
+    height: 32px;
+    padding: 6px 8px;
+    border: 0;
+    background: var(--fill-4);
+    border-radius: 6px;
+  }
+  #app .sidebar-device span {
+    flex: 1;
+    min-width: 0;
+    text-align: left;
+  }
+  #app .desktop-sidebar-nav .workspace-navigation {
+    display: block;
+  }
+  #app .desktop-sidebar-nav .workspace-nav {
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 2px;
+    margin: 0;
+  }
+  #app .desktop-sidebar-nav .workspace-nav button {
+    color: var(--muted);
+    min-height: 34px;
+    padding: 7px 10px;
+    border-radius: 6px;
+    font-size: 13px;
+    text-align: left;
+  }
+  #app .desktop-sidebar-nav .workspace-nav button.chosen {
+    color: var(--color-primary-text);
+    font-weight: 600;
+  }
+  #app .sidebar-heading {
+    padding-left: 8px;
+    margin-bottom: 8px;
+  }
+  #app .sidebar-heading h2 {
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0;
+  }
+  #app .index-footer {
+    margin-top: auto;
+    padding: 12px 8px;
+  }
+  #app .sidebar-utilities {
+    display: flex;
+    gap: 4px;
+    padding: 4px 0;
+    flex-shrink: 0;
+  }
+  #app :is(.sidebar-settings, .sidebar-help) {
+    display: flex;
+    flex: 1;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 8px;
+    min-height: 32px;
+    padding: 7px 8px;
+    border-radius: 6px;
+    font-size: 12px;
+  }
+  #app .sidebar-footer {
+    min-height: 0;
+    margin-top: 0;
+    padding: 8px 8px 16px;
+  }
+  #app :is(.sidebar-settings, .sidebar-help, .sidebar-device):active {
+    background: var(--fill-1);
+  }
+}
+@media (hover: hover) and (pointer: fine) {
+  #app :is(.sidebar-settings, .sidebar-help, .sidebar-device):hover {
+    background: var(--fill-3);
+  }
+}
+@media (max-height: 600px) and (min-width: 901px) {
+  #app .workspace > .sidebar {
+    overflow-y: auto;
+  }
+  #app .sidebar > *,
+  #app .sidebar-library > * {
+    flex-shrink: 0;
+  }
+  #app .sidebar-library {
+    flex: none;
+  }
+  #app .drive-scroll {
+    flex: none;
+    overflow: visible;
+  }
+  #app .desktop-sidebar-nav {
+    margin-bottom: 12px;
+    gap: 8px;
+  }
+}
+@media (max-height: 500px) and (max-width: 900px) {
+  #app .sidebar-library {
+    flex: none;
+  }
+}
+
+#app .playback-map-marker {
+  width: 14px;
+  height: 14px;
+  background: #006ac6;
+  border: 2px solid #fff;
+  border-radius: 50%;
+  pointer-events: none;
 }

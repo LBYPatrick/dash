@@ -1,6 +1,6 @@
 .DEFAULT_GOAL := help
 
-.PHONY: install dev build build-arm64 test check format serve fixture smoke design-smoke appearance-smoke shelf-smoke viewer-smoke statistics-smoke
+.PHONY: install dev build build-arm64 test check format serve fixture smoke design-smoke appearance-smoke shelf-smoke viewer-smoke statistics-smoke mobile-scroll-smoke
 install:
 	npm ci
 	cd dash-backend && go mod download
@@ -42,6 +42,8 @@ viewer-smoke:
 	node scripts/viewer-smoke.mjs
 statistics-smoke:
 	node scripts/statistics-smoke.mjs
+mobile-scroll-smoke:
+	node scripts/mobile-scroll-smoke.mjs
 
 .PHONY: sandbox-up sandbox-down sandbox-test sandbox-smoke sandbox-logs device-check device-install
 sandbox-up:
@@ -61,4 +63,4 @@ device-install:
 
 .PHONY: help
 help:
-	@printf '%s\n' 'Dash workflows:' '  make install / dev / build / check' '  make fixture / serve / smoke / design-smoke / appearance-smoke / shelf-smoke / viewer-smoke / statistics-smoke' '  make sandbox-up / sandbox-test / sandbox-smoke / sandbox-logs / sandbox-down' '  make device-check DEVICE=comma@DEVICE_IP' '  make device-install DEVICE=comma@DEVICE_IP'
+	@printf '%s\n' 'Dash workflows:' '  make install / dev / build / check' '  make fixture / serve / smoke / design-smoke / appearance-smoke / shelf-smoke / viewer-smoke / statistics-smoke / mobile-scroll-smoke' '  make sandbox-up / sandbox-test / sandbox-smoke / sandbox-logs / sandbox-down' '  make device-check DEVICE=comma@DEVICE_IP' '  make device-install DEVICE=comma@DEVICE_IP'

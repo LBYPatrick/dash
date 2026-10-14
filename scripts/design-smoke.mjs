@@ -20,7 +20,7 @@ try {
   await page.setViewportSize({ width: 1920, height: 1080 });
   assert(
     await page.evaluate(() =>
-      ['.topbar', '.workspace', '.detail'].every(
+      ['.workspace', '.detail'].every(
         (selector) =>
           Math.abs(
             document.querySelector(selector).getBoundingClientRect().right -
@@ -60,29 +60,40 @@ try {
       ),
       `Viewport overflow at ${width}x${height}`,
     );
+    if (width > 900) {
+      assert.equal(await page.locator('.topbar').isVisible(), false);
+      assert(await page.locator('.desktop-sidebar-nav').isVisible());
+      assert.equal(
+        await page
+          .locator('.desktop-sidebar-nav .workspace-nav button')
+          .count(),
+        3,
+      );
+    } else {
+      assert(
+        await page.locator('.topbar').evaluate((bar) => {
+          const bounds = bar
+            .querySelector('.mobile-page-title')
+            .getBoundingClientRect();
+          return Math.abs(bounds.x + bounds.width / 2 - innerWidth / 2) < 1;
+        }),
+        `Mobile destination must remain centered at ${width}px`,
+      );
+    }
     assert(
-      await page.locator('.topbar').evaluate((bar) => {
-        const center = bar.querySelector(
-          innerWidth > 900 ? '.desktop-navigation' : '.mobile-page-title',
-        );
-        const bounds = center.getBoundingClientRect();
-        return Math.abs(bounds.x + bounds.width / 2 - innerWidth / 2) < 1;
-      }),
-      `Toolbar destination must remain centered at ${width}px`,
-    );
-    assert(
-      await page.locator('.topbar').evaluate((bar) => {
-        const items = [...bar.querySelectorAll('button, a')].filter(
-          (e) => e.getBoundingClientRect().width > 0,
-        );
-        return items.every((e) => {
-          const rect = e.getBoundingClientRect();
-          return (
-            rect.left >= 0 && rect.right <= innerWidth && rect.height >= 26
-          );
-        });
-      }),
-      `Toolbar controls must fit at ${width}px`,
+      await page
+        .locator(width > 900 ? '.sidebar' : '.topbar')
+        .evaluate((surface) =>
+          [...surface.querySelectorAll('button, a')]
+            .filter((e) => e.getBoundingClientRect().width > 0)
+            .every((e) => {
+              const rect = e.getBoundingClientRect();
+              return (
+                rect.left >= 0 && rect.right <= innerWidth && rect.height >= 26
+              );
+            }),
+        ),
+      `Navigation controls must fit at ${width}px`,
     );
     assert(
       await page
@@ -93,7 +104,7 @@ try {
   }
   await page.setViewportSize({ width: 936, height: 600 });
   await page
-    .locator('.toolbar-device span')
+    .locator('.sidebar-device span')
     .evaluate(
       (e) =>
         (e.textContent =
@@ -101,11 +112,11 @@ try {
     );
   assert(
     await page
-      .locator('.toolbar-leading')
+      .locator('.desktop-sidebar-nav')
       .evaluate((e) => e.scrollWidth <= e.clientWidth),
-    'Long device names must truncate within the toolbar',
+    'Long device names must truncate within the sidebar',
   );
-  await page.screenshot({ path: '.artifacts/toolbar-desktop.png' });
+  await page.screenshot({ path: '.artifacts/sidebar-desktop.png' });
   await page.setViewportSize({ width: 390, height: 844 });
   await page.screenshot({ path: '.artifacts/toolbar-mobile.png' });
   await page.getByRole('button', { name: 'Open navigation' }).click();

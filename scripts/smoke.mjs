@@ -36,8 +36,8 @@ try {
   page.on('pageerror', (error) => errors.push(error.message));
   await page.goto(origin);
   await page.getByRole('heading', { name: 'Your drives' }).waitFor();
-  assert.equal(await page.locator('.topbar .workspace-nav').isVisible(), true);
-  assert.equal(await page.locator('.sidebar .workspace-nav').count(), 0);
+  assert.equal(await page.locator('.topbar').isVisible(), false);
+  assert.equal(await page.locator('.sidebar .workspace-nav').isVisible(), true);
   await page.waitForFunction(
     () => document.querySelector('video')?.readyState >= 1,
   );

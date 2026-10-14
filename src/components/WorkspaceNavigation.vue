@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { vGlassTabs } from '../glassTabs';
+import { Monitor, ListVideo, Radio } from '../icons';
 import DeviceSwitcher from './DeviceSwitcher.vue';
 withDefaults(
   defineProps<{
@@ -11,9 +12,9 @@ withDefaults(
 );
 defineEmits<{ navigate: [view: 'drives' | 'overview' | 'live']; device: [] }>();
 const destinations = [
-  { id: 'overview', label: 'Overview' },
-  { id: 'drives', label: 'Recordings' },
-  { id: 'live', label: 'Live' },
+  { id: 'overview', label: 'Overview', icon: Monitor },
+  { id: 'drives', label: 'Recordings', icon: ListVideo },
+  { id: 'live', label: 'Live', icon: Radio },
 ] as const;
 </script>
 <template>
@@ -26,7 +27,7 @@ const destinations = [
         :aria-current="view === destination.id ? 'page' : undefined"
         @click="$emit('navigate', destination.id)"
       >
-        {{ destination.label }}
+        <component :is="destination.icon" :size="17" />{{ destination.label }}
       </button>
     </nav>
     <DeviceSwitcher

@@ -32,6 +32,7 @@ const props = withDefaults(
 const emit = defineEmits<{
   ended: [];
   timeupdate: [time: number, duration: number];
+  positionframe: [time: number];
   loaded: [];
 }>();
 const video = ref<HTMLVideoElement>();
@@ -65,6 +66,7 @@ const status = computed(() =>
 const motionPreference = window.matchMedia('(prefers-reduced-motion: reduce)');
 const reducedMotion = ref(motionPreference.matches);
 let clockFrame = 0;
+let lastPositionFrame = -Infinity;
 function stopClock() {
   cancelAnimationFrame(clockFrame);
   clockFrame = 0;
@@ -76,6 +78,7 @@ function clockAllowed() {
     element &&
     !element.paused &&
     !element.ended &&
+    !element.seeking &&
     element.readyState >= 3 &&
     !document.hidden &&
     !performanceMode.value &&
@@ -88,11 +91,17 @@ function updateClock() {
     return;
   }
   if (clockFrame) return;
-  clockFrame = requestAnimationFrame(() => {
+  clockFrame = requestAnimationFrame((now) => {
     clockFrame = 0;
     // Read the actual media clock: never advance while buffering or ease a seek.
     if (!clockAllowed()) return;
     time.value = video.value!.currentTime;
+    // The existing media clock also drives GPS interpolation, capped at 30 Hz.
+    // Engagement lookup remains on native timeupdate; never decode telemetry here.
+    if (now - lastPositionFrame >= 1000 / 30) {
+      lastPositionFrame = now;
+      emit('positionframe', time.value);
+    }
     updateClock();
   });
 }

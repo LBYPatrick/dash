@@ -31,6 +31,13 @@ try {
       const m = entry.metadata;
       const anchor = m.startMonotonic || m.points?.[0]?.monotonic || 100;
       m.startMonotonic = anchor;
+      // A known browser-only GPS track makes motion measurable in either renderer.
+      m.points = Array.from({ length: 9 }, (_, offset) => ({
+        latitude: 37 + offset * 0.0004,
+        longitude: -122 + offset * 0.0006,
+        time: 1700000000 + offset,
+        monotonic: anchor + offset,
+      }));
       m.engagement = [
         { time: anchor, enabled: false, active: false },
         { time: anchor + 2, enabled: true, active: true },
@@ -159,6 +166,132 @@ try {
     'true',
   );
   await page
+    .locator('.playback-map-marker, .leaflet-overlay-pane path')
+    .first()
+    .waitFor();
+  await page.getByRole('button', { name: 'Full route', exact: true }).click();
+  await page
+    .getByRole('button', { name: 'Play recording', exact: true })
+    .click();
+  const movement = await page.evaluate(async () => {
+    const values = new Set();
+    const start = performance.now();
+    while (performance.now() - start < 650) {
+      await new Promise(requestAnimationFrame);
+      const marker = document.querySelector('.playback-map-marker');
+      const circle = document.querySelector(
+        '.leaflet-overlay-pane path:last-child',
+      );
+      values.add(marker?.style.transform || circle?.getAttribute('d'));
+    }
+    return values.size;
+  });
+  assert(
+    movement > 8,
+    `GPS marker must interpolate between native timeupdate events; got ${movement} positions`,
+  );
+  await page.getByRole('button', { name: 'Follow', exact: true }).click();
+  const followingMovement = await page.evaluate(async () => {
+    const values = new Set();
+    const start = performance.now();
+    const pane = document.querySelector('.leaflet-map-pane');
+    const marker = document.querySelector('.playback-map-marker');
+    while (performance.now() - start < 650) {
+      await new Promise(requestAnimationFrame);
+      values.add(pane?.style.transform || marker?.style.transform);
+    }
+    // Leaflet pans its map pane. Mapbox keeps its DOM marker centered instead.
+    if (pane) return { updates: values.size, centered: true };
+    const bounds = marker.getBoundingClientRect();
+    const map = document.querySelector('.map-canvas').getBoundingClientRect();
+    return {
+      updates: 0,
+      markerBounds: bounds.toJSON(),
+      mapBounds: map.toJSON(),
+      transform: marker.style.transform,
+      centered:
+        Math.abs(bounds.x + bounds.width / 2 - (map.x + map.width / 2)) < 3 &&
+        Math.abs(bounds.y + bounds.height / 2 - (map.y + map.height / 2)) < 3,
+    };
+  });
+  assert(
+    followingMovement.centered,
+    `Follow must center the moving playback marker: ${JSON.stringify(followingMovement)}`,
+  );
+  if (followingMovement.updates)
+    assert(
+      followingMovement.updates > 8,
+      'Follow camera must pan between timeupdate events',
+    );
+  await page
+    .getByRole('button', { name: 'Pause recording', exact: true })
+    .click();
+  await page.waitForTimeout(200);
+  // Tiles can finish loading while paused; compare only the position geometry.
+  const markerGeometry = () =>
+    page.evaluate(
+      () =>
+        document.querySelector('.playback-map-marker')?.style.transform ||
+        document
+          .querySelector('.leaflet-overlay-pane path:last-child')
+          ?.getAttribute('d'),
+    );
+  const pausedPosition = await markerGeometry();
+  const pausedRoute = await page.evaluate(() => ({
+    zoom: document
+      .querySelector('.leaflet-zoom-animated')
+      ?.getAttribute('viewBox'),
+    pane: document.querySelector('.leaflet-map-pane')?.style.transform,
+  }));
+  const nextIndex = page.waitForResponse(
+    (response) => new URL(response.url()).pathname === '/api/index',
+  );
+  await nextIndex;
+  // Sample across the next summary poll, not merely between media events.
+  await page.waitForTimeout(150);
+  assert.equal(
+    await markerGeometry(),
+    pausedPosition,
+    'Paused maps must not keep moving',
+  );
+  assert.deepEqual(
+    await page.evaluate(() => ({
+      zoom: document
+        .querySelector('.leaflet-zoom-animated')
+        ?.getAttribute('viewBox'),
+      pane: document.querySelector('.leaflet-map-pane')?.style.transform,
+    })),
+    pausedRoute,
+    'Index polling must preserve the paused map camera',
+  );
+
+  // Controlled visibility exercises the clock and renderer cleanup path.
+  await page
+    .getByRole('button', { name: 'Play recording', exact: true })
+    .click();
+  await page.evaluate(() => {
+    Object.defineProperty(document, 'hidden', {
+      configurable: true,
+      value: true,
+    });
+    document.dispatchEvent(new Event('visibilitychange'));
+  });
+  const hiddenPosition = await markerGeometry();
+  await page.waitForTimeout(400);
+  assert.equal(
+    await markerGeometry(),
+    hiddenPosition,
+    'Hidden maps must skip native as well as frame-driven updates',
+  );
+  await page.evaluate(() => {
+    delete document.hidden;
+    document.dispatchEvent(new Event('visibilitychange'));
+  });
+  await page
+    .getByRole('button', { name: 'Pause recording', exact: true })
+    .click();
+  await slider.fill('3');
+  await page
     .getByRole('button', { name: 'Viewer options', exact: true })
     .click();
   await page
@@ -225,7 +358,7 @@ try {
   }
   assert.deepEqual(errors, []);
   console.log(
-    'Enhanced viewer passed: sidebar drag/persistence/animated reset, padding, millisecond typed/slider seeking, smooth playback clock, speed, follow/full-route, snapshots/engagement, responsive fit and accessibility.',
+    'Enhanced viewer passed: sidebar drag/persistence/animated reset, padding, millisecond typed/slider seeking, smooth playback clock, speed, interpolated map motion/follow/full-route/pause/visibility, snapshots/engagement, responsive fit and accessibility.',
   );
 } finally {
   await browser.close();
