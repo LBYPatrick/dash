@@ -1,6 +1,8 @@
 <script setup lang="ts">
+import { useTranslation } from 'i18next-vue';
 import { ref, onBeforeUnmount } from 'vue';
 import { Download, LoaderCircle } from '../icons';
+const { t } = useTranslation();
 const props = defineProps<{ available: boolean }>();
 const busy = ref(false);
 const error = ref('');
@@ -18,13 +20,17 @@ async function download() {
     });
     if (!response.ok)
       throw new Error(
-        'Could not download diagnostics. Check the backend connection and try again.',
+        t('diagnostics.couldNotDownloadDiagnosticsCheckTheBackend'),
       );
     if (!response.headers.get('Content-Type')?.startsWith('text/plain'))
-      throw new Error('The backend returned an unexpected diagnostic file.');
+      throw new Error(
+        t('diagnostics.theBackendReturnedAnUnexpectedDiagnosticFile'),
+      );
     const blob = await response.blob();
     if (blob.size > 2 * 1024 * 1024)
-      throw new Error('The diagnostic file exceeds the download limit.');
+      throw new Error(
+        t('diagnostics.theDiagnosticFileExceedsTheDownloadLimit'),
+      );
     const url = URL.createObjectURL(blob);
     const anchor = document.createElement('a');
     anchor.href = url;
@@ -36,7 +42,7 @@ async function download() {
   } catch (cause) {
     error.value =
       (cause as Error).name === 'AbortError'
-        ? 'Download timed out. Reconnect and try again.'
+        ? t('diagnostics.downloadTimedOutReconnectAndTryAgain')
         : (cause as Error).message;
   } finally {
     clearTimeout(timer);
@@ -46,11 +52,9 @@ async function download() {
 </script>
 <template>
   <section class="diagnostics-section">
-    <h3>Share a debug report</h3>
+    <h3>{{ t('diagnostics.shareADebugReport') }}</h3>
     <p>
-      Download recent backend logs and runtime status. No recordings or GPS
-      samples are included. Logs may contain recording names; review the file
-      before sharing.
+      {{ t('diagnostics.downloadRecentBackendLogsAndRuntimeStatus') }}
     </p>
     <button
       class="button full-width"
@@ -61,10 +65,14 @@ async function download() {
         v-else
         :size="16"
       />
-      {{ busy ? 'Preparing download…' : 'Download backend diagnostics' }}
+      {{
+        busy
+          ? t('diagnostics.preparingDownload')
+          : t('diagnostics.downloadBackendDiagnostics')
+      }}
     </button>
     <p v-if="!available" class="muted">
-      Connect to dash-backend to download diagnostics.
+      {{ t('diagnostics.connectToDashBackendToDownloadDiagnostics') }}
     </p>
     <p v-if="error" class="inline-error" role="alert">{{ error }}</p>
   </section>

@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { useTranslation } from 'i18next-vue';
+import { locale, formatNumber } from '../i18n';
 import { computed, ref, watch } from 'vue';
 import type { Drive } from '../library';
 import type { IndexedSegment } from '../indexer';
@@ -20,6 +22,7 @@ import ActivityChart from './ActivityChart.vue';
 import '../dashboard.css';
 import { readStored, writeStored } from '../storage';
 import { vGlassTabs } from '../glassTabs';
+const { t } = useTranslation();
 const props = defineProps<{
   drives: Drive[];
   entries: Record<string, IndexedSegment>;
@@ -72,8 +75,8 @@ const fileDates = computed(
 );
 const periodLabel = computed(() =>
   period.value === 'all'
-    ? 'All retained recordings'
-    : `Last ${period.value} days`,
+    ? t('dashboard.allRetainedRecordings')
+    : t('dashboard.lastDays', { count: period.value }),
 );
 watch([period, group], () => {
   selected.value = '';
@@ -101,32 +104,38 @@ watch([period, group, metric, unit], () =>
 const cards = computed(() => [
   {
     id: 'distance' as const,
-    label: 'GPS distance',
+    label: t('chart.gpsDistance'),
     value: totals.value.distanceParts
       ? formatStatistic(
           totals.value.distance * (unit.value === 'mi' ? 0.621371192237334 : 1),
         )
       : '—',
-    unit: unit.value,
-    coverage: `${totals.value.distanceParts}/${totals.value.total} segments`,
+    unit: t(`units.${unit.value}`),
+    coverage: t('common.coverage', {
+      covered: totals.value.distanceParts,
+      total: totals.value.total,
+    }),
   },
   {
     id: 'duration' as const,
-    label: 'Recorded time',
+    label: t('chart.recordedTime'),
     value: totals.value.durationParts
       ? formatStatistic(
           totals.value.duration / (totals.value.duration >= 3600 ? 3600 : 60),
         )
       : '—',
-    unit: totals.value.duration >= 3600 ? 'h' : 'min',
-    coverage: `${totals.value.durationParts}/${totals.value.total} segments`,
+    unit: totals.value.duration >= 3600 ? t('units.h') : t('facts.min'),
+    coverage: t('common.coverage', {
+      covered: totals.value.durationParts,
+      total: totals.value.total,
+    }),
   },
   {
     id: 'drives' as const,
-    label: 'Drives',
-    value: scope.value.length.toLocaleString(),
+    label: t('chart.drives'),
+    value: formatNumber(scope.value.length),
     unit: '',
-    coverage: 'Retained on device',
+    coverage: t('dashboard.retainedOnDevice'),
   },
 ]);
 function thumbnail(drive: Drive) {
@@ -137,16 +146,16 @@ function thumbnail(drive: Drive) {
 }
 function driveDate(drive: Drive) {
   return validDate(drive.date)
-    ? new Date(drive.date).toLocaleDateString(undefined, {
+    ? new Date(drive.date).toLocaleDateString(locale.value, {
         month: 'short',
         day: 'numeric',
         year: 'numeric',
       })
-    : 'Date unavailable';
+    : t('dashboard.dateUnavailable');
 }
 function driveTime(drive: Drive) {
   return validDate(drive.date)
-    ? new Date(drive.date).toLocaleTimeString(undefined, {
+    ? new Date(drive.date).toLocaleTimeString(locale.value, {
         hour: 'numeric',
         minute: '2-digit',
       })
@@ -156,42 +165,48 @@ function driveTime(drive: Drive) {
 <template>
   <section
     class="overview recording-dashboard"
-    aria-label="Recording statistics"
+    :aria-label="t('dashboard.recordingStatistics')"
   >
     <header class="dashboard-heading">
       <div>
-        <h1>Recording overview</h1>
-        <p>{{ periodLabel }} · local dates</p>
+        <h1>{{ t('dashboard.recordingOverview') }}</h1>
+        <p>{{ t('dashboard.localDates', { period: periodLabel }) }}</p>
       </div>
       <div class="dashboard-filters">
         <label
-          >Period<SelectMenu
+          >{{ t('chart.period')
+          }}<SelectMenu
             v-model="period"
-            aria-label="Statistics period"
+            :aria-label="t('dashboard.statisticsPeriod')"
             :options="[
-              { value: 'all', label: 'All recordings' },
-              { value: 7, label: 'Last 7 days' },
-              { value: 30, label: 'Last 30 days' },
-              { value: 90, label: 'Last 90 days' },
+              { value: 'all', label: t('dashboard.allRecordings') },
+              { value: 7, label: t('dashboard.last7Days') },
+              { value: 30, label: t('dashboard.last30Days') },
+              { value: 90, label: t('dashboard.last90Days') },
             ]" /></label
         ><label
-          >Distance unit<SelectMenu
+          >{{ t('dashboard.distanceUnit')
+          }}<SelectMenu
             v-model="unit"
-            aria-label="Statistics distance unit"
+            :aria-label="t('dashboard.statisticsDistanceUnit')"
             :options="[
-              { value: 'km', label: 'Kilometers' },
-              { value: 'mi', label: 'Miles' },
+              { value: 'km', label: t('dashboard.kilometers') },
+              { value: 'mi', label: t('dashboard.miles') },
             ]"
         /></label>
       </div>
     </header>
-    <div class="dashboard-totals" role="group" aria-label="Graph metric">
+    <div
+      class="dashboard-totals"
+      role="group"
+      :aria-label="t('dashboard.graphMetric')"
+    >
       <button
         v-for="card in cards"
         :key="card.id"
         type="button"
         :aria-pressed="metric === card.id"
-        :aria-label="`Graph ${card.label.toLowerCase()}`"
+        :aria-label="t('dashboard.graphForMetric', { metric: card.label })"
         :class="{ selected: metric === card.id }"
         @click="metric = card.id"
       >
@@ -199,36 +214,47 @@ function driveTime(drive: Drive) {
         ><strong
           >{{ card.value }} <small>{{ card.unit }}</small></strong
         ><span class="stat-coverage">{{ card.coverage }}</span
-        ><span v-if="metric === card.id" class="stat-selected">Graphing</span>
+        ><span v-if="metric === card.id" class="stat-selected">{{
+          t('dashboard.graphing')
+        }}</span>
       </button>
     </div>
     <p class="dashboard-coverage">
-      Totals cover {{ totals.covered }} of {{ totals.total }} segments.
-      <span v-if="totals.covered < totals.total"
-        >Unindexed or unreadable logs are excluded from distance and time.</span
-      ><span v-else>Totals describe these recordings, not an odometer.</span>
+      {{
+        t('dashboard.coverage', {
+          covered: totals.covered,
+          total: totals.total,
+        })
+      }}
+      <span v-if="totals.covered < totals.total">{{
+        t('dashboard.unindexedOrUnreadableLogsAreExcludedFrom')
+      }}</span
+      ><span v-else>{{
+        t('dashboard.totalsDescribeTheseRecordingsNotAnOdometer')
+      }}</span>
     </p>
     <p v-if="demo" class="dashboard-coverage">
-      The sample library has no decoded telemetry. Only recording counts are
-      available.
+      {{ t('dashboard.theSampleLibraryHasNoDecodedTelemetry') }}
     </p>
     <section
       class="dashboard-activity"
       aria-labelledby="driving-activity-title"
     >
       <header class="activity-controls">
-        <h2 id="driving-activity-title">Driving activity</h2>
+        <h2 id="driving-activity-title">
+          {{ t('dashboard.drivingActivity') }}
+        </h2>
         <div
           v-glass-tabs
           class="segmented activity-group"
           role="group"
-          aria-label="Group activity"
+          :aria-label="t('dashboard.groupActivity')"
         >
           <button
             v-for="choice in [
-              { id: 'drive', label: 'Drives' },
-              { id: 'day', label: 'Days' },
-              { id: 'month', label: 'Months' },
+              { id: 'drive', label: t('chart.drives') },
+              { id: 'day', label: t('dashboard.days') },
+              { id: 'month', label: t('dashboard.months') },
             ] as const"
             :key="choice.id"
             type="button"
@@ -247,32 +273,33 @@ function driveTime(drive: Drive) {
         :unit="unit"
       />
       <p v-if="undated" class="dashboard-coverage">
-        {{ undated }} drives have no usable date and appear only in the list and
-        totals for All recordings.
+        {{ t('dashboard.undated', { count: undated }) }}
       </p>
     </section>
     <section class="dashboard-drives" aria-labelledby="dashboard-drives-title">
       <header class="activity-controls">
         <div>
           <h2 id="dashboard-drives-title">
-            {{ chosen?.label || 'Drives in this period' }}
+            {{ chosen?.label || t('dashboard.drivesInThisPeriod') }}
           </h2>
           <p role="status">
-            {{ matching.length }} {{ matching.length === 1 ? 'drive' : 'drives'
-            }}{{ chosen ? ' selected' : ''
+            {{
+              chosen
+                ? t('common.selectedDrives', { count: matching.length })
+                : t('common.drives', { count: matching.length })
             }}<span v-if="chosen">
               · {{ describeMetric(chosen.drives, metric, unit) }}</span
             >
           </p>
         </div>
         <button v-if="selected" class="text-button" @click="selected = ''">
-          Clear selection
+          {{ t('dashboard.clearSelection') }}
         </button>
       </header>
       <div v-if="!matching.length" class="dashboard-empty">
-        <p>No recordings in this period.</p>
+        <p>{{ t('dashboard.noRecordingsInThisPeriod') }}</p>
         <button v-if="period !== 'all'" class="button" @click="period = 'all'">
-          Show all recordings
+          {{ t('dashboard.showAllRecordings') }}
         </button>
       </div>
       <button
@@ -280,7 +307,12 @@ function driveTime(drive: Drive) {
         :key="item.drive.id"
         type="button"
         class="dashboard-drive"
-        :aria-label="`Review ${driveDate(item.drive)} at ${driveTime(item.drive)}`"
+        :aria-label="
+          t('dashboard.reviewDrive', {
+            date: driveDate(item.drive),
+            time: driveTime(item.drive),
+          })
+        "
         @click="emit('open', item.drive)"
       >
         <img
@@ -293,9 +325,12 @@ function driveTime(drive: Drive) {
           ><strong
             >{{ driveDate(item.drive) }} · {{ driveTime(item.drive) }}</strong
           ><small
-            >{{ item.covered }}/{{ item.total }} segments indexed{{
-              item.drive.dated ? '' : ' · file date'
-            }}</small
+            >{{
+              t('dashboard.indexed', {
+                covered: item.covered,
+                total: item.total,
+              })
+            }}{{ item.drive.dated ? '' : t('dashboard.fileDate') }}</small
           ></span
         ><span class="dashboard-drive-values"
           >{{ describeMetric([item], 'distance', unit)
@@ -304,43 +339,35 @@ function driveTime(drive: Drive) {
       </button>
       <div v-if="matching.length > 20" class="dashboard-list-paging">
         <button class="button" :disabled="listPage === 0" @click="listPage--">
-          Previous drives</button
-        ><span
-          >{{ listPage * 20 + 1 }}–{{
-            Math.min(matching.length, (listPage + 1) * 20)
-          }}
-          of {{ matching.length }}</span
+          {{ t('dashboard.previousDrives') }}</button
+        ><span>{{
+          t('common.range', {
+            start: listPage * 20 + 1,
+            end: Math.min(matching.length, (listPage + 1) * 20),
+            total: matching.length,
+          })
+        }}</span
         ><button
           class="button"
           :disabled="(listPage + 1) * 20 >= matching.length"
           @click="listPage++"
         >
-          Next drives
+          {{ t('dashboard.nextDrives') }}
         </button>
       </div>
     </section>
     <details class="statistics-notes">
-      <summary>How totals are measured</summary>
+      <summary>{{ t('dashboard.howTotalsAreMeasured') }}</summary>
       <p>
-        Only recordings still on this device are counted. Deleted footage is not
-        lifetime driving history. GPS distance skips gaps over 10 seconds and
-        implausible jumps. Recorded time is the observed log span, not engine-on
-        time. Missing values stay unavailable; partial bars add only measured
-        segments.
+        {{ t('dashboard.onlyRecordingsStillOnThisDeviceAre') }}
       </p>
       <p>
-        Each drive is assigned to its local start date, including drives
-        spanning midnight. Only dates with retained recordings are plotted.
-        {{
-          fileDates
-            ? `${fileDates} drives use file modification dates because their folder names have no date.`
-            : ''
-        }}
-        Dates that cannot be read are excluded from dated graphs.
+        {{ t('dashboard.eachDriveIsAssignedToItsLocal') }}
+        {{ fileDates ? t('dashboard.fileDates', { count: fileDates }) : '' }}
+        {{ t('dashboard.datesThatCannotBeReadAreExcluded') }}
       </p>
       <p>
-        Statistics use cached index summaries. New metadata appears after parked
-        indexing; opening this dashboard does not start a decoding job.
+        {{ t('dashboard.statisticsUseCachedIndexSummariesNewMetadata') }}
       </p>
     </details>
   </section>

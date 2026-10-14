@@ -1,6 +1,8 @@
 <script setup lang="ts">
+import { useTranslation } from 'i18next-vue';
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import { readStored, writeStored } from '../storage';
+const { t } = useTranslation();
 const width = defineModel<number>({ required: true });
 const resetting = defineModel<boolean>('resetting', { default: false });
 const viewport = ref(innerWidth);
@@ -84,12 +86,12 @@ onBeforeUnmount(() => {
     class="sidebar-resize-handle"
     role="separator"
     tabindex="0"
-    aria-label="Resize recording sidebar"
+    :aria-label="t('sidebar.resizeRecordingSidebar')"
     aria-orientation="vertical"
     :aria-valuemin="240"
     :aria-valuemax="maximum"
     :aria-valuenow="Math.round(width)"
-    title="Drag to resize · Double-click to reset"
+    :title="t('panels.dragToResizeDoubleClickToReset')"
     @pointerdown="start"
     @pointermove="move"
     @pointerup="finish"

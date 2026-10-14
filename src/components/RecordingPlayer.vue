@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { formatNumber } from '../i18n';
+import { useTranslation } from 'i18next-vue';
 import {
   computed,
   useId,
@@ -21,6 +23,13 @@ import {
   engagementBands,
   type TimelineSegment,
 } from '../viewerTimeline';
+const { t } = useTranslation();
+const speedOptions = computed(() =>
+  [0.25, 0.5, 0.75, 1, 1.25, 1.5, 2, 4].map((value) => ({
+    value,
+    label: `${formatNumber(value)}×`,
+  })),
+);
 const props = withDefaults(
   defineProps<{
     source?: string;
@@ -155,8 +164,7 @@ async function togglePlay() {
     try {
       await video.value.play();
     } catch {
-      error.value =
-        'Playback could not start. Retry after the recording loads.';
+      error.value = t('player.playbackCouldNotStartRetryAfterThe');
     }
   } else video.value.pause();
   sync();
@@ -178,7 +186,9 @@ async function closeTime() {
 function submitTime() {
   const seconds = parseTimestamp(timestamp.value);
   if (seconds === undefined || seconds > duration.value + 0.0005) {
-    timestampError.value = `Enter a time from 0:00 to ${formatTimestamp(duration.value, 3)}.`;
+    timestampError.value = t('player.timeRange', {
+      end: formatTimestamp(duration.value, 3),
+    });
     return;
   }
   seek(seconds);
@@ -214,7 +224,7 @@ async function fullscreen() {
       (video.value as SafariVideo).webkitEnterFullscreen!();
     else throw new Error('Fullscreen unavailable');
   } catch {
-    error.value = 'Fullscreen is unavailable in this browser.';
+    error.value = t('player.fullscreenIsUnavailableInThisBrowser');
   }
 }
 let stream: Hls | undefined;
@@ -258,7 +268,7 @@ async function initialize() {
   const { default: Hls } = await import('hls.js');
   if (run !== generation) return;
   if (!Hls.isSupported()) {
-    error.value = 'This browser does not support recording streams.';
+    error.value = t('player.thisBrowserDoesNotSupportRecordingStreams');
     return;
   }
   stream = new Hls({
@@ -277,8 +287,9 @@ async function initialize() {
   });
   stream.on(Hls.Events.ERROR, (_, data) => {
     if (!data.fatal || run !== generation) return;
-    error.value =
-      'Playback unavailable. Timeline indexing and camera preparation require parked state. Retry after indexing completes.';
+    error.value = t(
+      'player.playbackUnavailableTimelineIndexingAndCameraPreparation',
+    );
     if (data.type === Hls.ErrorTypes.NETWORK_ERROR && attempts++ < 10)
       retry = setTimeout(() => void initialize(), 2000);
   });
@@ -297,7 +308,7 @@ watch(
   { flush: 'post' },
 );
 function playbackError() {
-  error.value = 'Recording unavailable. Confirm parked state and retry.';
+  error.value = t('player.recordingUnavailableConfirmParkedStateAndRetry');
   if (playlist() && !stream && attempts++ < 10)
     retry = setTimeout(() => void initialize(), 2000);
 }
@@ -356,12 +367,12 @@ onBeforeUnmount(() => {
       @keydown.space.prevent="togglePlay"
       @keydown.left.prevent="seek(time - 5)"
       @keydown.right.prevent="seek(time + 5)"
-      aria-label="Drive recording"
+      :aria-label="t('player.driveRecording')"
     />
     <div v-else class="player-placeholder">
       <Film :size="34" />
-      <h3>No recording available</h3>
-      <p>Open Original files to download available footage.</p>
+      <h3>{{ t('player.noRecordingAvailable') }}</h3>
+      <p>{{ t('player.openOriginalFilesToDownloadAvailableFootage') }}</p>
     </div>
     <div v-if="error" class="player-error" role="alert">
       <CircleAlert :size="20" /><span>{{ error }}</span
@@ -372,7 +383,7 @@ onBeforeUnmount(() => {
           initialize();
         "
       >
-        Retry playback
+        {{ t('player.retryPlayback') }}
       </button>
     </div>
     <Teleport
@@ -383,22 +394,24 @@ onBeforeUnmount(() => {
         <div
           v-if="snapshots"
           class="snapshot-strip"
-          aria-label="Road recording snapshots"
+          :aria-label="t('player.roadRecordingSnapshots')"
         >
           <button
             v-for="frame in snapshotFrames"
             :key="frame.start"
             type="button"
-            :aria-label="`Seek to ${formatTimestamp(frame.start)}`"
+            :aria-label="
+              t('player.seekTo', { time: formatTimestamp(frame.start) })
+            "
             @click="seek(frame.start)"
           >
             <img :src="frame.thumbnail" alt="" loading="lazy" /><span>{{
               formatTimestamp(frame.start)
             }}</span>
           </button>
-          <span v-if="!snapshotFrames.length" class="muted"
-            >Snapshots appear after parked indexing.</span
-          >
+          <span v-if="!snapshotFrames.length" class="muted">{{
+            t('player.snapshotsAppearAfterParkedIndexing')
+          }}</span>
         </div>
         <div
           v-if="engagement && hasEngagement"
@@ -407,7 +420,7 @@ onBeforeUnmount(() => {
         >
           <span
             class="status-dot"
-            :class="{ amber: status !== 'Engaged' }"
+            :class="{ amber: status !== t('player.engaged') }"
           ></span
           >{{ status }}
         </div>
@@ -417,11 +430,10 @@ onBeforeUnmount(() => {
           viewBox="0 0 1000 8"
           preserveAspectRatio="none"
           role="img"
-          aria-label="Recorded engagement timeline"
+          :aria-label="t('player.recordedEngagementTimeline')"
         >
           <title>
-            Green: engaged. Gray: enabled but inactive. Blue: disengaged. Blank:
-            no recorded state.
+            {{ t('player.greenEngagedGrayEnabledButInactiveBlue') }}
           </title>
           <rect
             v-for="(band, index) in bands"
@@ -437,10 +449,10 @@ onBeforeUnmount(() => {
           />
         </svg>
         <label class="video-timeline"
-          ><span class="sr-only">Recording timeline</span
+          ><span class="sr-only">{{ t('player.recordingTimeline') }}</span
           ><input
             type="range"
-            aria-label="Recording timeline"
+            :aria-label="t('player.recordingTimeline')"
             min="0"
             :max="duration || 1"
             step="0.001"
@@ -453,7 +465,9 @@ onBeforeUnmount(() => {
           <button
             type="button"
             class="player-control"
-            :aria-label="paused ? 'Play recording' : 'Pause recording'"
+            :aria-label="
+              paused ? t('player.playRecording') : t('player.pauseRecording')
+            "
             :disabled="!duration"
             @click="togglePlay"
           >
@@ -462,7 +476,7 @@ onBeforeUnmount(() => {
           <button
             type="button"
             class="player-control"
-            aria-label="Back 10 seconds"
+            :aria-label="t('player.back10Seconds')"
             :disabled="!duration"
             @click="seek(time - 10)"
           >
@@ -471,7 +485,7 @@ onBeforeUnmount(() => {
           <button
             type="button"
             class="player-control"
-            aria-label="Forward 10 seconds"
+            :aria-label="t('player.forward10Seconds')"
             :disabled="!duration"
             @click="seek(time + 10)"
           >
@@ -486,7 +500,7 @@ onBeforeUnmount(() => {
             <input
               ref="timestampInput"
               v-model="timestamp"
-              aria-label="Playback timestamp"
+              :aria-label="t('player.playbackTimestamp')"
               :aria-invalid="timestampError ? true : undefined"
               :aria-describedby="timestampError ? timestampErrorId : undefined"
               placeholder="m:ss.SSS"
@@ -495,11 +509,13 @@ onBeforeUnmount(() => {
               enterkeyhint="go"
               autocapitalize="off"
               spellcheck="false"
-            /><button type="submit" class="player-control">Go</button>
+            /><button type="submit" class="player-control">
+              {{ t('player.go') }}
+            </button>
             <button
               type="button"
               class="player-control"
-              aria-label="Cancel timestamp entry"
+              :aria-label="t('player.cancelTimestampEntry')"
               @click="closeTime"
             >
               <X :size="16" />
@@ -510,7 +526,7 @@ onBeforeUnmount(() => {
             type="button"
             ref="timestampButton"
             class="timestamp-button player-control"
-            aria-label="Enter playback timestamp"
+            :aria-label="t('player.enterPlaybackTimestamp')"
             :disabled="!duration"
             @click="editTime"
           >
@@ -524,13 +540,8 @@ onBeforeUnmount(() => {
             <SelectMenu
               class="playback-speed"
               v-model="rate"
-              aria-label="Playback speed"
-              :options="
-                [0.25, 0.5, 0.75, 1, 1.25, 1.5, 2, 4].map((value) => ({
-                  value,
-                  label: `${value}×`,
-                }))
-              "
+              :aria-label="t('player.playbackSpeed')"
+              :options="speedOptions"
             />
             <button
               type="button"
@@ -538,20 +549,24 @@ onBeforeUnmount(() => {
               class="player-control fullscreen-control"
               :aria-label="
                 inFullscreen
-                  ? 'Exit fullscreen recording'
-                  : 'Fullscreen recording'
+                  ? t('player.exitFullscreenRecording')
+                  : t('player.fullscreenRecording')
               "
               @click="fullscreen"
             >
               ⛶
             </button>
-            <SessionActions label="Viewer options"
+            <SessionActions :label="t('player.viewerOptions')"
               ><button
                 type="button"
                 :aria-pressed="snapshots"
                 @click="snapshots = !snapshots"
               >
-                {{ snapshots ? 'Hide' : 'Show' }} snapshots</button
+                {{
+                  snapshots
+                    ? t('player.hideSnapshots')
+                    : t('player.showSnapshots')
+                }}</button
               ><button
                 type="button"
                 :aria-pressed="engagement && hasEngagement"
@@ -559,14 +574,16 @@ onBeforeUnmount(() => {
                 :title="
                   hasEngagement
                     ? undefined
-                    : 'No engagement data was recorded for this session.'
+                    : t('player.noEngagementDataWasRecordedForThis')
                 "
                 @click="engagement = !engagement"
               >
                 {{
                   hasEngagement
-                    ? `${engagement ? 'Hide' : 'Show'} engagement status`
-                    : 'Engagement not recorded'
+                    ? engagement
+                      ? t('player.hideEngagement')
+                      : t('player.showEngagement')
+                    : t('player.engagementNotRecorded')
                 }}
               </button></SessionActions
             >
@@ -582,6 +599,8 @@ onBeforeUnmount(() => {
         </p>
       </div>
     </Teleport>
-    <span v-if="sample" class="sample-label">ILLUSTRATED SAMPLE</span>
+    <span v-if="sample" class="sample-label">{{
+      t('player.illustratedSample')
+    }}</span>
   </div>
 </template>

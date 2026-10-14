@@ -115,6 +115,8 @@
 #app .activity-group button {
   min-height: 28px;
   padding: 4px 12px;
+  white-space: nowrap;
+  flex-shrink: 0;
   font-size: 12px;
 }
 #app .activity-visualization {

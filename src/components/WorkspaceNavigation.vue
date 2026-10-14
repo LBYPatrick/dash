@@ -1,7 +1,10 @@
 <script setup lang="ts">
+import { useTranslation } from 'i18next-vue';
+import { computed } from 'vue';
 import { vGlassTabs } from '../glassTabs';
 import { Monitor, ListVideo, Radio } from '../icons';
 import DeviceSwitcher from './DeviceSwitcher.vue';
+const { t } = useTranslation();
 withDefaults(
   defineProps<{
     view: 'drives' | 'overview' | 'live';
@@ -11,15 +14,18 @@ withDefaults(
   { showDevice: true },
 );
 defineEmits<{ navigate: [view: 'drives' | 'overview' | 'live']; device: [] }>();
-const destinations = [
-  { id: 'overview', label: 'Overview', icon: Monitor },
-  { id: 'drives', label: 'Recordings', icon: ListVideo },
-  { id: 'live', label: 'Live', icon: Radio },
-] as const;
+const destinations = computed(
+  () =>
+    [
+      { id: 'overview', label: t('app.overview'), icon: Monitor },
+      { id: 'drives', label: t('app.recordings'), icon: ListVideo },
+      { id: 'live', label: t('app.live'), icon: Radio },
+    ] as const,
+);
 </script>
 <template>
   <div class="workspace-navigation">
-    <nav v-glass-tabs class="workspace-nav" aria-label="Workspace">
+    <nav v-glass-tabs class="workspace-nav" :aria-label="t('nav.workspace')">
       <button
         v-for="destination in destinations"
         :key="destination.id"

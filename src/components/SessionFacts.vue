@@ -1,6 +1,9 @@
 <script setup lang="ts">
+import { useTranslation } from 'i18next-vue';
+import { formatNumber } from '../i18n';
 import { computed } from 'vue';
 import type { Telemetry } from '../indexer';
+const { t } = useTranslation();
 const props = defineProps<{ metadata: Telemetry[]; total: number }>();
 const duration = computed(
   () =>
@@ -22,28 +25,43 @@ const distance = computed(() =>
   <div class="session-facts">
     <div class="section-heading">
       <div>
-        <h2>Metadata</h2>
-        <p>{{ metadata.length }} / {{ total }} segments decoded</p>
+        <h2>{{ t('app.metadata') }}</h2>
+        <p>{{ t('facts.decoded', { count: metadata.length, total }) }}</p>
       </div>
     </div>
     <div class="stat-grid">
       <div>
-        <small>Measured distance</small
+        <small>{{ t('facts.measuredDistance') }}</small
         ><strong
-          >{{ hasDistance ? distance.toFixed(1) : '—' }} <span>km</span></strong
+          >{{
+            hasDistance
+              ? formatNumber(distance, {
+                  minimumFractionDigits: 1,
+                  maximumFractionDigits: 1,
+                })
+              : '—'
+          }}
+          <span>{{ t('facts.km') }}</span></strong
         >
       </div>
       <div>
-        <small>Recorded time</small
+        <small>{{ t('chart.recordedTime') }}</small
         ><strong
-          >{{ hasDuration ? duration.toFixed(1) : '—' }}
-          <span>min</span></strong
+          >{{
+            hasDuration
+              ? formatNumber(duration, {
+                  minimumFractionDigits: 1,
+                  maximumFractionDigits: 1,
+                })
+              : '—'
+          }}
+          <span>{{ t('facts.min') }}</span></strong
         >
       </div>
       <div>
-        <small>Vehicle</small
+        <small>{{ t('facts.vehicle') }}</small
         ><strong class="vehicle-name">{{
-          metadata.find((meta) => meta.car)?.car || 'Not recorded'
+          metadata.find((meta) => meta.car)?.car || t('facts.notRecorded')
         }}</strong>
       </div>
     </div>

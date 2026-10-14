@@ -1,5 +1,14 @@
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { backendMessage } from '../i18n/backend';
+import { useTranslation } from 'i18next-vue';
+import {
+  computed,
+  shallowRef,
+  onBeforeUnmount,
+  onMounted,
+  ref,
+  watch,
+} from 'vue';
 import { Radio, Video, Square, Download } from '../icons';
 import SelectMenu from './SelectMenu.vue';
 import { indexStatus } from '../indexer';
@@ -9,10 +18,14 @@ import {
   beginLiveCapture,
   finishLiveCapture,
 } from '../liveCapture';
+const { t } = useTranslation();
 const endpoint = '/api/stream';
 let heartbeat: ReturnType<typeof setInterval> | undefined;
 const camera = ref('road');
-const status = ref('Ready when your device is.');
+const statusMessage = shallowRef<() => string>(() =>
+  t('live.readyWhenYourDeviceIs'),
+);
+const status = computed(() => backendMessage(statusMessage.value()));
 const busy = ref(false),
   connected = ref(false),
   recording = ref(false);
@@ -46,7 +59,7 @@ async function stop() {
 async function start() {
   await stop();
   busy.value = true;
-  status.value = 'Connecting to live camera…';
+  statusMessage.value = () => t('live.connectingToLiveCamera');
   const controller = new AbortController();
   request = controller;
   const pc = new RTCPeerConnection({ iceServers: [] });
@@ -54,7 +67,7 @@ async function start() {
   try {
     const url = new URL(endpoint, location.origin);
     if (!['http:', 'https:'].includes(url.protocol))
-      throw new Error('Use an HTTP or HTTPS signaling address.');
+      throw new Error(t('live.useAnHttpOrHttpsSignalingAddress'));
     pc.addTransceiver('video', { direction: 'recvonly' });
     pc.createDataChannel('data');
     pc.ontrack = (event) => {
@@ -71,12 +84,12 @@ async function start() {
         clearTimeout(timeout);
         busy.value = false;
         connected.value = true;
-        status.value = 'Live · direct local connection';
+        statusMessage.value = () => t('live.liveDirectLocalConnection');
       }
       if (['failed', 'disconnected', 'closed'].includes(pc.connectionState)) {
         stop();
-        status.value =
-          'Stream disconnected. Reconnect when the device is ready.';
+        statusMessage.value = () =>
+          t('live.streamDisconnectedReconnectWhenTheDeviceIs');
       }
     };
     await pc.setLocalDescription(await pc.createOffer());
@@ -97,8 +110,8 @@ async function start() {
         .then((data) => {
           if (data.driving !== 'parked') {
             void stop();
-            status.value =
-              'Live view stopped: vehicle is no longer confirmed parked.';
+            statusMessage.value = () =>
+              t('live.liveViewStoppedVehicleIsNoLonger');
           }
         })
         .catch(() => {
@@ -119,21 +132,23 @@ async function start() {
     const answer = await response.json();
     if (!response.ok || answer.error)
       throw new Error(
-        answer.error || `Streaming service returned ${response.status}.`,
+        answer.error
+          ? answer.error
+          : t('live.httpError', { status: response.status }),
       );
     await pc.setRemoteDescription({ type: 'answer', sdp: answer.sdp });
     if (!connected.value)
       timeout = setTimeout(() => {
         stop();
-        status.value =
-          'The device answered, but no peer connection arrived. Check that both devices share a network and cameras are available.';
+        statusMessage.value = () =>
+          t('live.theDeviceAnsweredButNoPeerConnection');
       }, 20000);
   } catch (error) {
     if (controller.signal.aborted) return;
     stop();
-    status.value =
+    statusMessage.value = () =>
       (error as Error).message === 'Failed to fetch'
-        ? 'Cannot reach the streaming service. Use the local bridge, check the device network, and ensure firmware supports webrtcd.'
+        ? t('live.cannotReachTheStreamingServiceUseThe')
         : (error as Error).message;
   }
 }
@@ -143,7 +158,8 @@ function toggleRecording() {
     return;
   }
   if (!stream || !window.MediaRecorder) {
-    status.value = 'This browser does not support recording incoming video.';
+    statusMessage.value = () =>
+      t('live.thisBrowserDoesNotSupportRecordingIncoming');
     return;
   }
   const mime = [
@@ -152,8 +168,8 @@ function toggleRecording() {
     'video/mp4',
   ].find((type) => MediaRecorder.isTypeSupported(type));
   if (!mime) {
-    status.value =
-      'No supported recording format is available in this browser.';
+    statusMessage.value = () =>
+      t('live.noSupportedRecordingFormatIsAvailableIn');
     return;
   }
   try {
@@ -170,7 +186,8 @@ function toggleRecording() {
           recorder?.state === 'recording'
         ) {
           recorder.stop();
-          status.value = 'Recording stopped at the 128 MB memory limit.';
+          statusMessage.value = () =>
+            t('live.recordingStoppedAtThe128MbMemory');
         }
       }
     };
@@ -179,14 +196,14 @@ function toggleRecording() {
       finishLiveCapture(captureRun, new Blob(parts, { type: mime }));
     };
     recorder.onerror = () => {
-      status.value = 'Recording failed. Try another browser.';
+      statusMessage.value = () => t('live.recordingFailedTryAnotherBrowser');
       recording.value = false;
     };
     recorder.start(1000);
     captureRun = beginLiveCapture();
     recording.value = true;
   } catch (error) {
-    status.value = (error as Error).message;
+    statusMessage.value = () => (error as Error).message;
   }
 }
 function downloadRecording() {
@@ -201,15 +218,14 @@ watch(
   (state) => {
     if (state !== 'parked' && peer) {
       void stop();
-      status.value =
-        'Live view stopped: vehicle is no longer confirmed parked.';
+      statusMessage.value = () => t('live.liveViewStoppedVehicleIsNoLonger');
     }
   },
 );
 function backgrounded() {
   if (document.hidden && (connected.value || busy.value || recording.value)) {
     void stop();
-    status.value = 'Live view stopped when Dash moved to the background.';
+    statusMessage.value = () => t('live.liveViewStoppedWhenDashMovedTo');
   }
 }
 onMounted(() => document.addEventListener('visibilitychange', backgrounded));
@@ -220,29 +236,31 @@ onBeforeUnmount(() => {
 </script>
 <template>
   <section class="live-view">
-    <div class="eyebrow"><Radio :size="14" /> LOCAL LIVE VIEW</div>
-    <h1>Live cameras</h1>
+    <div class="eyebrow">
+      <Radio :size="14" /> {{ t('live.localLiveView') }}
+    </div>
+    <h1>{{ t('app.liveCameras') }}</h1>
     <p>
-      Receive-only camera streaming over your local network. Firmware support is
-      checked when you connect.
+      {{ t('live.receiveOnlyCameraStreamingOverYourLocal') }}
     </p>
     <div class="live-settings">
       <label
-        >Camera<SelectMenu
+        >{{ t('app.camera')
+        }}<SelectMenu
           v-model="camera"
-          aria-label="Live camera"
+          :aria-label="t('live.liveCamera')"
           :disabled="busy || connected"
           :options="[
-            { value: 'road', label: 'Road' },
-            { value: 'wideRoad', label: 'Wide road' },
-            { value: 'driver', label: 'Driver' },
+            { value: 'road', label: t('live.road') },
+            { value: 'wideRoad', label: t('live.wideRoad') },
+            { value: 'driver', label: t('live.driver') },
           ]" /></label
       ><button
         class="button primary"
         :disabled="indexStatus.driving !== 'parked'"
         @click="busy || connected ? stop() : start()"
       >
-        {{ busy || connected ? 'Disconnect' : 'Start live view' }}
+        {{ busy || connected ? t('live.disconnect') : t('live.startLiveView') }}
       </button>
     </div>
     <p
@@ -250,7 +268,7 @@ onBeforeUnmount(() => {
       class="settings-note"
       role="status"
     >
-      Live view is available when the vehicle is confirmed parked.
+      {{ t('live.liveViewIsAvailableWhenTheVehicle') }}
     </p>
     <div class="live-player">
       <video
@@ -259,7 +277,7 @@ onBeforeUnmount(() => {
         muted
         playsinline
         controls
-        aria-label="Live device camera"
+        :aria-label="t('live.liveDeviceCamera')"
       />
       <Transition name="task-feedback">
         <div v-if="!connected" class="live-placeholder">
@@ -273,25 +291,21 @@ onBeforeUnmount(() => {
       ><button class="button" :disabled="!connected" @click="toggleRecording">
         <Square v-if="recording" :size="15" /><Video v-else :size="16" />{{
           recording
-            ? 'Stop recording'
+            ? t('live.stopRecording')
             : recordingBlob
-              ? 'Record new clip'
-              : 'Record this feed'
+              ? t('live.recordNewClip')
+              : t('live.recordThisFeed')
         }}</button
       ><button v-if="recordingBlob" class="button" @click="downloadRecording">
-        <Download :size="16" />Save recording
+        <Download :size="16" />{{ t('live.saveRecording') }}
       </button>
     </div>
     <p v-if="recordingBlob && !recording" class="capture-note" role="status">
-      Your clip stays available when switching Dash views. A new recording
-      replaces it; refreshing or closing this tab discards it.
+      {{ t('live.yourClipStaysAvailableWhenSwitchingDash') }}
     </p>
     <div class="drive-note">
       <p>
-        Keep this tab open while recording. Capture stops at approximately 128
-        MB. Only firmware with managed offroad streaming is supported. Older
-        unmanaged streaming services are intentionally rejected. Dash does not
-        send driving controls.
+        {{ t('live.keepThisTabOpenWhileRecordingCapture') }}
       </p>
     </div>
   </section>

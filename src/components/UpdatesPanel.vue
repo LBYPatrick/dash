@@ -1,8 +1,11 @@
 <script setup lang="ts">
+import { backendMessage } from '../i18n/backend';
+import { useTranslation } from 'i18next-vue';
 import { onMounted, onBeforeUnmount, ref, computed } from 'vue';
 import SelectMenu from './SelectMenu.vue';
 import { indexStatus } from '../indexer';
 import { Download, RefreshCw, LoaderCircle } from '../icons';
+const { t } = useTranslation();
 interface Build {
   version: string;
   channel: string;
@@ -53,7 +56,8 @@ async function load() {
       signal: controller.signal,
       cache: 'no-store',
     });
-    if (!response.ok) throw new Error('Update information is unavailable.');
+    if (!response.ok)
+      throw new Error(t('updates.updateInformationIsUnavailable'));
     const current: UpdateState = await response.json();
     state.value = current;
     if (!submitting.value) {
@@ -104,7 +108,12 @@ async function action(action: string) {
       signal: controller.signal,
     });
     const result = await response.json();
-    if (!response.ok) throw new Error(result.error || 'Could not update Dash.');
+    if (!response.ok)
+      throw new Error(
+        result.error
+          ? backendMessage(result.error)
+          : t('updates.couldNotUpdateDash'),
+      );
     state.value = result;
     if (action === 'install') restarting.value = result.current.tag;
   } catch (e) {
@@ -125,8 +134,8 @@ onBeforeUnmount(() => {
 });
 </script>
 <template>
-  <section class="update-settings" aria-label="Dash updates">
-    <h3>Updates</h3>
+  <section class="update-settings" :aria-label="t('updates.dashUpdates')">
+    <h3>{{ t('updates.updates') }}</h3>
     <template v-if="state">
       <p class="settings-note">
         {{ state.current.version
@@ -135,33 +144,34 @@ onBeforeUnmount(() => {
         >
       </p>
       <template v-if="state.managed">
-        <label class="field-label" for="update-channel">Delivery channel</label>
+        <label class="field-label" for="update-channel">{{
+          t('updates.deliveryChannel')
+        }}</label>
         <SelectMenu
           id="update-channel"
           v-model="channel"
-          aria-label="Delivery channel"
+          :aria-label="t('updates.deliveryChannel')"
           :disabled="busy || !parked"
           :options="[
-            { value: 'main', label: 'Main · stable' },
-            { value: 'nightly', label: 'Nightly' },
-            { value: 'dev', label: 'Dev' },
+            { value: 'main', label: t('updates.mainStable') },
+            { value: 'nightly', label: t('updates.nightly') },
+            { value: 'dev', label: t('updates.dev') },
           ]"
           @update:model-value="action('configure')"
         />
         <label class="performance-setting update-automatic">
           <span
-            ><strong>Check automatically</strong
-            ><small
-              >Looks for builds while parked. Downloads start when you
-              choose.</small
-            ></span
+            ><strong>{{ t('updates.checkAutomatically') }}</strong
+            ><small>{{
+              t('updates.looksForBuildsWhileParkedDownloadsStart')
+            }}</small></span
           >
           <span class="settings-switch"
             ><input
               v-model="automatic"
               type="checkbox"
               role="switch"
-              aria-label="Check for updates automatically"
+              :aria-label="t('updates.checkForUpdatesAutomatically')"
               :disabled="busy || !parked"
               @change="action('configure')" /><span
               class="switch-track"
@@ -175,18 +185,39 @@ onBeforeUnmount(() => {
             :href="`https://github.com/${state.repository}/releases/tag/${encodeURIComponent(state.release.tag)}`"
             target="_blank"
             rel="noopener noreferrer"
-            >Release details</a
+            >{{ t('updates.releaseDetails') }}</a
           >
         </p>
         <p v-if="!parked" class="settings-note">
-          Updates are available while parked.
+          {{ t('updates.updatesAreAvailableWhileParked') }}
         </p>
         <p v-if="state.phase === 'current'" class="settings-note" role="status">
-          This channel is up to date.
+          {{ t('updates.thisChannelIsUpToDate') }}
         </p>
         <p v-if="state.message" class="settings-note" role="status">
-          {{ state.message }}
+          {{
+            state.pendingHealth
+              ? t('updates.startupCheck')
+              : state.phase === 'ready'
+                ? t('updates.ready')
+                : state.phase === 'error'
+                  ? t('updates.failed')
+                  : state.phase === 'restarting'
+                    ? t('updates.reconnecting')
+                    : state.phase === 'downloading'
+                      ? t('updates.downloading')
+                      : state.phase === 'verifying'
+                        ? t('updates.verifying')
+                        : backendMessage(state.message)
+          }}
         </p>
+        <details
+          v-if="state.phase === 'error' && state.message"
+          class="settings-note"
+        >
+          <summary>{{ t('common.technicalDetails') }}</summary>
+          <p>{{ state.message }}</p>
+        </details>
         <p v-if="error" class="inline-error" role="alert">{{ error }}</p>
         <Transition name="task-feedback">
           <div
@@ -196,7 +227,7 @@ onBeforeUnmount(() => {
             <progress
               :value="progress"
               max="100"
-              aria-label="Update download progress"
+              :aria-label="t('updates.updateDownloadProgress')"
             ></progress
             ><span>{{ progress }}%</span>
           </div>
@@ -223,28 +254,28 @@ onBeforeUnmount(() => {
           /><RefreshCw v-else :size="16" />
           {{
             state.phase === 'restarting'
-              ? 'Reconnecting…'
+              ? t('updates.reconnecting')
               : state.phase === 'checking'
-                ? 'Checking…'
+                ? t('updates.checking')
                 : state.phase === 'downloading'
-                  ? 'Downloading…'
+                  ? t('updates.downloading')
                   : state.phase === 'verifying'
-                    ? 'Verifying…'
+                    ? t('updates.verifying')
                     : state.phase === 'available'
-                      ? 'Download update'
+                      ? t('updates.downloadUpdate')
                       : state.phase === 'ready'
-                        ? 'Restart Dash and install'
-                        : 'Check for updates'
+                        ? t('updates.restartDashAndInstall')
+                        : t('updates.checkForUpdates')
           }}
         </button>
       </template>
       <p v-else class="settings-note">
-        {{
-          state.message || 'Source build. Install a release to enable updates.'
-        }}
+        {{ t('updates.sourceBuildInstallAReleaseToEnable') }}
       </p>
     </template>
     <p v-else-if="error" class="settings-note">{{ error }}</p>
-    <p v-else class="settings-note">Loading update information…</p>
+    <p v-else class="settings-note">
+      {{ t('updates.loadingUpdateInformation') }}
+    </p>
   </section>
 </template>

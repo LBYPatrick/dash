@@ -1,6 +1,8 @@
 <script setup lang="ts">
+import { useTranslation } from 'i18next-vue';
 import { computed, onMounted, onBeforeUnmount, ref } from 'vue';
 import { readStored, writeStored } from '../storage';
+const { t } = useTranslation();
 const storageKey = 'dash.videoMapRatio';
 const saved = readStored<unknown>(storageKey, null);
 const ratio = ref(
@@ -107,13 +109,13 @@ onBeforeUnmount(() => {
       class="media-resize-handle"
       role="separator"
       tabindex="0"
-      aria-label="Resize video and map"
+      :aria-label="t('panels.resizeVideoAndMap')"
       aria-orientation="vertical"
       :aria-valuemin="Math.round(minimum)"
       :aria-valuemax="Math.round(maximum)"
       :aria-valuenow="Math.round(width)"
       :aria-valuetext="`${Math.round((width / usable) * 100)}% video`"
-      title="Drag to resize · Double-click to reset"
+      :title="t('panels.dragToResizeDoubleClickToReset')"
       @pointerdown="start"
       @pointermove="move"
       @pointerup="finish"

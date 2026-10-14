@@ -52,6 +52,11 @@ describe('viewer time and telemetry', () => {
     expect(positionAt(points, 8)).toBeUndefined();
     expect(positionAt(points, 9)?.latitude).toBe(10);
   });
+  it('accepts a decimal comma without accepting ambiguous mixed separators', () => {
+    expect(parseTimestamp('1:02,125')).toBe(62.125);
+    expect(parseTimestamp('12,5')).toBe(12.5);
+    expect(parseTimestamp('1:02,1.25')).toBeUndefined();
+  });
   it('distinguishes recorded engagement from unavailable and stale data', () => {
     const parts = [
       {

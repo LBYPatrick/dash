@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { useTranslation } from 'i18next-vue';
 import {
   computed,
   defineAsyncComponent,
@@ -85,7 +86,9 @@ import {
 } from './viewerTimeline';
 const playbackTime = ref(0);
 const playbackDuration = ref(0);
+import { locale, formatNumber } from './i18n';
 import { readStored, writeStored } from './storage';
+const { t } = useTranslation();
 
 const appOrigin = location.origin;
 const address = ref(new URL('/files/', location.origin).href);
@@ -105,7 +108,9 @@ function showHelp() {
 }
 const returnView = ref<'drives' | 'overview'>('drives');
 const backLabel = computed(() =>
-  returnView.value === 'overview' ? 'Back to Overview' : 'All drives',
+  returnView.value === 'overview'
+    ? t('app.backToOverview')
+    : t('app.allDrives'),
 );
 const scrollPositions = new Map<string, number>();
 const routeKey = (route: WorkspaceRoute) =>
@@ -239,7 +244,7 @@ const thumbnail = (drive: Drive) =>
         .find(Boolean);
 function indexDrives(rebuild = false) {
   if (demo.value) {
-    tell('Sample library is already indexed.');
+    tell(t('app.sampleLibraryIsAlreadyIndexed'));
     return;
   }
   void startIndexing(connectedAddress.value, drives.value, rebuild).catch(
@@ -282,10 +287,10 @@ const segment = computed(() => active.value?.segments[segmentIndex.value]);
 const connected = computed(() => demo.value || !!connectedAddress.value);
 const deviceName = computed(() =>
   demo.value
-    ? 'Sample device'
+    ? t('app.sampleDevice')
     : connectedAddress.value
       ? new URL(connectedAddress.value).host
-      : 'No device connected',
+      : t('app.noDeviceConnected'),
 );
 const bookmarkKey = (id: string) =>
   `${demo.value ? 'demo' : connectedAddress.value}|${id}`;
@@ -324,14 +329,14 @@ const totalSegments = computed(() =>
   drives.value.reduce((sum, drive) => sum + drive.segments.length, 0),
 );
 function dateLabel(date: number) {
-  return new Date(date).toLocaleDateString(undefined, {
+  return new Date(date).toLocaleDateString(locale.value, {
     month: 'long',
     day: 'numeric',
     year: 'numeric',
   });
 }
 function timeLabel(date: number) {
-  return new Date(date).toLocaleTimeString(undefined, {
+  return new Date(date).toLocaleTimeString(locale.value, {
     hour: 'numeric',
     minute: '2-digit',
   });
@@ -342,7 +347,7 @@ function tell(message: string) {
   toastTimer = setTimeout(() => (notice.value = ''), 4500);
 }
 watch(retainedLiveCapture, (clip) => {
-  if (clip?.size) tell('Live clip ready. Save it from Live.');
+  if (clip?.size) tell(t('app.liveClipReadySaveItFromLive'));
 });
 function saveDrive() {
   if (!active.value) return;
@@ -354,10 +359,10 @@ function saveDrive() {
   const stored = writeStored('dash.bookmarks', bookmarks.value);
   tell(
     !stored
-      ? 'Saved for this session. Browser storage is unavailable.'
+      ? t('app.savedForThisSessionBrowserStorageIs')
       : exists
-        ? 'Removed from saved drives.'
-        : 'Drive bookmarked on this browser.',
+        ? t('app.removedFromSavedDrives')
+        : t('app.driveBookmarkedOnThisBrowser'),
   );
 }
 function selectDrive(drive: Drive) {
@@ -469,9 +474,7 @@ async function connect() {
       location.protocol === 'https:' &&
       new URL(normalized).protocol === 'http:'
     )
-      throw new Error(
-        'This app is using HTTPS. Use an HTTPS address for your device, or run Dash on localhost to connect to an HTTP device.',
-      );
+      throw new Error(t('app.thisAppIsUsingHttpsUseAn'));
     const listing = await listFolder(normalized, request.signal);
     if (request.signal.aborted) return;
     fileRequest?.abort();
@@ -493,7 +496,7 @@ async function connect() {
     if (!request.signal.aborted)
       connectionError.value =
         error instanceof TypeError
-          ? 'Open Dash from a valid dash-backend address.'
+          ? t('app.openDashFromAValidDashBackend')
           : (error as Error).message;
   } finally {
     if (!request.signal.aborted) busy.value = false;
@@ -598,7 +601,7 @@ onBeforeUnmount(() => {
           type="button"
           ref="mobileMenu"
           class="icon-button mobile-menu"
-          aria-label="Open navigation"
+          :aria-label="t('app.openNavigation')"
           aria-haspopup="dialog"
           @click="navigationDrawer?.showModal()"
         >
@@ -608,7 +611,7 @@ onBeforeUnmount(() => {
           class="brand"
           href="#"
           @click.prevent="navigate('drives')"
-          aria-label="Dash home"
+          :aria-label="t('app.dashHome')"
           ><span class="brand-mark" aria-hidden="true"
             ><span></span><span></span></span
           ><span class="brand-name">dash</span></a
@@ -616,18 +619,22 @@ onBeforeUnmount(() => {
       </div>
       <span v-if="connected" class="mobile-page-title">{{
         view === 'drives'
-          ? 'Recordings'
+          ? t('app.recordings')
           : view === 'overview'
-            ? 'Overview'
-            : 'Live'
+            ? t('app.overview')
+            : t('app.live')
       }}</span>
-      <div class="header-actions" role="group" aria-label="App controls">
+      <div
+        class="header-actions"
+        role="group"
+        :aria-label="t('app.appControls')"
+      >
         <SettingsPopup @rebuild="indexDrives(true)" @help="showHelp" />
         <button
           type="button"
           class="icon-button desktop-help"
-          aria-label="Help and installation"
-          v-tip="'Help'"
+          :aria-label="t('app.helpAndInstallation')"
+          v-tip="t('app.help')"
           data-tip-placement="below"
           @click="showHelp"
         >
@@ -639,14 +646,14 @@ onBeforeUnmount(() => {
     <dialog
       ref="navigationDrawer"
       class="navigation-drawer"
-      aria-label="Navigation"
+      :aria-label="t('app.navigation')"
       @click="$event.target === navigationDrawer && navigationDrawer?.close()"
     >
       <div class="drawer-heading">
         <strong>dash</strong
         ><button
           class="icon-button"
-          aria-label="Close navigation"
+          :aria-label="t('app.closeNavigation')"
           @click="navigationDrawer?.close()"
         >
           <X :size="20" />
@@ -662,61 +669,60 @@ onBeforeUnmount(() => {
     <main v-if="!connected" class="welcome">
       <div class="welcome-copy">
         <div class="eyebrow">
-          <span class="status-dot"></span> LOCAL RECORDINGS
+          <span class="status-dot"></span> {{ t('app.localRecordings') }}
         </div>
-        <h1>Review your recordings.</h1>
+        <h1>{{ t('app.reviewYourRecordings') }}</h1>
         <p>
-          Your recordings, straight from your comma device.<br
-            class="desktop-only"
-          />
-          Browse camera footage and export complete sessions.
+          {{ t('app.yourRecordingsStraightFromYourCommaDevice')
+          }}<br class="desktop-only" />
+          {{ t('app.browseCameraFootageAndExportCompleteSessions') }}
         </p>
         <button class="button primary large" @click="connect">
-          {{ busy ? 'Connecting…' : 'Open your device' }}
+          {{ busy ? t('app.connecting') : t('app.openYourDevice') }}
           <ArrowRight :size="18" />
         </button>
         <p v-if="connectionError" class="welcome-error" role="alert">
-          {{ connectionError }} Start dash-backend and open its address to use
-          Dash.
+          {{ connectionError }} {{ t('app.startDashBackendAndOpenItsAddress') }}
         </p>
         <button class="text-button sample-link" @click="explore">
-          Open sample library <ArrowUpRight :size="16" />
+          {{ t('app.openSampleLibrary') }} <ArrowUpRight :size="16" />
         </button>
         <div class="welcome-assurances">
-          <span><Check :size="14" /> No account</span
-          ><span><Check :size="14" /> No cloud uploads</span
-          ><span><Check :size="14" /> Just your network</span>
+          <span><Check :size="14" /> {{ t('app.noAccount') }}</span
+          ><span><Check :size="14" /> {{ t('app.noCloudUploads') }}</span
+          ><span><Check :size="14" /> {{ t('app.justYourNetwork') }}</span>
         </div>
       </div>
       <div
         class="welcome-preview"
-        aria-label="Illustrated drive library preview"
+        :aria-label="t('app.illustratedDriveLibraryPreview')"
       >
         <div class="preview-top">
-          <span class="status-dot"></span> SAMPLE RECORDING
+          <span class="status-dot"></span> {{ t('app.sampleRecording') }}
           <span class="preview-dots">•••</span>
         </div>
         <img
           src="/sample-road.svg"
-          alt="Illustration of a winding road between green coastal hills"
+          :alt="t('app.illustrationOfAWindingRoadBetweenGreen')"
         />
         <div class="preview-bottom">
           <div>
-            <span class="eyebrow">SAMPLE LIBRARY</span>
-            <h3>Road camera</h3>
-            <p>Illustrated sample footage.</p>
+            <span class="eyebrow">{{ t('app.sampleLibrary') }}</span>
+            <h3>{{ t('app.roadCamera') }}</h3>
+            <p>{{ t('app.illustratedSampleFootage') }}</p>
           </div>
           <span class="preview-play"><ArrowUpRight :size="25" /></span>
         </div>
         <span class="floating-note"
-          ><ShieldCheck :size="17" /> Local device connection.</span
+          ><ShieldCheck :size="17" /> {{ t('app.localDeviceConnection') }}</span
         >
       </div>
       <div class="welcome-foot">
-        <span>Recordings stay on your device.</span
+        <span>{{ t('app.recordingsStayOnYourDevice') }}</span
         ><span
-          >Served by dash-backend
-          <span class="tiny-separator">/</span> openpilot recordings</span
+          >{{ t('app.servedByDashBackend') }}
+          <span class="tiny-separator">/</span>
+          {{ t('app.openpilotRecordings') }}</span
         >
       </div>
     </main>
@@ -734,7 +740,7 @@ onBeforeUnmount(() => {
             <a
               class="brand"
               href="#"
-              aria-label="Dash home"
+              :aria-label="t('app.dashHome')"
               @click.prevent="navigate('drives')"
             >
               <span class="brand-mark" aria-hidden="true"
@@ -744,13 +750,13 @@ onBeforeUnmount(() => {
             <div
               class="sidebar-utilities"
               role="group"
-              aria-label="App controls"
+              :aria-label="t('app.appControls')"
             >
               <button
                 type="button"
                 class="icon-button utility-button"
-                aria-label="Help and installation"
-                v-tip="'Help'"
+                :aria-label="t('app.helpAndInstallation')"
+                v-tip="t('app.help')"
                 data-tip-placement="below"
                 @click="showHelp"
               >
@@ -774,21 +780,27 @@ onBeforeUnmount(() => {
         <div v-show="view === 'drives'" class="sidebar-library">
           <div class="sidebar-heading">
             <h2>
-              Your drives<span
-                :aria-label="`${visibleDrives.length} of ${drives.length} drives`"
+              {{ t('app.yourDrives')
+              }}<span
+                :aria-label="
+                  t('app.driveCount', {
+                    visible: visibleDrives.length,
+                    total: drives.length,
+                  })
+                "
                 >{{
                   query || filter === 'saved'
-                    ? `${visibleDrives.length} / ${drives.length}`
-                    : drives.length
+                    ? `${formatNumber(visibleDrives.length)} / ${formatNumber(drives.length)}`
+                    : formatNumber(drives.length)
                 }}</span
               >
             </h2>
             <button
               class="icon-button"
               :disabled="busy"
-              aria-label="Refresh drives"
+              :aria-label="t('app.refreshDrives')"
               @click="
-                demo ? tell('You’re viewing the sample library.') : connect()
+                demo ? tell(t('app.youreViewingTheSampleLibrary')) : connect()
               "
             >
               <RefreshCw :size="17" :class="{ spinning: busy }" />
@@ -798,29 +810,29 @@ onBeforeUnmount(() => {
             ><Search :size="16" /><input
               v-model="query"
               type="search"
-              placeholder="Find a date or drive…"
-              aria-label="Search drives"
+              :placeholder="t('app.findADateOrDrive')"
+              :aria-label="t('app.searchDrives')"
           /></label>
           <div v-if="connectionError" class="inline-error" role="alert">
             {{ connectionError
             }}<button class="text-button" @click="openConnection">
-              Check connection <ArrowRight :size="14" />
+              {{ t('app.checkConnection') }} <ArrowRight :size="14" />
             </button>
           </div>
           <div
             class="library-tools"
             role="group"
-            aria-label="Drive list controls"
+            :aria-label="t('app.driveListControls')"
           >
             <button
               type="button"
               class="saved-filter"
-              aria-label="Saved drives only"
+              :aria-label="t('app.savedDrivesOnly')"
               :aria-pressed="filter === 'saved'"
               :title="
                 filter === 'saved'
-                  ? 'Show all drives'
-                  : 'Show saved drives only'
+                  ? t('app.showAllDrives')
+                  : t('app.showSavedDrivesOnly')
               "
               @click="filter = filter === 'saved' ? 'all' : 'saved'"
             >
@@ -828,17 +840,17 @@ onBeforeUnmount(() => {
                 :size="14"
                 :fill="filter === 'saved' ? 'currentColor' : 'none'"
               />
-              Saved
+              {{ t('app.saved') }}
             </button>
             <SelectMenu
               v-model="sort"
               class="library-sort"
-              aria-label="Sort drives"
+              :aria-label="t('app.sortDrives')"
               :options="
                 [
-                  { value: 'newest', label: 'Newest first' },
-                  { value: 'oldest', label: 'Oldest first' },
-                  { value: 'longest', label: 'Most segments' },
+                  { value: 'newest', label: t('app.newestFirst') },
+                  { value: 'oldest', label: t('app.oldestFirst') },
+                  { value: 'longest', label: t('app.mostSegments') },
                 ] as const
               "
             />
@@ -868,9 +880,14 @@ onBeforeUnmount(() => {
                       :size="12"
                       fill="currentColor" /></strong
                   ><small
-                    >{{ drive.segments.length }} segments <span>·</span>
+                    >{{
+                      t('common.segments', { count: drive.segments.length })
+                    }}
+                    <span>·</span>
                     {{
-                      drive.dated ? 'Recorded drive' : 'File timestamp'
+                      drive.dated
+                        ? t('app.recordedDrive')
+                        : t('app.fileTimestamp')
                     }}</small
                   ></span
                 ><ChevronRight :size="15" />
@@ -881,19 +898,19 @@ onBeforeUnmount(() => {
               <h3>
                 {{
                   query
-                    ? 'No matching drives'
+                    ? t('app.noMatchingDrives')
                     : filter === 'saved'
-                      ? 'A place for your favorites'
-                      : 'No drives here yet'
+                      ? t('app.aPlaceForYourFavorites')
+                      : t('app.noDrivesHereYet')
                 }}
               </h3>
               <p>
                 {{
                   query
-                    ? 'Try another date or clear your search.'
+                    ? t('app.tryAnotherDateOrClearYourSearch')
                     : filter === 'saved'
-                      ? 'Bookmark a drive to find it here later. Recordings stay on your device.'
-                      : 'Choose the folder containing your openpilot segment directories, usually realdata.'
+                      ? t('app.bookmarkADriveToFindItHere')
+                      : t('app.chooseTheFolderContainingYourOpenpilotSegment')
                 }}
               </p>
               <button
@@ -904,9 +921,9 @@ onBeforeUnmount(() => {
                   filter = 'all';
                 "
               >
-                Show all drives</button
+                {{ t('app.showAllDrives') }}</button
               ><button v-else class="text-button" @click="openConnection">
-                Change folder
+                {{ t('app.changeFolder') }}
               </button>
             </div>
           </div>
@@ -921,10 +938,12 @@ onBeforeUnmount(() => {
             <div>
               <div class="index-footer" role="status" aria-live="polite">
                 <LoaderCircle class="spinning" :size="14" />
-                <span
-                  >Indexing {{ indexStatus.completed }} /
-                  {{ indexStatus.total }}</span
-                >
+                <span>{{
+                  t('app.indexProgress', {
+                    completed: indexStatus.completed,
+                    total: indexStatus.total,
+                  })
+                }}</span>
               </div>
             </div>
           </div>
@@ -939,21 +958,22 @@ onBeforeUnmount(() => {
         :class="{ 'session-view': view === 'drives' && !!active }"
       >
         <div v-if="demo" class="demo-banner">
-          <span><span class="status-dot amber"></span> Sample recordings.</span
+          <span
+            ><span class="status-dot amber"></span>
+            {{ t('app.sampleRecordings') }}</span
           ><button @click="openConnection">
-            Connect your device <ArrowRight :size="14" />
+            {{ t('app.connectYourDevice') }} <ArrowRight :size="14" />
           </button>
         </div>
         <div v-if="!online && !demo" class="offline-banner" role="status">
-          You’re offline. The app is available, but recordings need a connection
-          to your device.
+          {{ t('app.youreOfflineTheAppIsAvailableBut') }}
         </div>
         <button
           v-if="view !== 'drives'"
           class="mobile-back text-button"
           @click="navigate('drives')"
         >
-          <ArrowLeft :size="16" /> Recordings
+          <ArrowLeft :size="16" /> {{ t('app.recordings') }}
         </button>
         <KeepAlive>
           <RecordingDashboard
@@ -969,10 +989,9 @@ onBeforeUnmount(() => {
         <LiveView v-if="view === 'live' && !demo" />
         <div v-else-if="view === 'live'" class="no-selection">
           <Wifi :size="35" />
-          <h1>Live cameras</h1>
+          <h1>{{ t('app.liveCameras') }}</h1>
           <p>
-            Live view needs dash-backend and supported firmware. The sample
-            library does not simulate a live connection.
+            {{ t('app.liveViewNeedsDashBackendAndSupported') }}
           </p>
         </div>
         <template v-else-if="view === 'drives' && active">
@@ -986,12 +1005,12 @@ onBeforeUnmount(() => {
             </button>
             <div>
               <div class="eyebrow">
-                {{ demo ? 'SAMPLE DRIVE' : 'DRIVE REVIEW' }}
+                {{ demo ? t('app.sampleDrive') : t('app.driveReview') }}
               </div>
               <h1>{{ dateLabel(active.date) }}</h1>
               <p>
                 {{ timeLabel(active.date) }}
-                <span v-if="!active.dated">· File timestamp</span>
+                <span v-if="!active.dated">· {{ t('app.fileTimestamp') }}</span>
               </p>
             </div>
             <SessionActions ref="actionMenu">
@@ -1001,7 +1020,7 @@ onBeforeUnmount(() => {
                   exportDialog?.open('mp4');
                 "
               >
-                Download MP4
+                {{ t('app.downloadMp4') }}
               </button>
               <button
                 @click="
@@ -1009,7 +1028,7 @@ onBeforeUnmount(() => {
                   exportDialog?.open('mcap');
                 "
               >
-                Download MCAP
+                {{ t('app.downloadMcap') }}
               </button>
               <button
                 @click="
@@ -1017,7 +1036,7 @@ onBeforeUnmount(() => {
                   exportDialog?.open('raw');
                 "
               >
-                Download raw video
+                {{ t('app.downloadRawVideo') }}
               </button>
               <button
                 @click="
@@ -1025,7 +1044,7 @@ onBeforeUnmount(() => {
                   exportDialog?.open('zip');
                 "
               >
-                Download ZIP
+                {{ t('app.downloadZip') }}
               </button>
               <button
                 @click="
@@ -1033,7 +1052,7 @@ onBeforeUnmount(() => {
                   originalFilesDialog?.showModal();
                 "
               >
-                Original files
+                {{ t('app.originalFiles') }}
               </button>
               <button
                 @click="
@@ -1041,7 +1060,11 @@ onBeforeUnmount(() => {
                   actionMenu?.close();
                 "
               >
-                {{ isSaved(active.id) ? 'Remove bookmark' : 'Bookmark drive' }}
+                {{
+                  isSaved(active.id)
+                    ? t('app.removeBookmark')
+                    : t('app.bookmarkDrive')
+                }}
               </button>
             </SessionActions>
           </div>
@@ -1053,8 +1076,8 @@ onBeforeUnmount(() => {
           />
           <Sheet
             ref="originalFilesDialog"
-            title="Original files"
-            close-label="Close original files"
+            :title="t('app.originalFiles')"
+            :close-label="t('app.closeOriginalFiles')"
             wide
             class="session-info-dialog"
           >
@@ -1063,8 +1086,11 @@ onBeforeUnmount(() => {
                 <div class="section-heading">
                   <div>
                     <p>
-                      Files from segment {{ (segment?.index ?? 0) + 1 }}.
-                      Download directly to your device.
+                      {{
+                        t('app.originalFilesHint', {
+                          segment: (segment?.index ?? 0) + 1,
+                        })
+                      }}
                     </p>
                   </div>
                 </div>
@@ -1083,8 +1109,10 @@ onBeforeUnmount(() => {
                       ><strong>{{ file.name }}</strong
                       ><small>{{
                         demo
-                          ? 'Illustrated sample · MP4'
-                          : `${formatBytes(file.size)} · Original file`
+                          ? t('app.illustratedSampleMp4')
+                          : t('app.originalFileSize', {
+                              size: formatBytes(file.size),
+                            })
                       }}</small></span
                     ><Download :size="17"
                   /></a>
@@ -1093,34 +1121,32 @@ onBeforeUnmount(() => {
                   v-if="!files.length && !filesBusy && !fileError"
                   class="muted"
                 >
-                  No files in this segment. It may still be recording; refresh
-                  to check again.
+                  {{ t('app.noFilesInThisSegmentItMay') }}
                 </p>
               </section>
               <p class="muted">
-                Bookmarks do not protect recordings from device retention.
-                Download files to keep a copy.
+                {{ t('app.bookmarksDoNotProtectRecordingsFromDevice') }}
               </p>
             </div>
           </Sheet>
           <div
             v-glass-tabs
             class="session-mobile-tabs segmented"
-            aria-label="Session panels"
+            :aria-label="t('app.sessionPanels')"
           >
             <button
               :class="{ selected: sessionPane === 'video' }"
               :aria-pressed="sessionPane === 'video'"
               @click="sessionPane = 'video'"
             >
-              Video
+              {{ t('app.video') }}
             </button>
             <button
               :class="{ selected: sessionPane === 'data' }"
               :aria-pressed="sessionPane === 'data'"
               @click="sessionPane = 'data'"
             >
-              Map &amp; data
+              {{ t('app.mapData') }}
             </button>
           </div>
           <ResizablePanels :class="{ 'show-data': sessionPane === 'data' }">
@@ -1132,14 +1158,16 @@ onBeforeUnmount(() => {
                     class="player loading-player"
                     role="status"
                   >
-                    <LoaderCircle class="spinning" :size="28" /><span
-                      >Loading recording…</span
-                    >
+                    <LoaderCircle class="spinning" :size="28" /><span>{{
+                      t('app.loadingRecording')
+                    }}</span>
                   </div>
                   <div v-else-if="fileError" class="player loading-player">
                     <CircleHelp :size="30" />
                     <p role="alert">{{ fileError }}</p>
-                    <button class="button" @click="loadFiles">Try again</button>
+                    <button class="button" @click="loadFiles">
+                      {{ t('app.tryAgain') }}
+                    </button>
                   </div>
                   <RecordingPlayer
                     v-else
@@ -1159,10 +1187,10 @@ onBeforeUnmount(() => {
                   >
                     <template #camera>
                       <label v-if="playable.length > 1" class="source-picker"
-                        >Camera
+                        >{{ t('app.camera') }}
                         <SelectMenu
                           v-model="selectedSource"
-                          aria-label="Camera"
+                          :aria-label="t('app.camera')"
                           :options="
                             playable.map((file) => ({
                               value: demo
@@ -1188,28 +1216,37 @@ onBeforeUnmount(() => {
                   <button
                     type="button"
                     class="mobile-trip-summary"
-                    aria-label="Trip details"
+                    :aria-label="t('app.tripDetails')"
                     @click="tripDetails?.showModal()"
                   >
-                    <span>Trip details</span
+                    <span>{{ t('app.tripDetails') }}</span
                     ><span
                       >{{
-                        (
+                        formatNumber(
                           driveMetadata.reduce(
                             (sum, meta) => sum + (meta?.duration || 0),
                             0,
-                          ) / 60
-                        ).toFixed(1)
+                          ) / 60,
+                          {
+                            maximumFractionDigits: 1,
+                            minimumFractionDigits: 1,
+                          },
+                        )
                       }}
-                      min · {{ driveMetadata.length }} /
-                      {{ active.segments.length }} parts
+                      {{ t('facts.min') }} ·
+                      {{
+                        t('common.coveredParts', {
+                          covered: driveMetadata.length,
+                          total: active.segments.length,
+                        })
+                      }}
                       <ChevronRight :size="14"
                     /></span>
                   </button>
                   <Sheet
                     ref="tripDetails"
-                    title="Trip details"
-                    close-label="Close trip details"
+                    :title="t('app.tripDetails')"
+                    :close-label="t('app.closeTripDetails')"
                     class="trip-facts-sheet"
                     ><div class="modal-inner">
                       <SessionFacts
@@ -1224,13 +1261,13 @@ onBeforeUnmount(() => {
                     :position="playbackPosition"
                   />
                   <p v-else class="muted">
-                    No valid GPS fixes in the indexed logs.
+                    {{ t('app.noValidGpsFixesInTheIndexed') }}
                   </p>
                 </section>
                 <template v-if="!driveMetadata.length"
-                  ><h2>Metadata</h2>
+                  ><h2>{{ t('app.metadata') }}</h2>
                   <p>
-                    Metadata is not available yet. Indexing runs while parked.
+                    {{ t('app.metadataIsNotAvailableYetIndexingRuns') }}
                   </p></template
                 >
               </aside>
@@ -1239,42 +1276,44 @@ onBeforeUnmount(() => {
           <div
             ref="mobilePlaybackDock"
             class="mobile-playback-dock"
-            aria-label="Recording playback controls"
+            :aria-label="t('app.recordingPlaybackControls')"
           ></div>
         </template>
         <div v-else-if="view === 'drives'" class="no-selection">
           <HardDrive :size="42" />
-          <h1>Select a drive</h1>
+          <h1>{{ t('app.selectADrive') }}</h1>
           <p>
             {{
               totalSegments
-                ? 'Choose a drive from the library.'
-                : 'Your device is connected. When recordings appear in this folder, refresh to see them here.'
+                ? t('app.chooseADriveFromTheLibrary')
+                : t('app.yourDeviceIsConnectedWhenRecordingsAppear')
             }}
           </p>
           <button class="button" :disabled="busy" @click="connect">
-            Refresh recordings
+            {{ t('app.refreshRecordings') }}
           </button>
         </div>
         <footer v-if="view !== 'drives'" class="detail-footer">
-          <span>LOCAL RECORDINGS</span
-          ><span>dash <span class="footer-dot">·</span> Local access</span>
+          <span>{{ t('app.localRecordings') }}</span
+          ><span
+            >dash <span class="footer-dot">·</span>
+            {{ t('app.localAccess') }}</span
+          >
         </footer>
       </section>
     </main>
 
     <Sheet
       ref="connectionDialog"
-      title="Device settings"
-      close-label="Close device settings"
+      :title="t('app.deviceSettings')"
+      :close-label="t('app.closeDeviceSettings')"
       @close="cancelConnection"
     >
       <div class="modal-inner">
-        <div class="eyebrow">DASH BACKEND</div>
+        <div class="eyebrow">{{ t('app.dashBackend') }}</div>
 
         <p>
-          Dash is served by dash-backend on your device. Join its hotspot or
-          local network and open the same address to reconnect.
+          {{ t('app.dashIsServedByDashBackendOn') }}
         </p>
         <div class="backend-address">{{ appOrigin }}</div>
         <div v-if="connectionError" class="inline-error" role="alert">
@@ -1285,51 +1324,44 @@ onBeforeUnmount(() => {
           :disabled="busy"
           @click="connect"
         >
-          {{ busy ? 'Connecting…' : 'Reconnect to device' }}</button
+          {{ busy ? t('app.connecting') : t('app.reconnectToDevice') }}</button
         ><button v-if="demo" class="text-button centered" @click="disconnect">
-          Leave sample library
+          {{ t('app.leaveSampleLibrary') }}
         </button>
         <DiagnosticsDownload :available="!!backendOrigin" />
       </div>
     </Sheet>
 
-    <Sheet ref="helpDialog" title="Help" close-label="Close help">
+    <Sheet
+      ref="helpDialog"
+      :title="t('app.help')"
+      :close-label="t('app.closeHelp')"
+    >
       <div class="modal-inner">
         <p>
-          Dash reads recordings through dash-backend on your device. There are
-          no accounts, uploads, or analytics.
+          {{ t('app.dashReadsRecordingsThroughDashBackendOn') }}
         </p>
-        <h3>Install Dash</h3>
+        <h3>{{ t('app.installDash') }}</h3>
         <p>
-          On iPhone or iPad, open Dash in Safari, tap Share, then Add to Home
-          Screen. On Android or desktop, use your browser’s Install app option.
-          Installation requires HTTPS or localhost.
+          {{ t('app.onIphoneOrIpadOpenDashIn') }}
         </p>
-        <h3>Offline access</h3>
+        <h3>{{ t('app.offlineAccess') }}</h3>
         <p>
-          The app shell works offline after your first visit. Watching or
-          downloading recordings still needs a network connection to your
-          device. Saved drives are bookmarks, not offline copies.
+          {{ t('app.theAppShellWorksOfflineAfterYour') }}
         </p>
-        <h3>Processing on your device</h3>
+        <h3>{{ t('app.processingOnYourDevice') }}</h3>
         <p>
-          Background indexing and video processing run only when sunnypilot
-          confirms the vehicle is parked. If driving state is unknown,
-          processing stays paused.
+          {{ t('app.backgroundIndexingAndVideoProcessingRunOnly') }}
         </p>
         <p>
-          Rebuild the recording index in Settings if thumbnails or metadata need
-          refreshing. Your original files stay untouched.
+          {{ t('app.rebuildTheRecordingIndexInSettingsIf') }}
         </p>
-        <h3>About recordings</h3>
+        <h3>{{ t('app.aboutRecordings') }}</h3>
         <p>
-          Dash plays MP4, WebM, and supported H.264 transport-stream previews.
-          Original HEVC cameras and logs are available to download. The Go
-          backend decodes supported GPS and vehicle telemetry from qlogs while
-          parked.
+          {{ t('app.dashPlaysMp4WebmAndSupportedH') }}
         </p>
         <button class="button primary full-width" @click="helpDialog?.close()">
-          Got it <Check :size="17" />
+          {{ t('app.gotIt') }} <Check :size="17" />
         </button>
       </div>
     </Sheet>

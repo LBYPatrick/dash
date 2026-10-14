@@ -1,6 +1,8 @@
 <script setup lang="ts">
+import { useTranslation } from 'i18next-vue';
 import { ref, onMounted } from 'vue';
 import SelectMenu from './SelectMenu.vue';
+const { t } = useTranslation();
 const enabled = ref(false);
 const state = ref('unknown');
 const busy = ref(false);
@@ -25,7 +27,7 @@ async function change(requested: string) {
       body: JSON.stringify({ state: requested }),
     });
     if (!response.ok)
-      throw new Error('State change failed. Reconnect to the sandbox.');
+      throw new Error(t('sandbox.stateChangeFailedReconnectToTheSandbox'));
     state.value = (await response.json()).driving;
   } catch (cause) {
     error.value = (cause as Error).message;
@@ -37,19 +39,19 @@ async function change(requested: string) {
 <template>
   <aside v-if="enabled" class="simulation-banner">
     <div>
-      <strong>Device sandbox</strong
-      ><span>Synthetic recordings · no vehicle connected</span>
+      <strong>{{ t('sandbox.deviceSandbox') }}</strong
+      ><span>{{ t('sandbox.syntheticRecordingsNoVehicleConnected') }}</span>
     </div>
     <label
-      >Simulated state
+      >{{ t('sandbox.simulatedState') }}
       <SelectMenu
         :model-value="state"
-        aria-label="Simulated state"
+        :aria-label="t('sandbox.simulatedState')"
         :disabled="busy"
         :options="[
-          { value: 'parked', label: 'Parked' },
-          { value: 'onroad', label: 'Onroad' },
-          { value: 'unknown', label: 'Unknown' },
+          { value: 'parked', label: t('sandbox.parked') },
+          { value: 'onroad', label: t('sandbox.onroad') },
+          { value: 'unknown', label: t('sandbox.unknown') },
         ]"
         @update:model-value="change"
     /></label>

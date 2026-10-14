@@ -1,3 +1,4 @@
+import { t } from './i18n';
 import type { Position, Telemetry } from './indexer';
 export interface TimelineSegment {
   start: number;
@@ -22,9 +23,9 @@ export function formatTimestamp(seconds: number, precision: 0 | 3 = 0): string {
     : `${minutes}:${s}`;
 }
 export function parseTimestamp(value: string): number | undefined {
-  if (!/^\d+(?::[0-5]?\d){0,2}(?:\.\d{1,3})?$/.test(value.trim())) return;
-  const result = value
-    .trim()
+  const normalized = value.trim().replace(',', '.');
+  if (!/^\d+(?::[0-5]?\d){0,2}(?:\.\d{1,3})?$/.test(normalized)) return;
+  const result = normalized
     .split(':')
     .reduce((sum, part) => sum * 60 + Number(part), 0);
   return Number.isFinite(result) ? result : undefined;
@@ -88,12 +89,12 @@ export function engagementAt(
   const segment = segments.find(
     (part) => offset >= part.start && offset < part.start + part.duration,
   );
-  if (!segment) return 'Engagement not recorded';
+  if (!segment) return t('player.engagementNotRecorded');
   const meta = segment.metadata,
     samples = meta?.engagement || [];
   const anchor =
     meta?.startMonotonic ?? meta?.points?.[0]?.monotonic ?? samples[0]?.time;
-  if (anchor === undefined) return 'Engagement not recorded';
+  if (anchor === undefined) return t('player.engagementNotRecorded');
   const time = offset - segment.start + anchor;
   let sample: (typeof samples)[number] | undefined;
   for (let i = samples.length - 1; i >= 0; i--) {
@@ -102,12 +103,13 @@ export function engagementAt(
       break;
     }
   }
-  if (!sample || time - sample.time > 3) return 'Engagement not recorded';
+  if (!sample || time - sample.time > 3)
+    return t('player.engagementNotRecorded');
   return sample.active
-    ? 'Engaged'
+    ? t('player.engaged')
     : sample.enabled
-      ? 'Enabled · inactive'
-      : 'Disengaged';
+      ? t('engagement.enabledInactive')
+      : t('engagement.disengaged');
 }
 export function engagementBands(segments: TimelineSegment[]) {
   const bands: { start: number; end: number; state: string }[] = [];

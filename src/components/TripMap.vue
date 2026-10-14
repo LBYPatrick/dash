@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { useTranslation } from 'i18next-vue';
+import { locale } from '../i18n';
 import { computed, onMounted, onBeforeUnmount, ref, watch } from 'vue';
 import {
   Map,
@@ -19,6 +21,7 @@ import {
 } from '../map';
 import { resolvedTheme } from '../appearance';
 import type { Position } from '../indexer';
+const { t } = useTranslation();
 const props = defineProps<{ points: Position[]; position?: Position }>();
 const following = ref(true);
 setWorkerUrl(workerUrl);
@@ -167,6 +170,7 @@ async function initialize() {
       pixelRatio: Math.min(devicePixelRatio, 2),
       fadeDuration: 0,
     });
+    map.getCanvas().setAttribute('aria-label', t('map.recordedGpsRoute'));
     ready.value = true;
     map.on('webglcontextlost', () => {
       rendererFailed.value = true;
@@ -230,6 +234,9 @@ watch(
   () => props.points,
   () => draw(),
 );
+watch(locale, () =>
+  map?.getCanvas().setAttribute('aria-label', t('map.recordedGpsRoute')),
+);
 watch(resolvedTheme, (theme) => {
   if (!map) return;
   // Paint changes preserve sources, the camera and downloaded tiles.
@@ -289,7 +296,7 @@ onBeforeUnmount(() => {
       ref="container"
       class="map-canvas"
       role="region"
-      aria-label="Recorded GPS route"
+      :aria-label="t('map.recordedGpsRoute')"
       @pointerdown="following = false"
       @wheel="following = false"
       @keydown="following = false"
@@ -299,7 +306,7 @@ onBeforeUnmount(() => {
       class="map-route-fallback"
       viewBox="0 0 1000 600"
       role="img"
-      aria-label="Recorded route without map background"
+      :aria-label="t('map.recordedRouteWithoutMapBackground')"
     >
       <polyline
         :points="preview.path"
@@ -316,10 +323,10 @@ onBeforeUnmount(() => {
         fill="currentColor"
       />
     </svg>
-    <div class="map-toolbar" role="group" aria-label="Map controls">
+    <div class="map-toolbar" role="group" :aria-label="t('map.mapControls')">
       <button
         type="button"
-        aria-label="Zoom in"
+        :aria-label="t('map.zoomIn')"
         :disabled="!ready"
         @click="
           following = false;
@@ -330,7 +337,7 @@ onBeforeUnmount(() => {
       </button>
       <button
         type="button"
-        aria-label="Zoom out"
+        :aria-label="t('map.zoomOut')"
         :disabled="!ready"
         @click="
           following = false;
@@ -345,7 +352,7 @@ onBeforeUnmount(() => {
         :disabled="!ready || !position"
         @click="follow"
       >
-        Follow
+        {{ t('map.follow') }}
       </button>
       <span class="map-toolbar-divider"></span>
       <button
@@ -353,14 +360,14 @@ onBeforeUnmount(() => {
         :disabled="!ready || !points.length"
         @click="fitRoute(true)"
       >
-        Full route
+        {{ t('map.fullRoute') }}
       </button>
     </div>
     <p v-if="unavailable || rendererFailed" class="map-notice" role="status">
       {{
         rendererFailed
-          ? 'Interactive map unavailable. Showing the recorded route.'
-          : 'Map background unavailable. Recorded GPS still works.'
+          ? t('map.interactiveMapUnavailableShowingTheRecordedRoute')
+          : t('map.mapBackgroundUnavailableRecordedGpsStillWorks')
       }}
     </p>
   </section>

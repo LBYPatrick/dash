@@ -1,3 +1,4 @@
+import { t } from './i18n';
 import { ref } from 'vue';
 import { type Drive, type Entry } from './library';
 export interface Position {
@@ -107,7 +108,7 @@ export async function startIndexing(
         if (!response.ok) {
           const body = await response.json().catch(() => ({}));
           throw new Error(
-            body.error || 'Could not rebuild the recording index.',
+            body.error || t('index.couldNotRebuildTheRecordingIndex'),
           );
         }
       } catch (error) {

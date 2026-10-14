@@ -1,9 +1,11 @@
 <script setup lang="ts" generic="T extends string | number">
+import { useTranslation } from 'i18next-vue';
 // Shelf-style anchored list. Native popover puts it above clipping ancestors
 // and lets Escape dismiss the menu before its containing modal sheet.
 import { useDismiss } from '../vendor/shelf/useDismiss';
 import { computed, nextTick, onBeforeUnmount, ref, useId } from 'vue';
 import { Check, ChevronDown } from '../icons';
+const { t } = useTranslation();
 const props = defineProps<{
   options: readonly { value: T; label: string; disabled?: boolean }[];
   disabled?: boolean;
@@ -19,7 +21,9 @@ const listId = useId();
 const selected = computed(() =>
   props.options.findIndex((option) => option.value === model.value),
 );
-const label = computed(() => props.options[selected.value]?.label || 'Choose');
+const label = computed(
+  () => props.options[selected.value]?.label || t('select.choose'),
+);
 const placement = ref<Record<string, string>>({});
 let anchorObserver: ResizeObserver | undefined;
 let query = '';

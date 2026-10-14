@@ -1,3 +1,4 @@
+import { t, formatNumber } from './i18n';
 export interface Entry {
   name: string;
   url: string;
@@ -27,9 +28,7 @@ export function normalizeAddress(input: string): string {
     url.username ||
     url.password
   ) {
-    throw new Error(
-      'Use an HTTP or HTTPS folder address without a username or password.',
-    );
+    throw new Error(t('connection.useAnHttpOrHttpsFolderAddress'));
   }
   url.hash = '';
   url.search = '';
@@ -46,9 +45,7 @@ export function parseListing(data: unknown, base: string): Listing {
     !Array.isArray(data.dirs) ||
     !Array.isArray(data.files)
   ) {
-    throw new Error(
-      'This address did not return a Dash recordings folder. Check that dash-backend is running.',
-    );
+    throw new Error(t('connection.thisAddressDidNotReturnADash'));
   }
   function entries(items: unknown[]): Entry[] {
     return items.flatMap((item) => {
@@ -105,23 +102,19 @@ export async function listFolder(
     });
   } catch (error) {
     if (signal?.aborted) throw error;
-    throw new Error(
-      'The device could not be reached. Join the device’s hotspot or local network, then reconnect.',
-    );
+    throw new Error(t('connection.theDeviceCouldNotBeReachedJoin'));
   }
   if (!response.ok)
     throw new Error(
       response.status === 401 || response.status === 403
-        ? 'This folder needs public read access. Dash connects without a login; check the backend configuration.'
-        : `The device returned HTTP ${response.status}. Check the folder address and try again.`,
+        ? t('connection.thisFolderNeedsPublicReadAccessDash')
+        : t('connection.httpError', { status: response.status }),
     );
   let data: unknown;
   try {
     data = await response.json();
   } catch {
-    throw new Error(
-      'Expected a Dash recordings folder listing. Check that the address points to your recordings folder.',
-    );
+    throw new Error(t('connection.expectedADashRecordingsFolderListingCheck'));
   }
   return parseListing(data, address);
 }
@@ -161,9 +154,9 @@ export function groupDrives(directories: Entry[]): Drive[] {
 }
 
 export function formatBytes(size: number): string {
-  if (size < 1000) return `${size} B`;
+  if (size < 1000) return `${formatNumber(size)} ${t('units.B')}`;
   const unit = Math.min(Math.floor(Math.log(size) / Math.log(1000)), 3);
-  return `${(size / 1000 ** unit).toFixed(1)} ${['B', 'KB', 'MB', 'GB'][unit]}`;
+  return `${formatNumber(size / 1000 ** unit, { minimumFractionDigits: 1, maximumFractionDigits: 1 })} ${t(`units.${['B', 'KB', 'MB', 'GB'][unit]}`)}`;
 }
 
 export function downloadUrl(address: string): string {

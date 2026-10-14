@@ -6,6 +6,8 @@ All notable changes to Dash are documented here using Keep a Changelog.
 
 ### Added
 
+- Add Shelf-compatible i18next/i18next-vue localization with five bundled languages, System following, persistent cross-tab preferences, translated controls/help/accessibility text, and locale-aware dashboard values. Accept decimal commas in precise timestamp entry.
+
 - Shared mobile playback controls across video/map panels, compact Trip details, supported fullscreen and touch/keyboard-safe timestamp editing.
 - Contextual browser navigation and retained Overview state, plus live clips that remain downloadable after changing views.
 

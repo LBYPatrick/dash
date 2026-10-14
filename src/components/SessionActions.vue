@@ -1,10 +1,10 @@
 <script setup lang="ts">
+import { useTranslation } from 'i18next-vue';
 import { useDismiss } from '../vendor/shelf/useDismiss';
 import { nextTick, onBeforeUnmount, ref, useId } from 'vue';
 import { MoreHorizontal } from '../icons';
-const props = withDefaults(defineProps<{ label?: string }>(), {
-  label: 'Session actions',
-});
+const { t } = useTranslation();
+const props = defineProps<{ label?: string }>();
 const trigger = ref<HTMLButtonElement>();
 const menu = ref<HTMLDivElement>();
 const menuId = useId();
@@ -89,7 +89,7 @@ defineExpose({ close });
       ref="trigger"
       type="button"
       class="icon-button"
-      :aria-label="props.label"
+      :aria-label="props.label || t('actions.sessionActions')"
       aria-haspopup="true"
       :aria-expanded="opened"
       :popovertarget="menuId"

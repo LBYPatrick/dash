@@ -26,7 +26,7 @@ Dash turns your device's recordings into a searchable drive library. Connect ove
 | One timeline across recording parts, with camera switching | Recorded vehicle data and optional engagement overlay | ZIP of original assets                                                      |
 | Timestamp entry to milliseconds and playback speed         | D3 dashboard with filters and a table alternative     | MCAP with `foxglove.CompressedVideo` and independent Dash telemetry schemas |
 
-Desktop offers resizable library and video/map panels. Mobile keeps playback controls available across Video and Map tabs, with trip details in a sheet. Light, dark, and system themes include an opaque performance mode and reduced-motion support.
+Desktop offers resizable library and video/map panels. Mobile keeps playback controls available across Video and Map tabs, with trip details in a sheet. Light, dark, and system themes include an opaque performance mode and reduced-motion support. Settings also offers English, 日本語, 简体中文, 한국어, Tiếng Việt, or Follow system; language changes apply immediately.
 
 Live view and bounded browser recording are available **only on compatible firmware with managed WebRTC support**. Metadata and statistics depend on the logs actually recorded; unavailable data stays unavailable.
 
@@ -167,6 +167,7 @@ Keep secrets in ignored `.env` files; never commit credentials, device keys, or 
 - [Delivery channels, source builds, and OTA](docs/delivery.md)
 - [Docker sandbox and diagnostics](docs/sandbox.md)
 - [Maps and tile-service policy](docs/maps.md)
+- [Languages and translation customization](docs/i18n.md)
 - [Telemetry and MCAP format](dash-backend/SCHEMA.md)
 - [UI component audit](docs/ui-audit.md) · [Mobile and motion audit](docs/mobile-motion-audit.md)
 

@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { formatNumber } from '../i18n';
+import { useTranslation } from 'i18next-vue';
 import {
   computed,
   nextTick,
@@ -17,6 +19,7 @@ import {
   type ActivityMetric,
   type DistanceUnit,
 } from '../statistics';
+const { t } = useTranslation();
 const props = defineProps<{
   buckets: ActivityBucket[];
   metric: ActivityMetric;
@@ -92,13 +95,36 @@ const tabKey = computed(() =>
       ? selected.value
       : plotted.value.at(-1)?.key,
 );
-const title = computed(
-  () =>
-    `${props.metric === 'distance' ? 'GPS distance' : props.metric === 'duration' ? 'Recorded time' : 'Drive count'} (${metricUnit(props.metric, props.unit)})`,
+const title = computed(() =>
+  t('chart.title', {
+    metric:
+      props.metric === 'distance'
+        ? t('chart.gpsDistance')
+        : props.metric === 'duration'
+          ? t('chart.recordedTime')
+          : t('chart.driveCount'),
+    unit: metricUnit(props.metric, props.unit),
+  }),
 );
 function describe(bucket: ActivityBucket) {
   const data = metricValue(bucket.drives, props.metric, props.unit);
-  return `${bucket.label}: ${describeMetric(bucket.drives, props.metric, props.unit)} · ${bucket.drives.length} ${bucket.drives.length === 1 ? 'drive' : 'drives'}${props.metric === 'drives' ? '' : ` · ${data.observed}/${data.expected} segments with ${props.metric === 'distance' ? 'GPS distance' : 'recorded time'}`}`;
+  return (
+    t('chart.readout', {
+      period: bucket.label,
+      value: describeMetric(bucket.drives, props.metric, props.unit),
+      drives: t('common.drives', { count: bucket.drives.length }),
+    }) +
+    (props.metric === 'drives'
+      ? ''
+      : t('chart.coverage', {
+          covered: data.observed,
+          total: data.expected,
+          metric:
+            props.metric === 'distance'
+              ? t('chart.gpsDistance')
+              : t('chart.recordedTimeInline'),
+        }))
+  );
 }
 function toggle(key: string) {
   selected.value = selected.value === key ? '' : key;
@@ -163,15 +189,17 @@ onBeforeUnmount(() => observer?.disconnect());
       <div v-if="pages > 1" class="chart-paging">
         <button
           class="icon-button"
-          aria-label="Earlier activity"
+          :aria-label="t('chart.earlierActivity')"
           :disabled="page >= pages - 1"
           @click="changePage(1)"
         >
           ‹</button
-        ><span>{{ start + 1 }}–{{ end }} / {{ buckets.length }}</span
+        ><span>{{
+          t('common.range', { start: start + 1, end, total: buckets.length })
+        }}</span
         ><button
           class="icon-button"
-          aria-label="Later activity"
+          :aria-label="t('chart.laterActivity')"
           :disabled="page === 0"
           @click="changePage(-1)"
         >
@@ -209,7 +237,7 @@ onBeforeUnmount(() => observer?.disconnect());
               class="chart-grid"
             />
             <text x="36" :y="y(tick) + 4" text-anchor="end" class="chart-axis">
-              {{ y.tickFormat(4)(tick) }}
+              {{ formatNumber(tick, { maximumFractionDigits: 4 }) }}
             </text>
           </g>
           <g v-for="(bar, index) in bars" :key="bar.bucket.key">
@@ -285,38 +313,42 @@ onBeforeUnmount(() => observer?.disconnect());
       </div>
       <p class="chart-readout">{{ preview ? describe(preview) : '' }}</p>
       <p class="chart-hint">
-        Select a bar to find its drives. Hatched bars have partial metadata; ?
-        means unavailable.
+        {{ t('chart.selectABarToFindItsDrives') }}
       </p>
       <details class="chart-table">
-        <summary>View chart as table</summary>
+        <summary>{{ t('chart.viewChartAsTable') }}</summary>
         <table>
           <caption>
             {{
-              title
+              t('chart.visibleActivity', { title })
             }}
-            · visible activity
           </caption>
           <thead>
             <tr>
-              <th scope="col">Period</th>
+              <th scope="col">{{ t('chart.period') }}</th>
               <th scope="col">{{ metricUnit(metric, unit) }}</th>
-              <th scope="col">Drives</th>
-              <th scope="col"><span class="sr-only">Actions</span></th>
+              <th scope="col">{{ t('chart.drives') }}</th>
+              <th scope="col">
+                <span class="sr-only">{{ t('chart.actions') }}</span>
+              </th>
             </tr>
           </thead>
           <tbody>
             <tr v-for="bucket in plotted" :key="bucket.key">
               <th scope="row">{{ bucket.label }}</th>
               <td>{{ describeMetric(bucket.drives, metric, unit) }}</td>
-              <td>{{ bucket.drives.length }}</td>
+              <td>{{ formatNumber(bucket.drives.length) }}</td>
               <td>
                 <button
                   class="text-button"
                   :aria-pressed="selected === bucket.key"
                   @click="toggle(bucket.key)"
                 >
-                  {{ selected === bucket.key ? 'Clear' : 'Show drives' }}
+                  {{
+                    selected === bucket.key
+                      ? t('chart.clear')
+                      : t('chart.showDrives')
+                  }}
                 </button>
               </td>
             </tr>
@@ -325,8 +357,7 @@ onBeforeUnmount(() => observer?.disconnect());
       </details>
     </template>
     <p v-else class="dashboard-empty">
-      No dated recordings in this period. Choose a wider period to explore your
-      library.
+      {{ t('chart.noDatedRecordingsInThisPeriodChoose') }}
     </p>
   </div>
 </template>

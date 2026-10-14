@@ -1,3 +1,4 @@
+import { t, locale, formatNumber } from './i18n';
 import type { Drive } from './library';
 import type { IndexedSegment } from './indexer';
 export type ActivityMetric = 'distance' | 'duration' | 'drives';
@@ -100,18 +101,18 @@ export function activityBuckets(
       group === 'month'
         ? { month: 'long', year: 'numeric' }
         : { month: 'short', day: 'numeric', year: 'numeric' };
-    const time = date.toLocaleTimeString(undefined, {
+    const time = date.toLocaleTimeString(locale.value, {
       hour: 'numeric',
       minute: '2-digit',
     });
     const label =
-      date.toLocaleDateString(undefined, dateOptions) +
+      date.toLocaleDateString(locale.value, dateOptions) +
       (group === 'drive' ? ` · ${time}` : '');
     const shortLabel =
       group === 'drive'
         ? time
         : date.toLocaleDateString(
-            undefined,
+            locale.value,
             group === 'month'
               ? { month: 'short', year: '2-digit' }
               : { month: 'short', day: 'numeric' },
@@ -176,11 +177,15 @@ export function metricValue(
       };
 }
 export const formatStatistic = (value: number) =>
-  value.toLocaleString(undefined, {
+  formatNumber(value, {
     maximumFractionDigits: value > 0 && value < 0.01 ? 4 : 2,
   });
 export const metricUnit = (metric: ActivityMetric, unit: DistanceUnit) =>
-  metric === 'distance' ? unit : metric === 'duration' ? 'min' : 'drives';
+  metric === 'distance'
+    ? t(`units.${unit}`)
+    : metric === 'duration'
+      ? t('facts.min')
+      : t('statistics.drivesUnit');
 export function describeMetric(
   drives: DriveStatistics[],
   metric: ActivityMetric,
@@ -188,6 +193,9 @@ export function describeMetric(
 ) {
   const { value, observed } = metricValue(drives, metric, unit);
   return observed
-    ? `${formatStatistic(value)} ${metricUnit(metric, unit)}`
-    : 'Not recorded';
+    ? t('statistics.value', {
+        value: formatStatistic(value),
+        unit: metricUnit(metric, unit),
+      })
+    : t('facts.notRecorded');
 }
