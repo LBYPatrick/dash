@@ -1,3 +1,4 @@
+import { installMapFixture } from './map-fixture.mjs';
 import { chromium } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 import assert from 'node:assert/strict';
@@ -13,6 +14,7 @@ try {
     viewport: { width: 1440, height: 900 },
     colorScheme: 'light',
   });
+  await installMapFixture(context);
   const page = await context.newPage();
   const errors = [];
   page.on('pageerror', (e) => errors.push(e.message));

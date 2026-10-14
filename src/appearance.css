@@ -220,13 +220,13 @@ body {
 .checkbox-field {
   color: var(--green);
 }
-.trip-map .mapboxgl-ctrl-attrib,
+.trip-map .maplibregl-ctrl-attrib,
 .trip-map .map-notice {
   background: var(--surface-raised);
   color: var(--muted);
   border-color: var(--line);
 }
-:root[data-theme='dark'] .mapboxgl-ctrl-attrib-button {
+:root[data-theme='dark'] .maplibregl-ctrl-attrib-button {
   filter: invert(1);
 }
 .toast {

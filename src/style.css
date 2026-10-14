@@ -1,4 +1,3 @@
-@import url('mapbox-gl/dist/mapbox-gl.css');
 :root {
   font-family:
     Inter,
@@ -2116,11 +2115,11 @@ svg {
   font-size: 12px;
   border: 1px solid var(--line);
 }
-.trip-map .mapboxgl-ctrl-attrib {
+.trip-map .maplibregl-ctrl-attrib {
   background: #fff;
   color: var(--muted);
 }
-.trip-map .mapboxgl-ctrl-attrib a {
+.trip-map .maplibregl-ctrl-attrib a {
   color: inherit;
 }
 @media (hover: hover) and (pointer: fine) {

@@ -1,3 +1,4 @@
+import { installMapFixture } from './map-fixture.mjs';
 import { chromium } from '@playwright/test';
 import assert from 'node:assert/strict';
 import { writeFile } from 'node:fs/promises';
@@ -32,6 +33,7 @@ try {
     viewport: { width: 1440, height: 1080 },
     acceptDownloads: true,
   });
+  await installMapFixture(context);
   const page = await context.newPage();
   page.on('pageerror', (error) => errors.push(error.message));
   await page.goto(origin);
@@ -87,7 +89,7 @@ try {
   await page.getByRole('heading', { name: 'Metadata', exact: true }).waitFor();
   await page.locator('.map-canvas').waitFor();
   await page
-    .locator('.mapboxgl-canvas, .leaflet-overlay-pane svg')
+    .locator('.maplibregl-canvas')
     .first()
     .waitFor({ state: 'attached' });
   assert.equal(

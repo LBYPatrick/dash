@@ -1,3 +1,4 @@
+import { installMapFixture } from './map-fixture.mjs';
 import { chromium } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 import assert from 'node:assert/strict';
@@ -26,6 +27,7 @@ try {
     viewport: { width: 1440, height: 1000 },
     colorScheme: 'light',
   });
+  await installMapFixture(context);
   const page = await context.newPage();
   await page.clock.setFixedTime(new Date('2026-10-13T12:00:00'));
   const errors = [];
@@ -165,6 +167,7 @@ try {
   const denseContext = await browser.newContext({
     viewport: { width: 390, height: 844 },
   });
+  await installMapFixture(denseContext);
   const dense = await denseContext.newPage();
   await dense.clock.setFixedTime(new Date('2026-10-13T12:00:00'));
   dense.on('pageerror', (e) => errors.push(e.message));

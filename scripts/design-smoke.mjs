@@ -1,3 +1,4 @@
+import { installMapFixture } from './map-fixture.mjs';
 import { chromium } from '@playwright/test';
 import assert from 'node:assert/strict';
 const origin = process.env.DASH_TEST_URL || 'http://127.0.0.1:8088';
@@ -11,6 +12,7 @@ try {
   const context = await browser.newContext({
     viewport: { width: 1440, height: 1080 },
   });
+  await installMapFixture(context);
   const page = await context.newPage();
   const errors = [];
   page.on('pageerror', (e) => errors.push(e.message));
@@ -197,6 +199,7 @@ try {
   const phoneContext = await browser.newContext({
     viewport: { width: 390, height: 844 },
   });
+  await installMapFixture(phoneContext);
   const phone = await phoneContext.newPage();
   phone.on('pageerror', (e) => errors.push(e.message));
   await phone.goto(origin);

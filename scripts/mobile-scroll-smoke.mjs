@@ -1,3 +1,4 @@
+import { installMapFixture } from './map-fixture.mjs';
 import { chromium } from '@playwright/test';
 import assert from 'node:assert/strict';
 const origin = process.env.DASH_TEST_URL || 'http://127.0.0.1:8088';
@@ -13,6 +14,7 @@ try {
     isMobile: true,
     hasTouch: true,
   });
+  await installMapFixture(context);
   const page = await context.newPage();
   const errors = [];
   page.on('pageerror', (e) => errors.push(e.message));

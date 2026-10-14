@@ -6,6 +6,8 @@ All notable changes to Dash are documented here using Keep a Changelog.
 
 ### Security
 
+- Remove the copied local Mapbox token and all Mapbox build configuration; maps no longer require credentials.
+
 - Remove the embedded browser map token from source and local Git history; use ignored `.env` configuration and credential-free OpenStreetMap defaults. Exclude env files from Docker build contexts.
 
 ### Fixed
@@ -15,6 +17,8 @@ All notable changes to Dash are documented here using Keep a Changelog.
 - Restore mobile dashboard and detail-page scrolling by bounding content panes to the available viewport; retain the fixed session viewer.
 
 ### Changed
+
+- Replace Mapbox/Leaflet with MapLibre GL JS and OSM Shortbread vector tiles, local light/dark styles and system fonts; initialize maps only when visible and preserve GPS when tiles or WebGL are unavailable.
 
 - Remove the connected desktop top bar and consolidate navigation, device switching, drive browsing and utilities into the resizable sidebar; retain the mobile header/drawer.
 

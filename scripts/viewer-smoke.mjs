@@ -1,3 +1,4 @@
+import { installMapFixture } from './map-fixture.mjs';
 import { chromium } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 import assert from 'node:assert/strict';
@@ -19,6 +20,7 @@ try {
   const context = await browser.newContext({
     viewport: { width: 1440, height: 900 },
   });
+  await installMapFixture(context);
   const page = await context.newPage();
   const errors = [];
   page.on('pageerror', (e) => errors.push(e.message));
@@ -31,7 +33,7 @@ try {
       const m = entry.metadata;
       const anchor = m.startMonotonic || m.points?.[0]?.monotonic || 100;
       m.startMonotonic = anchor;
-      // A known browser-only GPS track makes motion measurable in either renderer.
+      // A known browser-only GPS track makes motion measurable with MapLibre.
       m.points = Array.from({ length: 9 }, (_, offset) => ({
         latitude: 37 + offset * 0.0004,
         longitude: -122 + offset * 0.0006,
@@ -165,10 +167,7 @@ try {
       .getAttribute('aria-pressed'),
     'true',
   );
-  await page
-    .locator('.playback-map-marker, .leaflet-overlay-pane path')
-    .first()
-    .waitFor();
+  await page.locator('.playback-map-marker').first().waitFor();
   await page.getByRole('button', { name: 'Full route', exact: true }).click();
   await page
     .getByRole('button', { name: 'Play recording', exact: true })
@@ -179,10 +178,7 @@ try {
     while (performance.now() - start < 650) {
       await new Promise(requestAnimationFrame);
       const marker = document.querySelector('.playback-map-marker');
-      const circle = document.querySelector(
-        '.leaflet-overlay-pane path:last-child',
-      );
-      values.add(marker?.style.transform || circle?.getAttribute('d'));
+      values.add(marker?.style.transform);
     }
     return values.size;
   });
@@ -194,14 +190,12 @@ try {
   const followingMovement = await page.evaluate(async () => {
     const values = new Set();
     const start = performance.now();
-    const pane = document.querySelector('.leaflet-map-pane');
     const marker = document.querySelector('.playback-map-marker');
     while (performance.now() - start < 650) {
       await new Promise(requestAnimationFrame);
-      values.add(pane?.style.transform || marker?.style.transform);
+      values.add(marker?.style.transform);
     }
-    // Leaflet pans its map pane. Mapbox keeps its DOM marker centered instead.
-    if (pane) return { updates: values.size, centered: true };
+    // MapLibre keeps its DOM marker centered while the camera follows.
     const bounds = marker.getBoundingClientRect();
     const map = document.querySelector('.map-canvas').getBoundingClientRect();
     return {
@@ -229,20 +223,8 @@ try {
   await page.waitForTimeout(200);
   // Tiles can finish loading while paused; compare only the position geometry.
   const markerGeometry = () =>
-    page.evaluate(
-      () =>
-        document.querySelector('.playback-map-marker')?.style.transform ||
-        document
-          .querySelector('.leaflet-overlay-pane path:last-child')
-          ?.getAttribute('d'),
-    );
+    page.locator('.playback-map-marker').evaluate((e) => e.style.transform);
   const pausedPosition = await markerGeometry();
-  const pausedRoute = await page.evaluate(() => ({
-    zoom: document
-      .querySelector('.leaflet-zoom-animated')
-      ?.getAttribute('viewBox'),
-    pane: document.querySelector('.leaflet-map-pane')?.style.transform,
-  }));
   const nextIndex = page.waitForResponse(
     (response) => new URL(response.url()).pathname === '/api/index',
   );
@@ -254,17 +236,6 @@ try {
     pausedPosition,
     'Paused maps must not keep moving',
   );
-  assert.deepEqual(
-    await page.evaluate(() => ({
-      zoom: document
-        .querySelector('.leaflet-zoom-animated')
-        ?.getAttribute('viewBox'),
-      pane: document.querySelector('.leaflet-map-pane')?.style.transform,
-    })),
-    pausedRoute,
-    'Index polling must preserve the paused map camera',
-  );
-
   // Controlled visibility exercises the clock and renderer cleanup path.
   await page
     .getByRole('button', { name: 'Play recording', exact: true })
