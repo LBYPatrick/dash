@@ -26,6 +26,17 @@ command -v systemd-analyze >/dev/null
 command -v ffmpeg >/dev/null
 command -v ffprobe >/dev/null
 ffmpeg -hide_banner -encoders 2>/dev/null | grep -F libx264 >/dev/null
+if ! ffmpeg -hide_banner -h full 2>/dev/null | grep -F -- '-fps_mode' >/dev/null; then
+  echo 'FFmpeg with -fps_mode support (5 or later) is required for MCAP video conversion.'
+  exit 1
+fi
+DASH_BITSTREAM_FILTERS="$(ffmpeg -hide_banner -bsfs 2>/dev/null)"
+for DASH_FILTER in h264_metadata hevc_metadata; do
+  if ! grep -Eq "^[[:space:]]*$DASH_FILTER[[:space:]]*$" <<< "$DASH_BITSTREAM_FILTERS"; then
+    echo "FFmpeg requires $DASH_FILTER for playable MCAP video."
+    exit 1
+  fi
+done
 id comma >/dev/null
 sudo -n true
 [[ -d /data/media/0/realdata && -d /data/params/d ]]
@@ -33,7 +44,7 @@ sudo -n true
 [[ -r /data/media/0/realdata && -w /data ]]
 available=$(df -Pk /data | awk 'NR==2 {print $4}')
 (( available >= 2097152 )) || { echo 'At least 2 GiB free /data storage required'; exit 1; }
-echo 'Preflight passed: parked, architecture, systemd, cgroup controllers, FFmpeg/H.264, permissions, sudo, and free space.'
+echo 'Preflight passed: parked, architecture, systemd, cgroup controllers, FFmpeg/H.264/MCAP filters, permissions, sudo, and free space.'
 PREFLIGHT
 if [[ "$DASH_MODE" == check ]]; then exit 0; fi
 DASH_ARCH="$(ssh "${DASH_SSH_OPTIONS[@]}" "$DASH_TARGET" uname -m)"

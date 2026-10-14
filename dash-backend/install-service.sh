@@ -19,6 +19,18 @@ if ! command -v ffmpeg >/dev/null || ! command -v ffprobe >/dev/null || ! comman
   echo 'Installation requires ffmpeg, ffprobe and systemd.'
   exit 1
 fi
+ffmpeg -hide_banner -encoders 2>/dev/null | grep -F libx264 >/dev/null
+if ! ffmpeg -hide_banner -h full 2>/dev/null | grep -F -- '-fps_mode' >/dev/null; then
+  echo 'FFmpeg with -fps_mode support (5 or later) is required for MCAP video conversion.'
+  exit 1
+fi
+DASH_BITSTREAM_FILTERS="$(ffmpeg -hide_banner -bsfs 2>/dev/null)"
+for DASH_FILTER in h264_metadata hevc_metadata; do
+  if ! grep -Eq "^[[:space:]]*$DASH_FILTER[[:space:]]*$" <<< "$DASH_BITSTREAM_FILTERS"; then
+    echo "FFmpeg requires $DASH_FILTER for playable MCAP video."
+    exit 1
+  fi
+done
 id comma >/dev/null
 mkdir -p /data/dash/cache
 chown comma:comma /data/dash/cache

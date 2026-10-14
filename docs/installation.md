@@ -2,7 +2,7 @@
 
 ## Requirements
 
-The target needs Linux ARM64 (typical device architecture; the installer checks `uname -m`), systemd, unified cgroup v2 exposing `cpu`, `memory`, and `pids`, FFmpeg and ffprobe in the service PATH, a `comma` user/group, and read access to recordings and firmware params. Dash writes only its cache and the managed live-stream flag/ownership marker. It requires writable `/data/dash`, `/data/params`, and permission to install a unit into `/etc/systemd/system`.
+The target needs Linux ARM64 (typical device architecture; the installer checks `uname -m`), systemd, unified cgroup v2 exposing `cpu`, `memory`, and `pids`, FFmpeg 5 or later (including `-fps_mode` support, libx264 and the `h264_metadata`/`hevc_metadata` bitstream filters) and ffprobe in the service PATH, a `comma` user/group, and read access to recordings and firmware params. Dash writes only its cache and the managed live-stream flag/ownership marker. It requires writable `/data/dash`, `/data/params`, and permission to install a unit into `/etc/systemd/system`.
 
 Enable device SSH and configure your key using the [official device connection instructions](https://docs.comma.ai/how-to/connect-to-comma/). The device hotspot address is commonly `192.168.43.1`; use the address shown by your actual network. SSH and the HTTP interface must be reachable from the client. There is no internet or account requirement after installation.
 
@@ -14,6 +14,7 @@ systemctl --version
 command -v ffmpeg
 command -v ffprobe
 ffmpeg -hide_banner -encoders | grep libx264
+ffmpeg -hide_banner -bsfs | grep -E 'h264_metadata|hevc_metadata'
 ```
 
 If cgroup v2 or a required controller is unavailable, the installer stops. It does not alter the kernel command line, reboot the device, or weaken resource controls. Such a device needs a compatible OS configuration before this Dash deployment can run. Install FFmpeg through the supported OS package workflow if absent; Dash does not automatically upgrade system packages or firmware. Use a parked device for installation and validation.
@@ -25,7 +26,7 @@ make device-check DEVICE=comma@DEVICE_IP
 make device-install DEVICE=comma@DEVICE_IP
 ```
 
-The first command is read-only and verifies compatibility, parked state, FFmpeg/H.264, sudo access, permissions, and 2 GiB free storage. The second builds the native binary/PWA locally, stages files over SSH/SCP, rechecks parked state, installs the systemd service, and verifies actual kernel limits. A failed activation restores previous binary/PWA assets if available and leaves the service stopped. No SSH command is run automatically against your car during local sandbox testing.
+The first command is read-only and verifies compatibility, parked state, FFmpeg/H.264/MCAP filters, sudo access, permissions, and 2 GiB free storage. The second builds the native binary/PWA locally, stages files over SSH/SCP, rechecks parked state, installs the systemd service, and verifies actual kernel limits. A failed activation restores previous binary/PWA assets if available and leaves the service stopped. No SSH command is run automatically against your car during local sandbox testing.
 
 ## Files and startup
 

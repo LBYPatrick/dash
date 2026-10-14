@@ -405,6 +405,7 @@ func TestLiveOwnershipCleanup(t *testing.T) {
 
 func TestExportsAlwaysResolveCompleteSession(t *testing.T) {
 	index, _ := fixtureIndex(t)
+	video := cameraFixture(t, "h264", false)
 	// Lexical order differs from chronological order; include a gap to verify
 	// all available parts are included without asking the user for ranges.
 	for _, part := range []string{"0", "2", "10"} {
@@ -412,7 +413,7 @@ func TestExportsAlwaysResolveCompleteSession(t *testing.T) {
 		if err := os.MkdirAll(folder, 0700); err != nil {
 			t.Fatal(err)
 		}
-		if err := os.WriteFile(filepath.Join(folder, "qcamera.ts"), []byte("original-"+part), 0600); err != nil {
+		if err := os.WriteFile(filepath.Join(folder, "qcamera.ts"), video, 0600); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -475,7 +476,7 @@ func TestExportsAlwaysResolveCompleteSession(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if string(content) != "original-"+strings.Split(entry.Name, "/")[0] {
+			if string(content) != string(video) {
 				t.Fatal("raw video modified")
 			}
 			originals++

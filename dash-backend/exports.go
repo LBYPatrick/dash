@@ -440,7 +440,7 @@ func (e *ExportManager) mcap(ctx context.Context, job *ExportJob, request Export
 			return err
 		}
 	}
-	if err := writer.WriteMetadata(&mcap.Metadata{Name: "dash.drive", Metadata: map[string]string{"id": request.Drive, "recordings": "Original videos and logs are attachments, not frame-level video messages.", "timeBasis": "GPS measured UTC; vehicle monotonic timestamps mapped to GPS, otherwise file timestamp estimate."}}); err != nil {
+	if err := writer.WriteMetadata(&mcap.Metadata{Name: "dash.drive", Metadata: map[string]string{"id": request.Drive, "recordings": "Camera frames use foxglove.CompressedVideo; original videos and logs are also retained as attachments.", "timeBasis": "GPS measured UTC; vehicle monotonic timestamps mapped to GPS. Video uses segment-start GPS alignment plus presentation offsets (raw HEVC at 20 fps), not exact exposure timestamps. Without GPS uses file timestamp estimates."}}); err != nil {
 		return err
 	}
 	sequence := uint32(0)
@@ -507,6 +507,9 @@ func (e *ExportManager) mcap(ctx context.Context, job *ExportJob, request Export
 				return err
 			}
 		}
+	}
+	if err := e.mcapVideos(ctx, writer, job, request, assets, snapshot, message); err != nil {
+		return err
 	}
 	return writer.Close()
 }
