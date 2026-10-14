@@ -3,8 +3,10 @@ import { ref } from 'vue';
 import Sheet from './Sheet.vue';
 import { Settings, Sun, Moon, Monitor } from '../icons';
 import { theme, performanceMode, preferencesSaved } from '../appearance';
+import { backendOrigin, indexStatus } from '../indexer';
 import { vGlassTabs } from '../glassTabs';
 defineProps<{ labeled?: boolean }>();
+const emit = defineEmits<{ rebuild: [] }>();
 const dialog = ref<InstanceType<typeof Sheet>>();
 const themes = [
   { value: 'light', label: 'Light', icon: Sun },
@@ -63,6 +65,26 @@ const themes = [
         ></span>
       </label>
       <p class="settings-note">Applies immediately. Saved on this browser.</p>
+      <section v-if="backendOrigin" class="index-settings">
+        <h3>Recordings</h3>
+        <p>
+          Refresh thumbnails and metadata. Original recordings stay untouched.
+        </p>
+        <button
+          class="button full-width"
+          type="button"
+          :disabled="indexStatus.driving !== 'parked' || indexStatus.running"
+          @click="emit('rebuild')"
+        >
+          {{ indexStatus.running ? 'Indexing…' : 'Rebuild index' }}
+        </button>
+        <p v-if="indexStatus.driving !== 'parked'" class="settings-note">
+          Available when the vehicle is confirmed parked.
+        </p>
+        <p v-if="indexStatus.errors" class="settings-note" role="status">
+          {{ indexStatus.errors }} files could not be indexed. Rebuild to retry.
+        </p>
+      </section>
       <p v-if="!preferencesSaved" role="status">
         Browser storage is unavailable. Preferences apply for this session.
       </p>

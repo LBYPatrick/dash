@@ -98,3 +98,14 @@ The frame clock stops while paused, seeking, buffering, hidden, or unmounted. Re
 | Tile failure can obscure whether GPS is available | Keep the independent GPS overlay and show a precise background notice; SVG route preview without WebGL | Preserve recorded information when background services or GPU support are missing |
 
 Theme changes update paint properties without replacing sources or the camera. OSM attribution stays expanded, including on narrow screens. Tests use an invented Shortbread tile rather than repeatedly requesting public tiles; a live viewport check separately confirmed OSM TileJSON and tiles load successfully, with locally rendered labels and no Mapbox calls.
+
+| Before                                                                         | After                                                                                                                             | Why                                                           |
+| ------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------- |
+| Index maintenance and parked-processing explanations always occupy the sidebar | Rebuild in Settings; processing details in Help; active indexing enters/exits in 200 ms with reduced-motion/performance fallbacks | Keep browsing quiet while making ongoing work visible         |
+| Prepare an export, then press Download                                         | Download recording starts preparation and automatically hands the completed file to the browser, with Download again as recovery  | One explicit action carries through to the file               |
+| MCAP video available only as attachments                                       | All session cameras have Foxglove video channels alongside originals                                                              | Video can be inspected on the same MCAP timeline as telemetry |
+
+| Before                                           | After                                                                                        | Why                                                   |
+| ------------------------------------------------ | -------------------------------------------------------------------------------------------- | ----------------------------------------------------- |
+| Camera selector floats above the video           | Camera selector joins bottom playback controls; narrow panels give it a dedicated second row | Keep video unobstructed and related controls together |
+| Engagement toggle remains active without samples | Disabled “Engagement not recorded” action; persisted overlays stay hidden until data exists  | Explain availability without implying recorded state  |

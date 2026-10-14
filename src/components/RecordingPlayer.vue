@@ -58,6 +58,9 @@ watch([snapshots, engagement], () =>
     engagement: engagement.value,
   }),
 );
+const hasEngagement = computed(() =>
+  (props.segments || []).some((part) => !!part.metadata?.engagement?.length),
+);
 const bands = computed(() => engagementBands(props.segments || []));
 const telemetryTime = ref(0);
 const status = computed(() =>
@@ -365,12 +368,16 @@ onBeforeUnmount(() => {
           >Snapshots appear after parked indexing.</span
         >
       </div>
-      <div v-if="engagement" class="engagement-row" role="status">
+      <div
+        v-if="engagement && hasEngagement"
+        class="engagement-row"
+        role="status"
+      >
         <span class="status-dot" :class="{ amber: status !== 'Engaged' }"></span
         >{{ status }}
       </div>
       <svg
-        v-if="engagement && bands.length && duration"
+        v-if="engagement && hasEngagement && bands.length && duration"
         class="engagement-track"
         viewBox="0 0 1000 8"
         preserveAspectRatio="none"
@@ -463,7 +470,9 @@ onBeforeUnmount(() => {
             / {{ formatTimestamp(duration, 3) }}</span
           >
         </button>
+        <slot name="camera" />
         <SelectMenu
+          class="playback-speed"
           v-model="rate"
           aria-label="Playback speed"
           :options="
@@ -490,10 +499,20 @@ onBeforeUnmount(() => {
             {{ snapshots ? 'Hide' : 'Show' }} snapshots</button
           ><button
             type="button"
-            :aria-pressed="engagement"
+            :aria-pressed="engagement && hasEngagement"
+            :disabled="!hasEngagement"
+            :title="
+              hasEngagement
+                ? undefined
+                : 'No engagement data was recorded for this session.'
+            "
             @click="engagement = !engagement"
           >
-            {{ engagement ? 'Hide' : 'Show' }} engagement status
+            {{
+              hasEngagement
+                ? `${engagement ? 'Hide' : 'Show'} engagement status`
+                : 'Engagement not recorded'
+            }}
           </button></SessionActions
         >
       </div>

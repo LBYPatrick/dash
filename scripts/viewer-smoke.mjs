@@ -26,6 +26,7 @@ try {
   page.on('pageerror', (e) => errors.push(e.message));
   // Exercise recorded engagement presentation without pretending synthetic logs
   // contain real firmware engagement messages. Decoder wire tests cover that.
+  let recordedEngagement = true;
   await page.route('**/api/metadata?*', async (route) => {
     const response = await route.fetch();
     const entries = await response.json();
@@ -40,11 +41,13 @@ try {
         time: 1700000000 + offset,
         monotonic: anchor + offset,
       }));
-      m.engagement = [
-        { time: anchor, enabled: false, active: false },
-        { time: anchor + 2, enabled: true, active: true },
-        { time: anchor + 6, enabled: true, active: false },
-      ];
+      m.engagement = recordedEngagement
+        ? [
+            { time: anchor, enabled: false, active: false },
+            { time: anchor + 2, enabled: true, active: true },
+            { time: anchor + 6, enabled: true, active: false },
+          ]
+        : [];
     }
     await route.fulfill({ response, json: entries });
   });
@@ -327,6 +330,34 @@ try {
       path: `.artifacts/enhanced-viewer-${size[0]}${size[2] ? '-dark' : ''}.png`,
     });
   }
+  // A stored "show engagement" preference must never turn absent data into
+  // an enabled button or a pretend status row on another recording.
+  recordedEngagement = false;
+  await page.reload();
+  await page.locator('video').waitFor({ state: 'attached' });
+  if (
+    !(await page
+      .getByRole('button', { name: 'Viewer options', exact: true })
+      .isVisible())
+  )
+    await page.locator('.drive-row').first().click();
+  await page
+    .getByRole('button', { name: 'Viewer options', exact: true })
+    .click();
+  assert(
+    await page
+      .getByRole('button', { name: 'Engagement not recorded', exact: true })
+      .isDisabled(),
+  );
+  assert.equal(await page.locator('.engagement-row').count(), 0);
+  assert.equal(await page.locator('.viewer-toolbar').count(), 0);
+  assert.equal(
+    await page
+      .locator('.playback-toolbar')
+      .getByRole('combobox', { name: 'Camera', exact: true })
+      .count(),
+    1,
+  );
   assert.deepEqual(errors, []);
   console.log(
     'Enhanced viewer passed: sidebar drag/persistence/animated reset, padding, millisecond typed/slider seeking, smooth playback clock, speed, interpolated map motion/follow/full-route/pause/visibility, snapshots/engagement, responsive fit and accessibility.',

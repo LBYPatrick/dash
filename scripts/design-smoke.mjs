@@ -99,7 +99,7 @@ try {
     );
     assert(
       await page
-        .locator('.viewer-toolbar')
+        .locator('.playback-toolbar')
         .evaluate((e) => e.scrollWidth <= e.clientWidth),
       `Camera controls overflow at ${width}x${height}`,
     );

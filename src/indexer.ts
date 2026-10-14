@@ -98,11 +98,25 @@ export async function startIndexing(
   if (run.signal.aborted) return;
   if (backendOrigin.value) {
     const origin = backendOrigin.value;
-    if (rebuild)
-      await fetch(`${origin}/api/index/rebuild`, {
-        method: 'POST',
-        signal: run.signal,
-      });
+    if (rebuild) {
+      try {
+        const response = await fetch(`${origin}/api/index/rebuild`, {
+          method: 'POST',
+          signal: run.signal,
+        });
+        if (!response.ok) {
+          const body = await response.json().catch(() => ({}));
+          throw new Error(
+            body.error || 'Could not rebuild the recording index.',
+          );
+        }
+      } catch (error) {
+        if (run.signal.aborted) return;
+        // A rejected rebuild must not silently stop ordinary index polling.
+        void startIndexing(address, drives);
+        throw error;
+      }
+    }
     do {
       try {
         const response = await fetch(`${origin}/api/index`, {

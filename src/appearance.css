@@ -99,7 +99,6 @@ body {
     .drive-group h3,
     .drive-row small,
     .sort-picker,
-    .sidebar-footer,
     .index-footer,
     .detail-footer,
     .field-label,
@@ -208,7 +207,6 @@ body {
   background: var(--surface-subtle);
   color: var(--green);
 }
-.sidebar-footer,
 .index-footer,
 .detail-footer,
 .activity-list button {

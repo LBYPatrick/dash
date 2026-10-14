@@ -12,11 +12,18 @@ All notable changes to Dash are documented here using Keep a Changelog.
 
 ### Fixed
 
+- Export every camera as `foxglove.CompressedVideo` MCAP messages with decoder headers and frame timestamps, converting B-frames under parked-only worker limits; retain original attachments and independent Dash telemetry schemas.
+- Start downloads automatically when export preparation finishes, retaining a retry link for browser download restrictions.
+
 - Smooth map Follow with media-clock GPS interpolation and incremental pans; stop background index polls from resetting the camera; avoid per-update Mapbox GeoJSON worker messages and stop updates when paused, buffering or hidden.
 
 - Restore mobile dashboard and detail-page scrolling by bounding content panes to the available viewport; retain the fixed session viewer.
 
 ### Changed
+
+- Move camera selection into bottom playback controls, with a dedicated row in narrow viewers; disable engagement controls and hide persisted overlays when no engagement samples exist.
+
+- Move index rebuilding into Settings and processing explanations into Help; show a gently animated indexing indicator only during active parked builds, respecting reduced motion and performance mode.
 
 - Replace Mapbox/Leaflet with MapLibre GL JS and OSM Shortbread vector tiles, local light/dark styles and system fonts; initialize maps only when visible and preserve GPS when tiles or WebGL are unavailable.
 

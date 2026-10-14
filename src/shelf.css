@@ -1265,11 +1265,6 @@ body,
     border-radius: 6px;
     font-size: 12px;
   }
-  #app .sidebar-footer {
-    min-height: 0;
-    margin-top: 0;
-    padding: 8px 8px 16px;
-  }
   #app :is(.sidebar-settings, .sidebar-help, .sidebar-device):active {
     background: var(--fill-1);
   }
@@ -1312,4 +1307,37 @@ body,
   border: 2px solid #fff;
   border-radius: 50%;
   pointer-events: none;
+}
+
+/* Camera selection belongs to playback; narrow players give it a deliberate
+   second row while preserving the compact transport controls above it. */
+#app .playback-toolbar .source-picker {
+  margin-left: auto;
+  min-width: 0;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 12px;
+}
+#app .playback-toolbar .source-picker .selectmenu {
+  width: 128px;
+  flex: 0 1 128px;
+  margin-left: 0;
+}
+#app .playback-toolbar:has(.source-picker) .playback-speed {
+  margin-left: 0;
+}
+@container dash-player (max-width: 640px) {
+  #app .playback-toolbar .source-picker {
+    order: 10;
+    flex-basis: 100%;
+    justify-content: flex-end;
+    padding-top: 4px;
+  }
+  #app .playback-toolbar .source-picker .selectmenu {
+    width: 140px;
+    flex-basis: 140px;
+  }
+  #app .playback-toolbar:has(.source-picker) .playback-speed {
+    margin-left: auto;
+  }
 }

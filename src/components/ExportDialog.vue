@@ -40,7 +40,9 @@ function open(selectedFormat?: 'zip' | 'mp4' | 'mcap' | 'raw') {
   dialog.value?.showModal();
 }
 function cancel() {
+  if (busy.value) status.value = 'Export canceled.';
   controller?.abort();
+  controller = undefined;
   if (jobId && busy.value)
     void fetch(`/api/exports/${jobId}/cancel`, {
       method: 'POST',
@@ -53,8 +55,9 @@ async function run() {
   error.value = '';
   download.value = '';
   jobId = '';
-  controller = new AbortController();
-  const signal = controller.signal;
+  const current = new AbortController();
+  controller = current;
+  const signal = current.signal;
   try {
     const response = await fetch('/api/exports', {
       method: 'POST',
@@ -68,12 +71,21 @@ async function run() {
       signal,
     });
     let job = await response.json();
+    signal.throwIfAborted();
     if (!response.ok) throw new Error(job.error || 'Could not start export.');
     jobId = job.id;
     while (!signal.aborted) {
       status.value = job.message;
       if (job.status === 'complete') {
         download.value = `/api/exports/${job.id}/download`;
+        const link = document.createElement('a');
+        link.href = download.value;
+        link.download = job.name || '';
+        document.body.append(link);
+        link.click();
+        link.remove();
+        status.value =
+          'Your download should start automatically. If it doesn’t, use Download again.';
         return;
       }
       if (job.status === 'failed' || job.status === 'canceled')
@@ -96,9 +108,10 @@ async function run() {
       job = await progress.json();
     }
   } catch (e) {
-    error.value = signal.aborted ? 'Export canceled.' : (e as Error).message;
+    if (controller === current)
+      error.value = signal.aborted ? 'Export canceled.' : (e as Error).message;
   } finally {
-    busy.value = false;
+    if (controller === current) busy.value = false;
   }
 }
 onBeforeUnmount(cancel);
@@ -134,7 +147,7 @@ defineExpose({ open });
               },
               {
                 value: 'mcap',
-                label: 'MCAP · Dash telemetry + original attachments',
+                label: 'MCAP · video, telemetry and originals',
               },
             ] as const
           "
@@ -159,8 +172,8 @@ defineExpose({ open });
           expire after one hour. Starting a drive stops active processing.
         </p>
         <p v-if="format === 'mcap'" class="export-limit">
-          Uses dash.v1 JSON schemas. Original videos and logs are attachments;
-          decoded GPS and vehicle samples are included when indexed.
+          Includes Foxglove video channels, Dash telemetry when indexed, and
+          original files. Cameras with B-frames are converted while parked.
         </p>
         <p v-if="sample" class="inline-error">
           Connect to dash-backend to export real recordings. Samples are for
@@ -176,7 +189,7 @@ defineExpose({ open });
           class="button primary full-width"
           :href="download"
           download
-          ><Download :size="16" />Download {{ format.toUpperCase() }}</a
+          ><Download :size="16" />Download again</a
         ><button
           v-else
           class="button primary full-width"
@@ -190,7 +203,7 @@ defineExpose({ open });
           <LoaderCircle v-if="busy" class="spinning" :size="16" /><Download
             v-else
             :size="16"
-          />{{ busy ? 'Preparing on device…' : 'Export recording' }}</button
+          />{{ busy ? 'Preparing download…' : 'Download recording' }}</button
         ><button
           v-if="busy"
           type="button"

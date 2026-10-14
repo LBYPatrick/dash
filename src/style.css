@@ -525,16 +525,6 @@ svg {
 .drive-row-text {
   min-width: 0;
 }
-.sidebar-footer {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  min-height: 65px;
-  border-top: 1px solid var(--line);
-  color: #8c9689;
-  font-size: 9px;
-  margin-top: 10px;
-}
 .detail {
   padding: 28px 40px 0;
   min-width: 0;
@@ -1341,24 +1331,54 @@ svg {
   height: 100%;
   object-fit: cover;
 }
-.index-footer {
-  border-top: 1px solid var(--line);
-  padding-top: 15px;
-  color: var(--muted);
-  font-size: 10px;
+.index-activity {
+  display: grid;
+  grid-template-rows: 1fr;
+  flex-shrink: 0;
 }
-.index-footer > div {
+.index-activity > div {
+  min-height: 0;
+  overflow: hidden;
+}
+.index-footer {
   display: flex;
   align-items: center;
-  gap: 7px;
+  gap: 8px;
+  padding-block: 12px;
+  color: var(--muted);
+  font-size: 12px;
 }
-.index-footer small {
-  display: block;
-  font-size: 9px;
-  color: #945e48;
+.index-activity-enter-active,
+.index-activity-leave-active {
+  transition:
+    grid-template-rows 200ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    opacity 160ms ease-out,
+    transform 200ms cubic-bezier(0.2, 0.8, 0.2, 1);
 }
-.index-footer .text-button {
-  font-size: 10px;
+.index-activity-enter-from,
+.index-activity-leave-to {
+  grid-template-rows: 0fr;
+  opacity: 0;
+  transform: translateY(4px);
+}
+.index-settings {
+  padding-top: 16px;
+  margin-top: 20px;
+}
+.index-settings h3 {
+  margin: 0 0 8px;
+}
+.index-settings p {
+  color: var(--muted);
+  font-size: 13px;
+}
+[data-performance='true'] .index-activity {
+  transition: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .index-activity {
+    transition: none;
+  }
 }
 .review-actions {
   display: flex;

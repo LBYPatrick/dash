@@ -103,7 +103,7 @@ try {
     }),
   );
   await page
-    .getByRole('button', { name: 'Export recording', exact: true })
+    .getByRole('button', { name: 'Download recording', exact: true })
     .click();
   await page.getByRole('alert').filter({ hasText: 'Device busy' }).waitFor();
   await audit('export failure and retry');

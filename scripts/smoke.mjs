@@ -210,7 +210,7 @@ try {
           ? 'MP4 · one continuous camera recording'
           : format === 'raw'
             ? 'Raw video · original camera parts (ZIP)'
-            : 'MCAP · Dash telemetry + original attachments',
+            : 'MCAP · video, telemetry and originals',
     );
     assert.equal(
       await page
@@ -218,17 +218,15 @@ try {
         .count(),
       0,
     );
-    await page
-      .getByRole('button', { name: 'Export recording', exact: true })
-      .click();
-    const link = page.getByRole('link', {
-      name: `Download ${format.toUpperCase()}`,
-    });
-    await link.waitFor({ timeout: 30000 });
     const [download] = await Promise.all([
-      page.waitForEvent('download'),
-      link.click(),
+      page.waitForEvent('download', { timeout: 60000 }),
+      page
+        .getByRole('button', { name: 'Download recording', exact: true })
+        .click(),
     ]);
+    await page
+      .getByRole('link', { name: 'Download again', exact: true })
+      .waitFor();
     await download.saveAs(`.artifacts/smoke.${format}`);
     if (format === 'raw')
       assert(download.suggestedFilename().endsWith('-raw-video.zip'));
@@ -242,7 +240,7 @@ try {
         .click();
       assert.equal(
         await page
-          .getByRole('link', { name: 'Download RAW', exact: true })
+          .getByRole('link', { name: 'Download again', exact: true })
           .count(),
         0,
         'Changing options must not relabel an old download',
@@ -266,7 +264,13 @@ try {
   await page.getByRole('button', { name: 'Start live view' }).click();
   await page.getByText(/lacks managed local streaming/).waitFor();
   await setDriving('onroad');
-  await page.getByText(/Index paused · on the road/).waitFor({ timeout: 8000 });
+  await page.waitForFunction(() =>
+    [...document.querySelectorAll('button')].some(
+      (button) =>
+        button.textContent.includes('Start live view') && button.disabled,
+    ),
+  );
+  assert.equal(await page.locator('.index-activity').count(), 0);
   assert.equal(
     await page.getByRole('button', { name: 'Start live view' }).isDisabled(),
     true,

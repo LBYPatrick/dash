@@ -27,7 +27,6 @@ import {
   MoreHorizontal,
   RefreshCw,
   Search,
-  ShieldCheck,
   Unplug,
   Wifi,
   X,
@@ -526,7 +525,7 @@ onBeforeUnmount(() => {
             : 'Live'
       }}</span>
       <div class="header-actions" role="group" aria-label="App controls">
-        <SettingsPopup />
+        <SettingsPopup @rebuild="indexDrives(true)" />
         <button
           type="button"
           class="icon-button desktop-help"
@@ -798,35 +797,26 @@ onBeforeUnmount(() => {
             </div>
           </div>
         </div>
-        <div class="index-footer">
-          <div>
-            <span
-              class="status-dot"
-              :class="{ amber: indexStatus.driving !== 'parked' }"
-            ></span
-            ><span>{{
-              demo
-                ? 'Sample library'
-                : indexStatus.driving === 'parked'
-                  ? indexStatus.running
-                    ? `Indexing ${indexStatus.completed} / ${indexStatus.total}`
-                    : 'Index up to date'
-                  : `Index paused · ${indexStatus.driving === 'onroad' ? 'on the road' : 'driving state unknown'}`
-            }}</span>
+        <Transition name="index-activity">
+          <div
+            v-if="
+              !demo && indexStatus.running && indexStatus.driving === 'parked'
+            "
+            class="index-activity"
+          >
+            <div>
+              <div class="index-footer" role="status" aria-live="polite">
+                <LoaderCircle class="spinning" :size="14" />
+                <span
+                  >Indexing {{ indexStatus.completed }} /
+                  {{ indexStatus.total }}</span
+                >
+              </div>
+            </div>
           </div>
-          <button
-            v-if="!demo"
-            class="text-button"
-            :disabled="indexStatus.driving !== 'parked'"
-            @click="indexDrives(true)"
-          >
-            Rebuild index</button
-          ><small v-if="indexStatus.errors"
-            >{{ indexStatus.errors }} indexing errors · retry on refresh</small
-          >
-        </div>
+        </Transition>
         <div class="sidebar-utilities">
-          <SettingsPopup labeled />
+          <SettingsPopup labeled @rebuild="indexDrives(true)" />
           <button
             type="button"
             class="sidebar-help"
@@ -835,11 +825,6 @@ onBeforeUnmount(() => {
           >
             <CircleHelp :size="17" />Help
           </button>
-        </div>
-        <div class="sidebar-footer">
-          <ShieldCheck :size="15" /><span
-            >Heavy processing runs only while parked</span
-          >
         </div>
       </aside>
       <SidebarResize
@@ -1034,33 +1019,6 @@ onBeforeUnmount(() => {
             <template #video>
               <div class="session-video">
                 <div class="viewer-card">
-                  <div class="viewer-toolbar">
-                    <span
-                      ><span class="status-dot"></span
-                      >{{
-                        demo ? 'Sample road camera' : 'Recording preview'
-                      }}</span
-                    ><label v-if="playable.length > 1" class="source-picker"
-                      >Camera
-                      <SelectMenu
-                        v-model="selectedSource"
-                        aria-label="Camera"
-                        :options="
-                          playable.map((file) => ({
-                            value: demo
-                              ? file.url
-                              : recordingAddress(activeId, file.name),
-                            label: file.name,
-                          }))
-                        " /></label
-                    ><span v-else class="muted">{{
-                      demo
-                        ? 'Illustration'
-                        : selectedSource
-                          ? 'From your device'
-                          : 'Original files'
-                    }}</span>
-                  </div>
                   <div
                     v-if="filesBusy"
                     class="player loading-player"
@@ -1088,7 +1046,24 @@ onBeforeUnmount(() => {
                         playbackDuration = duration;
                       }
                     "
-                  />
+                  >
+                    <template #camera>
+                      <label v-if="playable.length > 1" class="source-picker"
+                        >Camera
+                        <SelectMenu
+                          v-model="selectedSource"
+                          aria-label="Camera"
+                          :options="
+                            playable.map((file) => ({
+                              value: demo
+                                ? file.url
+                                : recordingAddress(activeId, file.name),
+                              label: file.name,
+                            }))
+                          "
+                      /></label>
+                    </template>
+                  </RecordingPlayer>
                 </div>
               </div>
             </template>
@@ -1196,11 +1171,6 @@ onBeforeUnmount(() => {
           local network and open the same address to reconnect.
         </p>
         <div class="backend-address">{{ appOrigin }}</div>
-        <p>
-          Background indexing and video processing run only when sunnypilot
-          confirms the vehicle is parked. If driving state is unknown,
-          processing stays paused.
-        </p>
         <div v-if="connectionError" class="inline-error" role="alert">
           {{ connectionError }}
         </div>
@@ -1210,16 +1180,6 @@ onBeforeUnmount(() => {
           @click="connect"
         >
           {{ busy ? 'Connecting…' : 'Reconnect to device' }}</button
-        ><button
-          v-if="!demo"
-          class="text-button centered"
-          :disabled="indexStatus.driving !== 'parked'"
-          @click="
-            indexDrives(true);
-            connectionDialog?.close();
-          "
-        >
-          Rebuild the recording index</button
         ><button v-if="demo" class="text-button centered" @click="disconnect">
           Leave sample library
         </button>
@@ -1244,6 +1204,16 @@ onBeforeUnmount(() => {
           The app shell works offline after your first visit. Watching or
           downloading recordings still needs a network connection to your
           device. Saved drives are bookmarks, not offline copies.
+        </p>
+        <h3>Processing on your device</h3>
+        <p>
+          Background indexing and video processing run only when sunnypilot
+          confirms the vehicle is parked. If driving state is unknown,
+          processing stays paused.
+        </p>
+        <p>
+          Rebuild the recording index in Settings if thumbnails or metadata need
+          refreshing. Your original files stay untouched.
         </p>
         <h3>About recordings</h3>
         <p>
