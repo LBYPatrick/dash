@@ -238,13 +238,10 @@ try {
           exact: true,
         })
         .click();
-      assert.equal(
-        await page
-          .getByRole('link', { name: 'Download again', exact: true })
-          .count(),
-        0,
-        'Changing options must not relabel an old download',
-      );
+      // The outgoing action is inert immediately, then removed after its fade.
+      await page
+        .getByRole('link', { name: 'Download again', exact: true })
+        .waitFor({ state: 'detached' });
     }
 
     await page.getByRole('button', { name: 'Close export' }).click();
@@ -262,7 +259,10 @@ try {
   await page.getByRole('button', { name: 'Close device settings' }).click();
   await page.getByRole('button', { name: 'Live', exact: true }).click();
   await page.getByRole('button', { name: 'Start live view' }).click();
-  await page.getByText(/lacks managed local streaming/).waitFor();
+  await page
+    .getByRole('status')
+    .filter({ hasText: /lacks managed local streaming/ })
+    .waitFor();
   await setDriving('onroad');
   await page.waitForFunction(() =>
     [...document.querySelectorAll('button')].some(
