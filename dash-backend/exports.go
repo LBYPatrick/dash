@@ -407,7 +407,7 @@ func (e *ExportManager) mp4(ctx context.Context, job *ExportJob, request ExportR
 }
 
 var dashSchemaFields = map[string]map[string]string{
-	"Asset":        {"path": "string", "segment": "integer", "bytes": "integer", "attachment": "string"},
+	"Asset":        {"path": "string", "segment": "integer", "bytes": "integer", "attachment": "string", "modifiedTimeNanoseconds": "string"},
 	"Position":     {"latitude": "number", "longitude": "number", "altitude": "number", "speed": "number", "time": "number", "monotonic": "number"},
 	"VehicleState": {"time": "number", "speed": "number", "steeringAngle": "number", "brakePressed": "boolean", "gasPressed": "boolean"},
 }
@@ -440,7 +440,7 @@ func (e *ExportManager) mcap(ctx context.Context, job *ExportJob, request Export
 			return err
 		}
 	}
-	if err := writer.WriteMetadata(&mcap.Metadata{Name: "dash.drive", Metadata: map[string]string{"id": request.Drive, "recordings": "Camera frames use foxglove.CompressedVideo; original videos and logs are also retained as attachments.", "timeBasis": "GPS measured UTC; vehicle monotonic timestamps mapped to GPS. Video uses segment-start GPS alignment plus presentation offsets (raw HEVC at 20 fps), not exact exposure timestamps. Without GPS uses file timestamp estimates."}}); err != nil {
+	if err := writer.WriteMetadata(&mcap.Metadata{Name: "dash.drive", Metadata: map[string]string{"id": request.Drive, "recordings": "Camera frames use foxglove.CompressedVideo; original videos and logs are also retained as attachments.", "timeBasis": "GPS measured UTC; vehicle monotonic timestamps mapped to GPS. Video uses segment-start GPS alignment plus presentation offsets (raw HEVC at 20 fps), not exact exposure timestamps. Asset LogTime uses the segment capture clock; original filesystem time is retained as attachment CreateTime and modifiedTimeNanoseconds. Without GPS uses a shared session file-time estimate, indexed durations and a disclosed 60-second assumption for unknown parts."}}); err != nil {
 		return err
 	}
 	sequence := uint32(0)
@@ -455,6 +455,11 @@ func (e *ExportManager) mcap(ctx context.Context, job *ExportJob, request Export
 		sequence++
 		return writer.WriteMessage(&mcap.Message{ChannelID: channel, Sequence: sequence, LogTime: timestamp, PublishTime: timestamp, Data: data})
 	}
+	snapshot, err := e.index.driveMetadata(request.Drive)
+	if err != nil {
+		return err
+	}
+	clocks := mcapClocks(request, assets, snapshot)
 	for i, asset := range assets {
 		if ctx.Err() != nil {
 			return ctx.Err()
@@ -465,19 +470,17 @@ func (e *ExportManager) mcap(ctx context.Context, job *ExportJob, request Export
 		if err != nil {
 			return err
 		}
-		timestamp := uint64(max(int64(0), asset.Modified.UnixNano()))
-		err = writer.WriteAttachment(&mcap.Attachment{Name: name, LogTime: timestamp, CreateTime: timestamp, MediaType: "application/octet-stream", DataSize: uint64(asset.Size), Data: checkedReader{ctx, io.LimitReader(source, asset.Size)}})
+		clock := clocks[asset.Segment]
+		timestamp := clock.timestamp(clock.Monotonic)
+		modified := uint64(max(int64(0), asset.Modified.UnixNano()))
+		err = writer.WriteAttachment(&mcap.Attachment{Name: name, LogTime: timestamp, CreateTime: modified, MediaType: "application/octet-stream", DataSize: uint64(asset.Size), Data: checkedReader{ctx, io.LimitReader(source, asset.Size)}})
 		source.Close()
 		if err != nil {
 			return err
 		}
-		if err := message(1, timestamp, map[string]any{"path": name, "segment": asset.Segment, "bytes": asset.Size, "attachment": name}); err != nil {
+		if err := message(1, timestamp, map[string]any{"path": name, "segment": asset.Segment, "bytes": asset.Size, "attachment": name, "modifiedTimeNanoseconds": strconv.FormatUint(modified, 10)}); err != nil {
 			return err
 		}
-	}
-	snapshot, err := e.index.driveMetadata(request.Drive)
-	if err != nil {
-		return err
 	}
 	for _, segment := range request.Segments {
 		entry := snapshot[fmt.Sprintf("%s--%d", request.Drive, segment)].Metadata
@@ -486,29 +489,14 @@ func (e *ExportManager) mcap(ctx context.Context, job *ExportJob, request Export
 				return err
 			}
 		}
-		first := float64(0)
-		if len(entry.Speeds) > 0 {
-			first = entry.Speeds[0].Time
-		}
-		estimate := float64(0)
-		for _, asset := range assets {
-			if asset.Segment == segment {
-				estimate = float64(asset.Modified.UnixNano())/1e9 - entry.Duration
-				break
-			}
-		}
+		clock := clocks[segment]
 		for _, sample := range entry.Speeds {
-			utc := estimate + sample.Time - first
-			if len(entry.Points) > 0 {
-				anchor := entry.Points[0]
-				utc = anchor.Time + sample.Time - anchor.Monotonic
-			}
-			if err := message(3, uint64(max(0, utc*1e9)), sample); err != nil {
+			if err := message(3, clock.timestamp(sample.Time), sample); err != nil {
 				return err
 			}
 		}
 	}
-	if err := e.mcapVideos(ctx, writer, job, request, assets, snapshot, message); err != nil {
+	if err := e.mcapVideos(ctx, writer, job, assets, clocks, message); err != nil {
 		return err
 	}
 	return writer.Close()

@@ -19,15 +19,15 @@ case "$(uname -s)" in
     fi ;;
   Linux)
     if ! "$DASH_CHECK"; then
-      command -v apt-get >/dev/null || { echo 'Automated system packages support Debian/Ubuntu. On other Linux distributions install Python 3.9+, git, make, C compiler, SSH, CA certificates and FFmpeg 5+, then use --check.'; exit 1; }
+      command -v apt-get >/dev/null || { echo 'Automated system packages support Debian/Ubuntu. On other Linux distributions install Python 3.9+, git, make, C compiler, SSH, CA certificates, bzip2 and FFmpeg 5+, then use --check.'; exit 1; }
       DASH_PRIVILEGE=()
       if (( EUID != 0 )); then DASH_PRIVILEGE=(sudo); fi
       "${DASH_PRIVILEGE[@]}" env DEBIAN_FRONTEND=noninteractive apt-get update
-      "${DASH_PRIVILEGE[@]}" env DEBIAN_FRONTEND=noninteractive apt-get install -y ca-certificates python3 git make build-essential openssh-client ffmpeg
+      "${DASH_PRIVILEGE[@]}" env DEBIAN_FRONTEND=noninteractive apt-get install -y ca-certificates python3 git make build-essential openssh-client ffmpeg bzip2
     fi ;;
   *) echo 'Use a Linux or macOS build host'; exit 1 ;;
 esac
-for DASH_TOOL in python3 git make cc ssh scp ffmpeg ffprobe tar; do
+for DASH_TOOL in python3 git make cc ssh scp ffmpeg ffprobe bzip2 tar; do
   command -v "$DASH_TOOL" >/dev/null || { echo "Missing host tool: $DASH_TOOL"; exit 1; }
 done
 python3 -c 'import sys; assert sys.version_info >= (3,9), "Python 3.9+ required"'

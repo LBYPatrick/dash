@@ -19,6 +19,8 @@ All notable changes to Dash are documented here using Keep a Changelog.
 
 ### Fixed
 
+- Keep MCAP assets, telemetry and camera frames on the capture clock; preserve source modification times separately so copied files cannot inflate playback to days. Give synthetic session parts distinct UTC and monotonic clocks.
+
 - Complete selector/action popover transitions, interruption-safe divider resets, immediate keyboard/performance handle resets, and subtle asynchronous task feedback.
 
 - Export every camera as `foxglove.CompressedVideo` MCAP messages with decoder headers and frame timestamps, converting B-frames under parked-only worker limits; retain original attachments and independent Dash telemetry schemas.

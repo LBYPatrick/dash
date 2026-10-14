@@ -1,5 +1,10 @@
 import { mkdir, copyFile, writeFile } from 'node:fs/promises';
 import { execFileSync } from 'node:child_process';
+import { retimeFixture } from './fixture-clock.mjs';
+const template = execFileSync('bzip2', [
+  '-dc',
+  'dash-backend/internal/telemetry/testdata/qlog.bz2',
+]);
 const root = '.artifacts/device';
 await mkdir(`${root}/params`, { recursive: true });
 await writeFile(`${root}/params/IsOnroad`, '0');
@@ -12,9 +17,14 @@ for (const id of [
   for (let segment = 0; segment < 2; segment++) {
     const path = `${root}/recordings/${id}--${segment}`;
     await mkdir(path, { recursive: true });
-    await copyFile(
-      'dash-backend/internal/telemetry/testdata/qlog.bz2',
+    const utc = Date.parse(
+      id.replace('--', 'T').replace(/T(\d+)-(\d+)-(\d+)/, 'T$1:$2:$3') + 'Z',
+    );
+    await writeFile(
       `${path}/qlog.bz2`,
+      execFileSync('bzip2', ['-c'], {
+        input: retimeFixture(template, utc + segment * 11000, segment * 11),
+      }),
     );
     execFileSync('ffmpeg', [
       '-hide_banner',

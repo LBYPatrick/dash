@@ -15,7 +15,6 @@ import (
 	"strings"
 	"time"
 
-	"dash.local/backend/internal/telemetry"
 	"github.com/foxglove/mcap/go/mcap"
 )
 
@@ -128,20 +127,9 @@ func probeMCAPVideo(ctx context.Context, filename string) (videoProbe, error) {
 }
 func finiteVideo(value float64) bool { return !math.IsNaN(value) && !math.IsInf(value, 0) }
 
-// Camera exposure events are not decoded. These anchors align with Dash playback:
-// first log event mapped to GPS UTC, otherwise a clearly documented mtime estimate.
-func videoStart(asset ExportAsset, entry telemetry.Metadata, duration float64) uint64 {
-	utc := float64(asset.Modified.UnixNano())/1e9 - duration
-	if len(entry.Points) > 0 {
-		anchor := entry.Points[0]
-		utc = anchor.Time + entry.StartMonotonic - anchor.Monotonic
-	}
-	return uint64(max(0, utc*1e9))
-}
-
 type videoMessageWriter func(uint16, uint64, any) error
 
-func (e *ExportManager) mcapVideos(ctx context.Context, writer *mcap.Writer, job *ExportJob, request ExportRequest, assets []ExportAsset, snapshot map[string]IndexedSegment, message videoMessageWriter) error {
+func (e *ExportManager) mcapVideos(ctx context.Context, writer *mcap.Writer, job *ExportJob, assets []ExportAsset, clocks map[int]mcapClock, message videoMessageWriter) error {
 	channels := map[string]uint16{}
 	for _, asset := range assets {
 		camera := filepath.Base(asset.Path)
@@ -158,7 +146,7 @@ func (e *ExportManager) mcapVideos(ctx context.Context, writer *mcap.Writer, job
 		}
 		id := uint16(4 + len(channels))
 		channels[camera] = id
-		if err := writer.WriteChannel(&mcap.Channel{ID: id, SchemaID: 4, Topic: "/dash/camera/" + cameraTopics[camera] + "/video", MessageEncoding: "json", Metadata: map[string]string{"source": camera, "timestamps": "GPS-aligned segment start + presentation offset; raw HEVC assumes 20 fps; without GPS uses mtime estimate"}}); err != nil {
+		if err := writer.WriteChannel(&mcap.Channel{ID: id, SchemaID: 4, Topic: "/dash/camera/" + cameraTopics[camera] + "/video", MessageEncoding: "json", Metadata: map[string]string{"source": camera, "timestamps": "GPS-aligned segment start + presentation offset; raw HEVC assumes 20 fps; without GPS uses shared session file-time estimate"}}); err != nil {
 			return err
 		}
 	}
@@ -174,19 +162,15 @@ func (e *ExportManager) mcapVideos(ctx context.Context, writer *mcap.Writer, job
 		if err != nil {
 			return fmt.Errorf("%d/%s video: %w", asset.Segment, camera, err)
 		}
-		entry := snapshot[fmt.Sprintf("%s--%d", request.Drive, asset.Segment)].Metadata
-		start := videoStart(asset, entry, probe.Offsets[len(probe.Offsets)-1]+probe.Step)
+		clock := clocks[asset.Segment]
+		start := clock.timestamp(clock.Monotonic)
 		estimatedStart := start
 		// File mtimes (and occasionally log anchors) can overlap between parts.
 		// Preserve frame order on each channel and disclose any adjustment.
 		start = max(start, previousEnd[camera])
 		previousEnd[camera] = start + uint64(math.Round((probe.Offsets[len(probe.Offsets)-1]+probe.Step)*1e9))
-		basis := "file modification time minus video duration estimate"
-		if len(entry.Points) > 0 {
-			basis = "GPS UTC mapped to first log event; exposure timestamps unavailable"
-		}
 		if err := writer.WriteMetadata(&mcap.Metadata{Name: fmt.Sprintf("dash.video.%d.%s", asset.Segment, cameraTopics[camera]), Metadata: map[string]string{
-			"timeBasis": basis, "estimatedStartNanoseconds": strconv.FormatUint(estimatedStart, 10), "startNanoseconds": strconv.FormatUint(start, 10),
+			"timeBasis": clock.Basis, "estimatedStartNanoseconds": strconv.FormatUint(estimatedStart, 10), "startNanoseconds": strconv.FormatUint(start, 10),
 			"overlapAdjusted": strconv.FormatBool(start != estimatedStart), "rawHEVC20fps": strconv.FormatBool(strings.HasSuffix(camera, ".hevc")), "bFramesConverted": strconv.FormatBool(probe.BFrames), "frames": strconv.Itoa(len(probe.Offsets)),
 		}}); err != nil {
 			return err

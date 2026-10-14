@@ -14,7 +14,6 @@ import (
 	"testing"
 	"time"
 
-	"dash.local/backend/internal/telemetry"
 	"github.com/foxglove/mcap/go/mcap"
 )
 
@@ -65,6 +64,11 @@ func TestMCAPVideoAllCamerasAndSegments(t *testing.T) {
 			}
 		}
 	}
+	// Copy dates must not introduce days into a two-part capture timeline.
+	stamp := time.Now().Add(72 * time.Hour)
+	if err := os.Chtimes(filepath.Join(index.root, fixtureDrive+"--1", "dcamera.hevc"), stamp, stamp); err != nil {
+		t.Fatal(err)
+	}
 	// Avoid thumbnail work; missing indexed GPS intentionally exercises estimates.
 	manager, _ := newExports(context.Background(), index)
 	job, err := manager.submit(ExportRequest{Drive: fixtureDrive, Format: "mcap"})
@@ -85,6 +89,9 @@ func TestMCAPVideoAllCamerasAndSegments(t *testing.T) {
 	info, err := reader.Info()
 	if err != nil {
 		t.Fatal(err)
+	}
+	if span := time.Duration(info.Statistics.MessageEndTime - info.Statistics.MessageStartTime); span > 61*time.Second {
+		t.Fatalf("file modification dates stretched unindexed recording: %s", span)
 	}
 	if len(info.AttachmentIndexes) != 9 {
 		t.Fatal("original camera/log attachments missing")
@@ -226,17 +233,6 @@ func TestAccessUnitParametersAndLimits(t *testing.T) {
 	output = videoProbeBuffer{}
 	if _, err := output.Write(make([]byte, (4<<20)+1)); err == nil {
 		t.Fatal("unbounded probe output")
-	}
-}
-
-func TestVideoTimestampBasis(t *testing.T) {
-	asset := ExportAsset{Modified: time.Unix(1000, 0)}
-	if got := videoStart(asset, telemetry.Metadata{}, 2); got != 998e9 {
-		t.Fatal("wrong fallback", got)
-	}
-	entry := telemetry.Metadata{StartMonotonic: 50, Points: []telemetry.Position{{Time: 1000, Monotonic: 52}}}
-	if got := videoStart(asset, entry, 2); got != 998e9 {
-		t.Fatal("wrong GPS/log alignment", got)
 	}
 }
 

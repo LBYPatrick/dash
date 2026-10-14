@@ -4,6 +4,7 @@ import (
 	"archive/zip"
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -195,6 +196,14 @@ func TestZIPAndMCAPExports(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
+			if span := time.Duration(info.Statistics.MessageEndTime - info.Statistics.MessageStartTime); span != 10*time.Second {
+				t.Fatalf("file mtime stretched GPS capture: %s", span)
+			}
+			attachment := info.AttachmentIndexes[0]
+			source, err := os.Stat(filepath.Join(index.root, fixtureDrive+"--0", "qlog.bz2"))
+			if err != nil || attachment.LogTime != info.Statistics.MessageStartTime || attachment.CreateTime != uint64(source.ModTime().UnixNano()) {
+				t.Fatal("attachment must use capture LogTime and preserve filesystem CreateTime", err)
+			}
 			positions := 0
 			for {
 				schema, _, message, err := messages.Next(nil)
@@ -203,6 +212,12 @@ func TestZIPAndMCAPExports(t *testing.T) {
 				}
 				if err != nil {
 					t.Fatal(err)
+				}
+				if schema.Name == "dash.v1.Asset" {
+					var asset map[string]any
+					if json.Unmarshal(message.Data, &asset) != nil || asset["modifiedTimeNanoseconds"] != fmt.Sprint(source.ModTime().UnixNano()) {
+						t.Fatal("asset must preserve exact original file time")
+					}
 				}
 				if schema.Name == "dash.v1.Position" {
 					positions++
