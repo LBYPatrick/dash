@@ -220,7 +220,7 @@ func TestAccessUnitParametersAndLimits(t *testing.T) {
 	var output videoProbeBuffer
 	// exec copies stdout with io.Copy. Embedding bytes.Buffer would expose its
 	// ReadFrom method and silently bypass the Write budget on that path.
-	if _, err := io.Copy(&output, strings.NewReader(strings.Repeat("x", (4<<20)+1))); err == nil {
+	if _, err := io.Copy(&output, io.LimitReader(strings.NewReader(strings.Repeat("x", (4<<20)+1)), (4<<20)+1)); err == nil {
 		t.Fatal("io.Copy bypassed the probe budget")
 	}
 	output = videoProbeBuffer{}
