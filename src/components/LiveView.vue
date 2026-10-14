@@ -241,10 +241,12 @@ onBeforeUnmount(() => {
         controls
         aria-label="Live device camera"
       />
-      <div v-if="!connected" class="live-placeholder">
-        <Radio :size="35" />
-        <p>{{ status }}</p>
-      </div>
+      <Transition name="task-feedback">
+        <div v-if="!connected" class="live-placeholder">
+          <Radio :size="35" />
+          <p>{{ status }}</p>
+        </div>
+      </Transition>
     </div>
     <div class="live-actions">
       <span role="status">{{ connected ? status : 'No active stream' }}</span

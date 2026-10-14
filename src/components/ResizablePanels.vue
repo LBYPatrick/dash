@@ -31,8 +31,16 @@ function start(event: PointerEvent) {
   if (!event.isPrimary || event.button !== 0) return;
   event.preventDefault();
   clearTimeout(resetTimer);
+  // A reset may still be interpolating: begin at the visible divider, not its
+  // destination, before removing the transition and capturing the pointer.
+  available.value = panels.value!.getBoundingClientRect().width;
+  const actual = panels
+    .value!.querySelector<HTMLElement>('.session-video')!
+    .getBoundingClientRect().width;
+  const startWidth = clamp(actual);
+  ratio.value = startWidth / usable.value;
   resetting.value = false;
-  drag = { x: event.clientX, width: width.value, pointer: event.pointerId };
+  drag = { x: event.clientX, width: startWidth, pointer: event.pointerId };
   dragging.value = true;
   (event.currentTarget as HTMLElement).setPointerCapture(event.pointerId);
 }

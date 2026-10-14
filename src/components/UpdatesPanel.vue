@@ -188,17 +188,19 @@ onBeforeUnmount(() => {
           {{ state.message }}
         </p>
         <p v-if="error" class="inline-error" role="alert">{{ error }}</p>
-        <div
-          v-if="state.phase === 'downloading' && state.total"
-          class="update-progress"
-        >
-          <progress
-            :value="progress"
-            max="100"
-            aria-label="Update download progress"
-          ></progress
-          ><span>{{ progress }}%</span>
-        </div>
+        <Transition name="task-feedback">
+          <div
+            v-if="state.phase === 'downloading' && state.total"
+            class="update-progress"
+          >
+            <progress
+              :value="progress"
+              max="100"
+              aria-label="Update download progress"
+            ></progress
+            ><span>{{ progress }}%</span>
+          </div>
+        </Transition>
         <button
           class="button full-width"
           :class="{

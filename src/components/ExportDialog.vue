@@ -184,27 +184,37 @@ defineExpose({ open });
         </p>
         <div v-if="error" class="inline-error" role="alert">{{ error }}</div>
         <p v-if="status" class="export-status" role="status">{{ status }}</p>
-        <a
-          v-if="download"
-          class="button primary full-width"
-          :href="download"
-          download
-          ><Download :size="16" />Download again</a
-        ><button
-          v-else
-          class="button primary full-width"
-          :disabled="
-            busy ||
-            sample ||
-            indexStatus.driving !== 'parked' ||
-            ((format === 'mp4' || format === 'raw') && !camera)
-          "
+        <Transition
+          name="task-feedback"
+          mode="out-in"
+          @before-leave="(element) => element.setAttribute('inert', '')"
+          @leave-cancelled="(element) => element.removeAttribute('inert')"
         >
-          <LoaderCircle v-if="busy" class="spinning" :size="16" /><Download
+          <a
+            v-if="download"
+            key="download"
+            class="button primary full-width"
+            :href="download"
+            download
+            ><Download :size="16" />Download again</a
+          ><button
             v-else
-            :size="16"
-          />{{ busy ? 'Preparing download…' : 'Download recording' }}</button
-        ><button
+            key="prepare"
+            class="button primary full-width"
+            :disabled="
+              busy ||
+              sample ||
+              indexStatus.driving !== 'parked' ||
+              ((format === 'mp4' || format === 'raw') && !camera)
+            "
+          >
+            <LoaderCircle v-if="busy" class="spinning" :size="16" /><Download
+              v-else
+              :size="16"
+            />{{ busy ? 'Preparing download…' : 'Download recording' }}
+          </button>
+        </Transition>
+        <button
           v-if="busy"
           type="button"
           class="text-button centered"
