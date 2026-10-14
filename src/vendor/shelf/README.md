@@ -18,3 +18,9 @@ close event expected by callers. No Electron or translation runtime is needed.
 
 Selectors and action menus register with the same dismissal stack, so Escape
 closes the most recently opened overlay first.
+
+`HoverTip.vue` and `hoverTip.ts` are also copied from the same Shelf commit:
+`src/renderer/components/chrome/HoverTip.vue` and `src/renderer/lib/hoverTip.ts`.
+Dash changes the import path, skips hover on touch input, guards hidden/detached
+triggers, supports below-toolbar placement, dismisses labels on scroll/resize/Escape, and removes transitions in
+performance/reduced-motion modes. The same MIT notice applies.

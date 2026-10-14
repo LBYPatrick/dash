@@ -27,12 +27,15 @@ import {
   MoreHorizontal,
   RefreshCw,
   Search,
+  ShieldCheck,
   Unplug,
   Wifi,
   X,
 } from './icons';
 import { vGlassTabs } from './glassTabs';
 import SettingsPopup from './components/SettingsPopup.vue';
+import HoverTip from './vendor/shelf/HoverTip.vue';
+import { vTip, hideTip } from './vendor/shelf/hoverTip';
 import Sheet from './components/Sheet.vue';
 import SelectMenu from './components/SelectMenu.vue';
 import SessionActions from './components/SessionActions.vue';
@@ -89,6 +92,7 @@ const view = ref<'drives' | 'overview' | 'live'>('drives');
 const navigationDrawer = ref<HTMLDialogElement>();
 const mobileMenu = ref<HTMLButtonElement>();
 function showHelp() {
+  hideTip();
   if (navigationDrawer.value?.open) {
     navigationDrawer.value.close();
     mobileMenu.value?.focus();
@@ -477,7 +481,19 @@ onMounted(() => {
   window.addEventListener('online', updateOnline);
   window.addEventListener('offline', updateOnline);
 });
+function dismissTipOnEscape(event: KeyboardEvent) {
+  if (event.key === 'Escape') hideTip();
+}
+onMounted(() => {
+  window.addEventListener('resize', hideTip);
+  window.addEventListener('scroll', hideTip, true);
+  window.addEventListener('keydown', dismissTipOnEscape);
+});
 onBeforeUnmount(() => {
+  hideTip();
+  window.removeEventListener('resize', hideTip);
+  window.removeEventListener('scroll', hideTip, true);
+  window.removeEventListener('keydown', dismissTipOnEscape);
   metadataRequest?.abort();
   stopIndexing();
   connectionRequest?.abort();
@@ -494,6 +510,7 @@ onBeforeUnmount(() => {
     :class="{ 'session-shell': connected && view === 'drives' && !!active }"
   >
     <SimulationControls />
+    <HoverTip />
     <header class="topbar" :data-connected="connected || undefined">
       <div class="toolbar-leading">
         <button
@@ -525,12 +542,13 @@ onBeforeUnmount(() => {
             : 'Live'
       }}</span>
       <div class="header-actions" role="group" aria-label="App controls">
-        <SettingsPopup @rebuild="indexDrives(true)" />
+        <SettingsPopup @rebuild="indexDrives(true)" @help="showHelp" />
         <button
           type="button"
           class="icon-button desktop-help"
           aria-label="Help and installation"
-          title="Help and installation"
+          v-tip="'Help'"
+          data-tip-placement="below"
           @click="showHelp"
         >
           <CircleHelp :size="19" />
@@ -560,9 +578,6 @@ onBeforeUnmount(() => {
         @navigate="navigate"
         @device="switchDevice"
       />
-      <button class="drawer-help" type="button" @click="showHelp">
-        <CircleHelp :size="18" /> Help and installation
-      </button>
     </dialog>
     <main v-if="!connected" class="welcome">
       <div class="welcome-copy">
@@ -635,16 +650,35 @@ onBeforeUnmount(() => {
     >
       <aside class="sidebar">
         <div class="desktop-sidebar-nav">
-          <a
-            class="brand"
-            href="#"
-            aria-label="Dash home"
-            @click.prevent="navigate('drives')"
-          >
-            <span class="brand-mark" aria-hidden="true"
-              ><span></span><span></span></span
-            ><span class="brand-name">dash</span>
-          </a>
+          <div class="sidebar-brand-row">
+            <a
+              class="brand"
+              href="#"
+              aria-label="Dash home"
+              @click.prevent="navigate('drives')"
+            >
+              <span class="brand-mark" aria-hidden="true"
+                ><span></span><span></span></span
+              ><span class="brand-name">dash</span>
+            </a>
+            <div
+              class="sidebar-utilities"
+              role="group"
+              aria-label="App controls"
+            >
+              <button
+                type="button"
+                class="icon-button utility-button"
+                aria-label="Help and installation"
+                v-tip="'Help'"
+                data-tip-placement="below"
+                @click="showHelp"
+              >
+                <CircleHelp :size="18" />
+              </button>
+              <SettingsPopup @rebuild="indexDrives(true)" @help="showHelp" />
+            </div>
+          </div>
           <DeviceSwitcher
             class="sidebar-device"
             :name="deviceName"
@@ -815,17 +849,6 @@ onBeforeUnmount(() => {
             </div>
           </div>
         </Transition>
-        <div class="sidebar-utilities">
-          <SettingsPopup labeled @rebuild="indexDrives(true)" />
-          <button
-            type="button"
-            class="sidebar-help"
-            aria-label="Help and installation"
-            @click="showHelp"
-          >
-            <CircleHelp :size="17" />Help
-          </button>
-        </div>
       </aside>
       <SidebarResize
         v-model="sidebarWidth"

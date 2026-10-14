@@ -178,18 +178,7 @@ dialog::backdrop {
 #app .mobile-page-title {
   display: none;
 }
-#app .drawer-help {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  min-height: 44px;
-  width: 100%;
-  margin-top: 20px;
-  padding: 10px 12px;
-  border-radius: var(--radius-control);
-  color: var(--muted);
-  text-align: left;
-}
+
 @media (max-width: 900px) {
   #app .topbar {
     gap: 8px;
@@ -1127,8 +1116,7 @@ body,
 }
 
 @media (hover: hover) and (pointer: fine) {
-  #app .topbar :is(.icon-button, .device-switcher):hover,
-  #app .drawer-help:hover {
+  #app .topbar :is(.icon-button, .device-switcher):hover {
     background: var(--fill-3);
   }
 }
@@ -1159,8 +1147,7 @@ body,
 
 /* Desktop has one navigation surface. The mobile header and drawer retain
    their own compact layout; neither shares space with the desktop sidebar. */
-#app .desktop-sidebar-nav,
-#app .sidebar-utilities {
+#app .desktop-sidebar-nav {
   display: none;
 }
 #app .sidebar-library {
@@ -1190,7 +1177,7 @@ body,
     margin-bottom: 24px;
   }
   #app .desktop-sidebar-nav .brand {
-    align-self: flex-start;
+    align-self: center;
     padding-inline: 8px;
   }
   #app .sidebar-device {
@@ -1248,30 +1235,54 @@ body,
     margin-top: auto;
     padding: 12px 8px;
   }
+  #app .sidebar-brand-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    min-width: 0;
+  }
   #app .sidebar-utilities {
     display: flex;
-    gap: 4px;
-    padding: 4px 0;
-    flex-shrink: 0;
-  }
-  #app :is(.sidebar-settings, .sidebar-help) {
-    display: flex;
-    flex: 1;
     align-items: center;
-    justify-content: flex-start;
-    gap: 8px;
-    min-height: 32px;
-    padding: 7px 8px;
+    gap: 0;
+    padding: 2px;
+    flex-shrink: 0;
     border-radius: 6px;
-    font-size: 12px;
+    background: var(--fill-4);
   }
-  #app :is(.sidebar-settings, .sidebar-help, .sidebar-device):active {
+  #app .sidebar-utilities .utility-button {
+    display: grid;
+    place-items: center;
+    width: 30px;
+    height: 30px;
+    min-height: 30px;
+    padding: 0;
+    border: 0;
+    border-radius: 4px;
+    background: transparent;
+    color: var(--muted);
+    box-shadow: none;
+  }
+  #app :is(.utility-button, .sidebar-device):active {
     background: var(--fill-1);
   }
 }
 @media (hover: hover) and (pointer: fine) {
-  #app :is(.sidebar-settings, .sidebar-help, .sidebar-device):hover {
+  #app :is(.utility-button, .sidebar-device):hover {
     background: var(--fill-3);
+  }
+}
+#app .settings-help {
+  display: none;
+}
+@media (max-width: 900px) {
+  #app .desktop-help {
+    display: none;
+  }
+  #app .settings-help {
+    display: flex;
+    margin-top: 20px;
   }
 }
 @media (max-height: 600px) and (min-width: 901px) {

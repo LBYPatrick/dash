@@ -104,6 +104,36 @@ try {
       `Camera controls overflow at ${width}x${height}`,
     );
   }
+  await page.setViewportSize({ width: 1440, height: 900 });
+  const brandRow = page.locator('.sidebar-brand-row');
+  const brand = await brandRow.locator('.brand').boundingBox();
+  const utilities = await brandRow.locator('.sidebar-utilities').boundingBox();
+  assert(
+    utilities.x > brand.x + brand.width,
+    'Utilities belong to the right of the brand',
+  );
+  assert(
+    Math.abs(utilities.y + utilities.height / 2 - brand.y - brand.height / 2) <
+      2,
+  );
+  const helpIcon = brandRow.getByRole('button', {
+    name: 'Help and installation',
+    exact: true,
+  });
+  await helpIcon.hover();
+  await page.locator('.hovertip', { hasText: 'Help' }).waitFor();
+  const tip = await page.locator('.hovertip').boundingBox();
+  const helpBounds = await helpIcon.boundingBox();
+  assert(
+    tip.y >= helpBounds.y + helpBounds.height,
+    'Toolbar labels should appear below icons',
+  );
+  await page.keyboard.press('Escape');
+  await page.locator('.hovertip').waitFor({ state: 'hidden' });
+  await brandRow.getByRole('button', { name: 'Settings', exact: true }).hover();
+  await page.locator('.hovertip', { hasText: 'Settings' }).waitFor();
+  await page.mouse.move(800, 300);
+  await page.locator('.hovertip').waitFor({ state: 'hidden' });
   await page.setViewportSize({ width: 936, height: 600 });
   await page
     .locator('.sidebar-device span')
@@ -124,17 +154,36 @@ try {
   await page.getByRole('button', { name: 'Open navigation' }).click();
   const drawer = page.getByRole('dialog', { name: 'Navigation', exact: true });
   await drawer.waitFor();
-  await drawer.getByRole('button', { name: 'Help and installation' }).click();
+  assert.equal(
+    await drawer.getByRole('button', { name: 'Help and installation' }).count(),
+    0,
+  );
+  await page.keyboard.press('Escape');
+  await drawer.waitFor({ state: 'hidden' });
+  assert.equal(
+    await page.getByRole('button', { name: 'Help and installation' }).count(),
+    0,
+  );
+  await page.getByRole('button', { name: 'Settings', exact: true }).click();
+  const settings = page.getByRole('dialog', { name: 'Settings', exact: true });
+  await settings.getByRole('button', { name: 'Help and installation' }).click();
   await page.getByRole('dialog', { name: 'Help', exact: true }).waitFor();
   await page.getByRole('button', { name: 'Close help' }).click();
   await page
     .getByRole('dialog', { name: 'Help', exact: true })
     .waitFor({ state: 'hidden' });
+  assert(await settings.isVisible(), 'Closing Help should return to Settings');
+  assert(
+    await settings
+      .getByRole('button', { name: 'Help and installation' })
+      .evaluate((e) => e === document.activeElement),
+  );
+  await page.keyboard.press('Escape');
+  await settings.waitFor({ state: 'hidden' });
   assert(
     await page
-      .getByRole('button', { name: 'Open navigation' })
+      .getByRole('button', { name: 'Settings', exact: true })
       .evaluate((e) => e === document.activeElement),
-    'Help must return focus to the visible navigation button',
   );
   await page.getByRole('button', { name: 'Open navigation' }).click();
   await drawer.waitFor();
@@ -214,13 +263,15 @@ try {
   await phone
     .getByRole('heading', { name: 'Review your recordings.' })
     .waitFor();
-  assert(
-    await phone
-      .getByRole('button', { name: 'Help and installation' })
-      .isVisible(),
-    'Installation help must remain reachable before a device connects',
+  assert.equal(
+    await phone.getByRole('button', { name: 'Help and installation' }).count(),
+    0,
   );
-  await phone.getByRole('button', { name: 'Help and installation' }).click();
+  await phone.getByRole('button', { name: 'Settings', exact: true }).click();
+  await phone
+    .getByRole('dialog', { name: 'Settings', exact: true })
+    .getByRole('button', { name: 'Help and installation' })
+    .click();
   await phone.getByRole('dialog', { name: 'Help', exact: true }).waitFor();
   await phoneContext.close();
   assert.deepEqual(errors, []);

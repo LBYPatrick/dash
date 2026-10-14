@@ -1,12 +1,12 @@
 <script setup lang="ts">
 import { ref } from 'vue';
 import Sheet from './Sheet.vue';
-import { Settings, Sun, Moon, Monitor } from '../icons';
+import { Settings, Sun, Moon, Monitor, CircleHelp } from '../icons';
 import { theme, performanceMode, preferencesSaved } from '../appearance';
 import { backendOrigin, indexStatus } from '../indexer';
+import { vTip } from '../vendor/shelf/hoverTip';
 import { vGlassTabs } from '../glassTabs';
-defineProps<{ labeled?: boolean }>();
-const emit = defineEmits<{ rebuild: [] }>();
+const emit = defineEmits<{ rebuild: []; help: [] }>();
 const dialog = ref<InstanceType<typeof Sheet>>();
 const themes = [
   { value: 'light', label: 'Light', icon: Sun },
@@ -16,12 +16,15 @@ const themes = [
 </script>
 <template>
   <button
-    :class="labeled ? 'sidebar-settings' : 'icon-button'"
+    type="button"
+    class="icon-button utility-button"
+    v-tip="'Settings'"
+    data-tip-placement="below"
     aria-label="Settings"
     aria-haspopup="dialog"
     @click="dialog?.showModal()"
   >
-    <Settings :size="labeled ? 17 : 19" /><span v-if="labeled">Settings</span>
+    <Settings :size="18" />
   </button>
   <Sheet
     ref="dialog"
@@ -85,6 +88,13 @@ const themes = [
           {{ indexStatus.errors }} files could not be indexed. Rebuild to retry.
         </p>
       </section>
+      <button
+        class="settings-help button full-width"
+        type="button"
+        @click="emit('help')"
+      >
+        <CircleHelp :size="18" />Help and installation
+      </button>
       <p v-if="!preferencesSaved" role="status">
         Browser storage is unavailable. Preferences apply for this session.
       </p>

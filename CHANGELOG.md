@@ -21,6 +21,8 @@ All notable changes to Dash are documented here using Keep a Changelog.
 
 ### Changed
 
+- Group icon-only Help and Settings beside the desktop Dash brand with Shelf hover labels; move mobile Help inside Settings with nested-sheet dismissal and focus restoration.
+
 - Move camera selection into bottom playback controls, with a dedicated row in narrow viewers; disable engagement controls and hide persisted overlays when no engagement samples exist.
 
 - Move index rebuilding into Settings and processing explanations into Help; show a gently animated indexing indicator only during active parked builds, respecting reduced motion and performance mode.

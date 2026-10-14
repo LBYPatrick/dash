@@ -109,3 +109,8 @@ Theme changes update paint properties without replacing sources or the camera. O
 | ------------------------------------------------ | -------------------------------------------------------------------------------------------- | ----------------------------------------------------- |
 | Camera selector floats above the video           | Camera selector joins bottom playback controls; narrow panels give it a dedicated second row | Keep video unobstructed and related controls together |
 | Engagement toggle remains active without samples | Disabled “Engagement not recorded” action; persisted overlays stay hidden until data exists  | Explain availability without implying recorded state  |
+
+| Before                                             | After                                                                                                 | Why                                                                        |
+| -------------------------------------------------- | ----------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
+| Help and Settings occupy a separate sidebar footer | One compact icon group justified to the right of Dash; Shelf labels appear on hover or keyboard focus | Keep utilities together without permanent text or a second navigation area |
+| Mobile Help lives in the navigation drawer         | Help lives inside Settings, returning to Settings when dismissed                                      | Keep mobile navigation focused on destinations and utilities together      |
