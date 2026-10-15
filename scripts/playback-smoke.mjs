@@ -72,6 +72,14 @@ try {
     await page.getByRole('combobox', { name: 'Camera', exact: true }).click();
     await page.getByRole('option', { name, exact: true }).click();
   }
+  // Chromium may retain audio decode counters from the preceding source.
+  // This silent fixture must keep its mute control disabled after a change.
+  await page.locator('video').evaluate((element) => {
+    Object.defineProperty(element, 'webkitAudioDecodedByteCount', {
+      configurable: true,
+      get: () => 1000,
+    });
+  });
   let delay = true;
   await context.route('**/api/video?*', async (route) => {
     if (delay) {
@@ -97,6 +105,9 @@ try {
     () => document.querySelector('video')?.readyState >= 2,
   );
   await expect(page.locator('.player-preparing')).toHaveCount(0);
+  await expect(
+    page.getByRole('button', { name: 'No recorded audio', exact: true }),
+  ).toBeDisabled();
   // A failed readiness request has an explicit, dismissible local error.
   await context.route('**/api/playback/prepare?*', (route) =>
     route.fulfill({ status: 503, json: { error: 'test unavailable' } }),

@@ -239,6 +239,9 @@ watch(rate, (value) => {
   if (video.value) video.value.playbackRate = value;
 });
 function detectAudio() {
+  // HLS codec events belong to the active source. Chromium can retain its
+  // cumulative decoded-byte counter after a MediaSource has been replaced.
+  if (stream) return;
   const element = video.value as
     | (HTMLVideoElement & {
         audioTracks?: { length: number };

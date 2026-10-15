@@ -33,6 +33,8 @@ All notable changes to Dash are documented here using Keep a Changelog.
 
 ### Fixed
 
+- Ignore Chromium's stale audio decode counters after HLS camera/session changes so silent footage keeps its audio control disabled.
+
 - Make every MCAP video message an independent H.264 keyframe with decoder headers so paused Foxglove seeks do not depend on preceding frames. Preserve recorded timing and original attachments.
 
 - Preserve leading and internal microphone gaps when exporting sessions that only contain audio in some parts.
