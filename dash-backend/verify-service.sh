@@ -2,7 +2,12 @@
 set -euo pipefail
 systemctl is-active --quiet dash.service
 fragment="$(systemctl show dash.service --property=FragmentPath --value)"
-[[ "$(readlink -f -- "$fragment")" == /data/dash/systemd/dash.service ]]
+source /data/dash/systemd-registration.sh
+dash_unit_owned "$fragment"
+# Verify the boot-readable registration, not only the loaded in-memory unit.
+[[ -f "$fragment" && ! -L "$fragment" ]]
+cmp -s "$fragment" /data/dash/systemd/dash.service
+[[ -x /data/dash/boot-state.sh && -f /run/dash/boot-validated && ! -L /run/dash/boot-validated && "$(cat /run/dash/boot-validated)" == validated ]]
 [[ "$(systemctl show dash.service --property=KillMode --value)" == control-group ]]
 [[ "$(systemctl show dash.service --property=Restart --value)" == on-failure ]]
 # A fresh marker binds readiness to our running supervisor and child. Do not

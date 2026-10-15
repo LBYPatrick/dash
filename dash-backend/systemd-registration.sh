@@ -1,7 +1,20 @@
 #!/bin/bash
 # Sourced by Dash's root-owned install/uninstall helpers. The only persistent
-# system-partition changes are our unit and boot-enablement symlinks.
+# system-partition changes are our small unit copy and enablement symlink.
+DASH_UNIT_MARKER='# Dash managed service. Source: /data/dash/systemd/dash.service'
 dash_registration_writable() { [[ -w /etc/systemd/system ]]; }
+
+# Accept the legacy /data link for migration, or our root-owned unit copy.
+dash_unit_owned() {
+  local fragment="$1"
+  [[ -e "$fragment" || -L "$fragment" ]] || return 1
+  if [[ -L "$fragment" ]]; then
+    [[ "$(readlink -f -- "$fragment")" == /data/dash/systemd/dash.service ]]
+  else
+    [[ "$fragment" == /etc/systemd/system/dash.service || "$fragment" == /run/systemd/system/dash.service ]] &&
+      [[ -f "$fragment" && "$(head -n 1 "$fragment")" == "$DASH_UNIT_MARKER" ]]
+  fi
+}
 
 dash_systemd_registration() (
   set -euo pipefail
@@ -26,6 +39,17 @@ dash_systemd_registration() (
   trap 'exit 130' INT
   trap 'exit 143' TERM
   trap 'exit 129' HUP
+  directory=/etc/systemd/system
+  if [[ "$runtime" == true ]]; then directory=/run/systemd/system; fi
+  if [[ -e "$directory/dash.service" || -L "$directory/dash.service" ]]; then
+    dash_unit_owned "$directory/dash.service" || { echo 'Refusing foreign Dash registration'; exit 1; }
+  fi
+  wants="$directory/multi-user.target.wants"
+  if [[ -e "$wants/dash.service" || -L "$wants/dash.service" ]]; then
+    [[ -L "$wants/dash.service" ]] || { echo 'Refusing foreign Dash enablement'; exit 1; }
+    target="$(readlink "$wants/dash.service")"
+    [[ "$target" == /data/dash/systemd/dash.service || "$target" == ../dash.service || "$target" == "$directory/dash.service" ]] || { echo 'Refusing foreign Dash enablement'; exit 1; }
+  fi
   if [[ "$runtime" == true ]]; then
     options=(--runtime)
   elif ! dash_registration_writable; then
@@ -35,19 +59,28 @@ dash_systemd_registration() (
     filesystem="$(findmnt -n -o FSTYPE --target /etc/systemd/system)"
     settings="$(findmnt -n -o OPTIONS --target /etc/systemd/system)"
     [[ "$target" == / && "$filesystem" == ext4 && ",$settings," == *,ro,* ]] || { echo 'Unsupported read-only unit registration mount'; exit 1; }
-    echo 'Temporarily making AGNOS root writable for Dash systemd links only.'
+    echo 'Temporarily making AGNOS root writable for Dash systemd registration only.'
     remounted=true
     mount -o remount,rw /
   fi
   if [[ "$action" == register ]]; then
-    systemctl ${options[@]+"${options[@]}"} link /data/dash/systemd/dash.service
+    # /data is unavailable when systemd initially loads the boot transaction.
+    # A physical unit copy exposes RequiresMountsFor before its payload mounts.
+    install -o root -g root -m 644 /data/dash/systemd/dash.service "$directory/dash.service.next"
+    sync -- "$directory/dash.service.next"
+    mv -Tf "$directory/dash.service.next" "$directory/dash.service"
+    sync -- "$directory"
+    install -d -o root -g root -m 755 "$wants"
+    ln -sfn ../dash.service "$wants/dash.service.next"
+    mv -Tf "$wants/dash.service.next" "$wants/dash.service"
+    sync -- "$wants" "$directory"
     systemctl ${options[@]+"${options[@]}"} enable dash.service
   else
     systemctl ${options[@]+"${options[@]}"} disable dash.service
-    # systemctl normally removes both links. Remove an orphan only if it is
-    # still exactly our own registration; never replace another application's.
-    directory=/etc/systemd/system
-    if [[ "$runtime" == true ]]; then directory=/run/systemd/system; fi
-    if [[ -L "$directory/dash.service" && "$(readlink "$directory/dash.service")" == /data/dash/systemd/dash.service ]]; then rm "$directory/dash.service"; fi
+    # Remove only our copied unit (or its legacy symlink) after disablement.
+    if [[ -e "$directory/dash.service" || -L "$directory/dash.service" ]]; then
+      dash_unit_owned "$directory/dash.service" && rm "$directory/dash.service"
+    fi
+    sync -- "$directory"
   fi
 )

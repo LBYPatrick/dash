@@ -6,8 +6,9 @@ case "${1:-}" in --runtime) options=(--runtime) ;; '') ;; *) echo 'Usage: instal
 [[ "$(id -u)" == 0 ]] || { echo 'Run: sudo bash /data/dash/install.sh'; exit 1; }
 [[ -d /data/dash && ! -L /data/dash ]]
 [[ "$(cat /data/params/d/IsOnroad)" == 0 && "$(cat /data/params/d/IsOffroad)" == 1 ]] || { echo 'Installation requires confirmed parked state'; exit 1; }
+source /data/dash/systemd-registration.sh
 fragment="$(systemctl show dash.service --property=FragmentPath --value 2>/dev/null || true)"
-[[ -z "$fragment" || "$(readlink -f -- "$fragment")" == /data/dash/systemd/dash.service ]] || { echo 'Refusing to replace another dash.service'; exit 1; }
+[[ -z "$fragment" ]] || dash_unit_owned "$fragment" || { echo 'Refusing to replace another dash.service'; exit 1; }
 release="$(readlink /data/dash/current)"
 [[ "$release" =~ ^releases/[a-zA-Z0-9.+_-]+$ && ! -L "/data/dash/$release" ]]
 for tool in ffmpeg ffprobe; do
@@ -21,7 +22,6 @@ max="$(sed -n 's/.*"memoryMaxMiB":\([0-9][0-9]*\).*/\1/p' <<< "$settings")"
 sed -i "s/^MemoryHigh=.*/MemoryHigh=${high}M/; s/^MemoryMax=.*/MemoryMax=${max}M/" /data/dash/systemd/dash.service
 sync -- /data/dash/systemd/dash.service /data/dash/systemd
 install -d -o comma -g comma -m 700 /data/dash/cache
-source /data/dash/systemd-registration.sh
 runtime=false
 if [[ ${#options[@]} != 0 ]]; then runtime=true; fi
 dash_systemd_registration register "$runtime"

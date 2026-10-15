@@ -53,7 +53,9 @@ id comma >/dev/null
 [[ ! -L /data/dash ]] || { echo '/data/dash must not be a symlink'; exit 1; }
 # Only inspect our own unit, never replace another application's registration.
 fragment="$(systemctl show dash.service --property=FragmentPath --value 2>/dev/null || true)"
-[[ -z "$fragment" || "$(readlink -f -- "$fragment")" == /data/dash/systemd/dash.service ]] || { echo 'dash.service belongs to another installation'; exit 1; }
+if [[ -n "$fragment" && "$(readlink -f -- "$fragment")" != /data/dash/systemd/dash.service ]]; then
+  [[ ( "$fragment" == /etc/systemd/system/dash.service || "$fragment" == /run/systemd/system/dash.service ) && -f "$fragment" && ! -L "$fragment" && "$(head -n 1 "$fragment")" == '# Dash managed service. Source: /data/dash/systemd/dash.service' ]] || { echo 'dash.service belongs to another installation'; exit 1; }
+fi
 [[ -d /data/media/0/realdata && -d /data/params/d ]]
 [[ "$(cat /data/params/d/IsOnroad)" == 0 && "$(cat /data/params/d/IsOffroad)" == 1 ]] || { echo 'Install only with confirmed parked state'; exit 1; }
 [[ -r /data/media/0/realdata && -w /data ]]
@@ -84,6 +86,7 @@ scp "${DASH_SSH_OPTIONS[@]}" -r "$DASH_STAGING/payload/." "$DASH_TARGET:/data/da
 scp "${DASH_SSH_OPTIONS[@]}" dash-backend/install-service.sh "$DASH_TARGET:/data/dash/.install-service.new"
 scp "${DASH_SSH_OPTIONS[@]}" dash-backend/systemd-registration.sh "$DASH_TARGET:/data/dash/.registration.new"
 scp "${DASH_SSH_OPTIONS[@]}" dash-backend/uninstall-service.sh "$DASH_TARGET:/data/dash/.uninstall-service.new"
+scp "${DASH_SSH_OPTIONS[@]}" dash-backend/boot-state.sh "$DASH_TARGET:/data/dash/.boot-state.new"
 scp "${DASH_SSH_OPTIONS[@]}" dash-backend/verify-service.sh "$DASH_TARGET:/data/dash/.verify-service.new"
 scp "${DASH_SSH_OPTIONS[@]}" dash-backend/systemd/dash.service "$DASH_TARGET:/data/dash/.service.new"
 scp "${DASH_SSH_OPTIONS[@]}" "$DASH_STAGING/startup-mode" "$DASH_TARGET:/data/dash/.startup.new"
@@ -130,6 +133,7 @@ dash_install_atomic /data/dash/.install-service.new /data/dash/install.sh 755
 dash_install_atomic /data/dash/.registration.new /data/dash/systemd-registration.sh 755
 dash_install_atomic /data/dash/.uninstall-service.new /data/dash/uninstall.sh 755
 dash_install_atomic /data/dash/.verify-service.new /data/dash/verify-service.sh 755
+dash_install_atomic /data/dash/.boot-state.new /data/dash/boot-state.sh 755
 sudo -n install -d -o root -g root -m 755 /data/dash/systemd
 dash_install_atomic /data/dash/.service.new /data/dash/systemd/dash.service 644
 if [[ -e "/data/dash/releases/$DASH_TAG" ]]; then
@@ -160,7 +164,7 @@ if ! sudo -n bash /data/dash/install.sh "${DASH_INSTALL_FLAGS[@]}"; then
   exit 1
 fi
 trap - ERR
-rm -f /data/dash/.registration.new /data/dash/.install-service.new /data/dash/.verify-service.new /data/dash/.uninstall-service.new /data/dash/.service.new
+rm -f /data/dash/.registration.new /data/dash/.install-service.new /data/dash/.verify-service.new /data/dash/.uninstall-service.new /data/dash/.service.new /data/dash/.boot-state.new
 ACTIVATE
 echo "Installed. Open http://${DASH_TARGET#*@}:8088 on the same LAN or device hotspot."
 echo 'Lifecycle: sudo systemctl {start|stop|restart|status} dash.service'

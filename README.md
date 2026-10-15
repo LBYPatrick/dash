@@ -96,7 +96,7 @@ make device-install DEVICE=comma@DEVICE_IP CHANNEL=nightly
 make device-install DEVICE=comma@DEVICE_IP CHANNEL=dev RELEASE=TAG
 ```
 
-The installer verifies the downloaded release, transfers the Go binary, prebuilt site and static media tools, installs under `/data/dash`, enables `dash.service`, and verifies fresh supervised startup. A channel must have a published release before this route can work. AGNOS boot setup briefly remounts root to add only Dash’s two systemd symlinks, then restores read-only mode. Use `RUNTIME=1` for temporary testing with no system-partition writes.
+The installer verifies the downloaded release, transfers the Go binary, prebuilt site and static media tools, installs under `/data/dash`, enables `dash.service`, and verifies fresh supervised startup. A channel must have a published release before this route can work. AGNOS boot setup briefly remounts root to install Dash’s small unit file and enablement link, then restores read-only mode. The unit must be readable before `/data` mounts; the app stays under `/data/dash`. Use `RUNTIME=1` for temporary testing with no system-partition writes.
 
 Open **`http://DEVICE_IP:8088`** from the same network. Trusted HTTPS is required to install the PWA on a LAN address; ordinary HTTP still serves the interface. See [HTTPS setup](docs/installation.md#local-https-and-pwa-installation).
 

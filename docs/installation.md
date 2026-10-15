@@ -6,7 +6,7 @@ The target needs a comma 3X/4 running Linux ARM64, systemd, a `comma` user/group
 
 Enable device SSH using the [official connection instructions](https://docs.comma.ai/how-to/connect-to-comma/). Use the address shown on your current network; no network switching is necessary. The PWA and API share `http://DEVICE_IP:8088`. Once installed, recordings and exports require no internet or account.
 
-All Dash files live in `/data/dash`. Systemd’s registration and boot-enablement symlinks are the only necessary links outside that folder. On AGNOS, root is normally read-only. The root-owned registration helper briefly remounts it writable **only** to add/remove Dash’s links, then restores read-only state on success or failure. It never edits firmware launchers, other units or mount configuration. Firmware and original recordings are left in place. Device mode uses fixed app budgets and does not inspect CPU topology, RAM availability, `/proc` or cgroup controller files.
+All app assets live in `/data/dash`. The only persistent files outside it are a small systemd unit copy at `/etc/systemd/system/dash.service` and its boot-enablement symlink. A unit symlink into `/data` cannot reliably start at boot because systemd reads units before mounting `/data`; the copied unit declares `RequiresMountsFor=/data`. On AGNOS, root is normally read-only. The root-owned registration helper briefly remounts it writable **only** to add/remove Dash’s unit and enablement link, then restores read-only state on success or failure. It never edits firmware launchers, other units or mount configuration. Firmware and original recordings are left in place. Device mode uses fixed app budgets and does not inspect CPU topology, RAM availability, `/proc` or cgroup controller files.
 
 ## SSH installation from your computer
 
@@ -120,11 +120,11 @@ Browser recording saves the incoming video locally.
 
 ## Power cycles and interrupted work
 
-A persistent installation starts `dash.service` automatically when `/data` is mounted after a normal power cycle. Runtime installations (`--runtime`) do not survive reboot. The service waits for confirmed parked state before indexing, conversion, or live capture; unknown state keeps heavy workers stopped.
+A persistent installation starts `dash.service` automatically when `/data` is mounted after a normal power cycle. Runtime installations (`--runtime`) do not survive reboot. Before `comma.service` starts, a small boot guard snapshots the persisted offroad flag. Dash waits for the firmware to replace it with a coherent new driving state, preventing the previous boot’s parked flags from permitting early work. Systemd owns the guard and its ephemeral `/run/dash` markers. Same-boot restarts retain validation; explicit installation after the firmware is active uses the ordinary state gate. Indexing, conversion and live capture still require confirmed parked state; unknown state keeps heavy workers stopped.
 
 Completed recording parts are committed individually to SQLite WAL with full synchronization. An interrupted scan reuses those entries and retries unfinished parts. Thumbnails are flushed and renamed atomically. This recovery is tested with a killed writer; it does not simulate a device storage controller losing power.
 
-The SSH installer flushes staged release contents before switching `current`, and replaces the bootstrap and lifecycle files using flushed temporary files and atomic renames. It never removes a release still referenced by the boot pointer. Reinstalling an identical tag reuses its files; if that release is damaged, install another tag or a fresh `--source` build. A first installation must finish systemd registration before automatic startup is available. Device acceptance testing verified automatic systemd recovery after abruptly killing Dash’s supervisor, process-group cleanup and preservation of all 572 cached parts. A physical reboot or unplug test has not been performed.
+The SSH installer flushes staged release contents before switching `current`, and replaces the bootstrap and lifecycle files using flushed temporary files and atomic renames. It never removes a release still referenced by the boot pointer. Reinstalling an identical tag reuses its files; if that release is damaged, install another tag or a fresh `--source` build. A first installation must finish systemd registration before automatic startup is available. Device acceptance testing verified automatic systemd recovery after abruptly killing Dash’s supervisor, process-group cleanup and preservation of all 572 cached parts. A physical power cycle exposed an early-boot unit-loading failure in the former `/data` symlink registration. The installer now migrates it to a boot-readable unit copy; isolated tests verify readability with `/data` unavailable. A subsequent device reboot verified automatic startup and unchanged cached entries. Boot-guard tests hold startup on old or inconsistent flags and verify fresh-state and same-boot restart behavior.
 
 ## AGNOS updates and removal
 
@@ -137,7 +137,7 @@ sudo bash /data/dash/install.sh
 sudo bash /data/dash/verify-service.sh
 ```
 
-The script reinstalls/enables the unit and checks fresh supervised startup again. Dash does not patch sunnypilot's manager or install an extra boot hook to resurrect itself. A firmware-only update normally leaves `/data/dash` alone, but can change log schemas or streaming APIs. A factory reset/reflash or explicit data wipe can remove `/data`; keep exported recordings elsewhere.
+The script restores the copied unit and enablement link and checks fresh supervised startup again. Dash does not patch sunnypilot's manager or install an extra boot hook to resurrect itself. A firmware-only update normally leaves `/data/dash` alone, but can change log schemas or streaming APIs. A factory reset/reflash or explicit data wipe can remove `/data`; keep exported recordings elsewhere.
 
 To remove Dash, its cached exports, static tools and systemd links:
 

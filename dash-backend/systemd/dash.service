@@ -1,6 +1,8 @@
+# Dash managed service. Source: /data/dash/systemd/dash.service
 [Unit]
 Description=Dash local drive library and PWA
 After=local-fs.target network.target
+Before=comma.service
 RequiresMountsFor=/data
 StartLimitIntervalSec=300
 StartLimitBurst=3
@@ -11,9 +13,13 @@ Type=simple
 User=comma
 Group=comma
 WorkingDirectory=/data/dash
+RuntimeDirectory=dash
+RuntimeDirectoryMode=0700
+RuntimeDirectoryPreserve=yes
 Environment=DASH_TLS_ARGS= DASH_EXTRA_ARGS=
 EnvironmentFile=-/data/dash/dash.env
-ExecStart=/data/dash/dash-bootstrap --supervise --update-home /data/dash --listen 0.0.0.0:8088 --root /data/media/0/realdata --cache /data/dash/cache --app /data/dash/current/dist --params /data/params/d --firmware /data/openpilot --device $DASH_TLS_ARGS $DASH_EXTRA_ARGS
+ExecStartPre=/data/dash/boot-state.sh --runtime /run/dash --params /data/params/d prepare
+ExecStart=/data/dash/boot-state.sh --runtime /run/dash --params /data/params/d run /data/dash/dash-bootstrap --supervise --update-home /data/dash --listen 0.0.0.0:8088 --root /data/media/0/realdata --cache /data/dash/cache --app /data/dash/current/dist --params /data/params/d --firmware /data/openpilot --device $DASH_TLS_ARGS $DASH_EXTRA_ARGS
 ExecStopPost=/data/dash/dash-bootstrap --stop-live --cache /data/dash/cache --params /data/params/d
 Restart=on-failure
 RestartSec=10
