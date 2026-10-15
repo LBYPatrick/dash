@@ -46,6 +46,8 @@ export interface UseDragOptions {
    * value; hand it, and the velocity, to a spring.
    */
   onRelease?: (state: DragState & { projected: number }) => void;
+  /** Interrupted gestures return to rest without interpreting a throw. */
+  onCancel?: () => void;
   /** Clamp with progressive resistance rather than a hard stop. */
   bounds?: () => DragBounds;
   /** Size of the container along the drag axis; sets how quickly the edge resists. */
@@ -93,6 +95,7 @@ export function useDrag(options: UseDragOptions) {
     getValue,
     onDrag,
     onRelease,
+    onCancel,
     bounds,
     extent,
     threshold = DEFAULT_THRESHOLD,
@@ -108,23 +111,22 @@ export function useDrag(options: UseDragOptions) {
   let origin = 0;
   let startValue = 0;
   let committed = false;
-  /** The last value the gesture tracked, so a release we never see can still land. */
-  let latest: { value: number; overshoot: number } | null = null;
 
   const coordinate = (event: PointerEvent) =>
     axis === 'x' ? event.clientX : event.clientY;
 
   /** Velocity in px/s from the recent samples; zero if the pointer was resting. */
-  function releaseVelocity(): number {
+  function releaseVelocity(now: number): number {
     const history = samples.value;
     const last = history[history.length - 1];
     if (!last) return 0;
 
-    const cutoff = last.time - VELOCITY_WINDOW_MS;
+    const cutoff = now - VELOCITY_WINDOW_MS;
+    if (last.time < cutoff) return 0;
     const first = history.find((sample) => sample.time >= cutoff);
     if (!first || first === last) return 0;
 
-    const elapsed = last.time - first.time;
+    const elapsed = now - first.time;
     if (elapsed <= 0) return 0;
 
     return ((last.value - first.value) / elapsed) * 1000;
@@ -188,40 +190,30 @@ export function useDrag(options: UseDragOptions) {
       { value: position, time: event.timeStamp },
     ].slice(-12);
 
-    latest = { value, overshoot };
-    onDrag({ value, velocity: releaseVelocity(), overshoot });
+    onDrag({ value, velocity: releaseVelocity(event.timeStamp), overshoot });
   }
 
   /**
-   * Ends the gesture from the last position it tracked.
-   *
-   * The release is still reported, so a handle dragged past its limit snaps
-   * back rather than being left rubber-banded where the pointer was lost.
+   * A cancelled gesture has no intentional release velocity. Return the
+   * control to rest rather than treating an OS interruption as a throw.
    */
   function abandon(): void {
     if (pointerId === null) return;
 
     const wasDragging = committed;
-    const state = latest;
-    const velocityRaw = releaseVelocity();
-    const velocity = invert ? -velocityRaw : velocityRaw;
-
     detach();
+    if (wasDragging) onCancel?.();
+  }
 
-    if (!wasDragging || !onRelease || !state) return;
-
-    onRelease({
-      ...state,
-      velocity,
-      projected: state.value + projectMomentum(velocity),
-    });
+  function handleCancel(event: PointerEvent): void {
+    if (event.pointerId === pointerId) abandon();
   }
 
   function handleUp(event: PointerEvent): void {
     if (event.pointerId !== pointerId) return;
 
     const wasDragging = committed;
-    const velocityRaw = releaseVelocity();
+    const velocityRaw = releaseVelocity(event.timeStamp);
     const velocity = invert ? -velocityRaw : velocityRaw;
 
     detach();
@@ -249,18 +241,17 @@ export function useDrag(options: UseDragOptions) {
       document.documentElement.classList.remove(DRAGGING_CLASS);
 
     if (target && pointerId !== null) {
+      target.removeEventListener('lostpointercapture', abandon);
       if (target.hasPointerCapture(pointerId))
         target.releasePointerCapture(pointerId);
-      target.removeEventListener('lostpointercapture', abandon);
     }
     window.removeEventListener('pointermove', handleMove);
     window.removeEventListener('pointerup', handleUp);
-    window.removeEventListener('pointercancel', handleUp);
+    window.removeEventListener('pointercancel', handleCancel);
     window.removeEventListener('blur', abandon);
     target = null;
     pointerId = null;
     committed = false;
-    latest = null;
     dragging.value = false;
     samples.value = [];
   }
@@ -293,7 +284,7 @@ export function useDrag(options: UseDragOptions) {
     target.addEventListener('lostpointercapture', abandon);
     // A release must end the gesture even before the pointer is captured.
     window.addEventListener('pointerup', handleUp);
-    window.addEventListener('pointercancel', handleUp);
+    window.addEventListener('pointercancel', handleCancel);
     window.addEventListener('blur', abandon);
   }
 

@@ -758,18 +758,25 @@ dialog::backdrop {
     min-height: 44px;
   }
 }
-#app :is(.select-trigger, .shelf-sheet-close, .button):focus-visible {
+/* A tonal inset underline makes keyboard focus visible without outlining every
+   surface. Accent text is tuned against raised and selected surfaces as well. */
+#app :is(button, a[href], summary, input, [role='separator']):focus-visible {
   outline: none;
-  background-image: linear-gradient(
-    color-mix(in oklab, var(--color-primary) 16%, transparent),
-    color-mix(in oklab, var(--color-primary) 16%, transparent)
-  );
-  border-color: color-mix(in oklab, var(--color-primary) 70%, transparent);
+  box-shadow: inset 0 -3px 0 var(--color-primary-text);
 }
-@media (prefers-contrast: more) {
-  #app :is(.select-trigger, .shelf-sheet-close, .button):focus-visible {
-    outline: 2px solid var(--color-primary);
-    outline-offset: 2px;
+#app :is(.button.primary, .accent-swatch):focus-visible {
+  box-shadow: inset 0 -3px 0 currentColor;
+}
+:root[data-interaction='keyboard'] #app .search:focus-within,
+#app .settings-switch input:focus-visible + .switch-track,
+#app .theme-options > label:has(input:focus-visible) {
+  outline: none;
+  box-shadow: inset 0 -3px 0 var(--color-primary-text);
+}
+@media (forced-colors: active) {
+  #app :is(button, a[href], summary, input, [role='separator']):focus-visible {
+    outline: 2px solid Highlight;
+    outline-offset: -2px;
   }
 }
 /* Short windows need a scrollable library rather than a collapsed drive list.

@@ -49,7 +49,7 @@ watch(
       '--color-primary-text',
       oklch({
         ...accent.value,
-        l: resolvedTheme.value === 'dark' ? 0.78 : 0.44,
+        l: resolvedTheme.value === 'dark' ? 0.82 : 0.44,
       }),
     );
     root.dataset.performance = String(performanceMode.value);

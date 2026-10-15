@@ -1242,7 +1242,8 @@ svg {
   *::before,
   *::after {
     animation: none !important;
-    transition: none !important;
+    transition-property: opacity, background-color, color !important;
+    transition-duration: 100ms;
     scroll-behavior: auto !important;
   }
 }

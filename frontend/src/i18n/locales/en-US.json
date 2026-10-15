@@ -447,7 +447,10 @@
   },
   "engagement": {
     "enabledInactive": "Enabled · inactive",
-    "disengaged": "Disengaged"
+    "disengaged": "Disengaged",
+    "confidence_high": "High confidence",
+    "confidence_medium": "Medium confidence",
+    "confidence_low": "Low confidence"
   },
   "common": {
     "segments_one": "{{count, number}} segment",

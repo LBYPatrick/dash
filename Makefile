@@ -11,7 +11,7 @@ export VP_HOME := $(CURDIR)/.artifacts/toolchains/vite-plus
 endif
 export VP_NO_UPDATE_CHECK := 1
 
-.PHONY: install dev build build-arm64 test check lint format serve fixture smoke design-smoke appearance-smoke shelf-smoke viewer-smoke statistics-smoke mobile-scroll-smoke map-smoke index-ui-smoke updates-smoke mobile-flow-smoke live-capture-smoke live-layout-smoke motion-smoke i18n-smoke playback-smoke
+.PHONY: install dev build build-arm64 test check lint format serve fixture smoke design-smoke appearance-smoke shelf-smoke viewer-smoke statistics-smoke mobile-scroll-smoke map-smoke index-ui-smoke updates-smoke mobile-flow-smoke live-capture-smoke live-layout-smoke motion-smoke i18n-smoke playback-smoke frontend-polish-smoke
 install:
 	vp install --frozen-lockfile
 	cd backend && go mod download
@@ -60,6 +60,8 @@ smoke:
 	node scripts/smoke.mjs
 design-smoke:
 	node scripts/design-smoke.mjs
+frontend-polish-smoke:
+	node scripts/frontend-polish-smoke.mjs
 appearance-smoke:
 	node scripts/appearance-smoke.mjs
 shelf-smoke:
@@ -128,7 +130,7 @@ release:
 
 .PHONY: help
 help:
-	@printf '%s\n' 'Dash workflows:' '  make install / dev / build / check / lint (Vite+, Oxlint, Oxfmt)' '  make generate-mcap-schemas / regenerate-telemetry-fixtures [PYTHON=path]' '  make fixture / serve / smoke / design-smoke / appearance-smoke / shelf-smoke / viewer-smoke / statistics-smoke / mobile-scroll-smoke / map-smoke / index-ui-smoke / updates-smoke / mobile-flow-smoke / live-capture-smoke / live-layout-smoke / motion-smoke / i18n-smoke' '  make sandbox-up / sandbox-test / sandbox-smoke / sandbox-logs / sandbox-down' '  make setup-build-env / build-env-check / build-media [MEDIA_ARCH=arm64|amd64]' '  make device-uninstall DEVICE=comma@DEVICE_IP [DEVICE_KEY=/path/to/key]' '  make device-install-source DEVICE=comma@DEVICE_IP / source-release / source-install-smoke' '  make device-check DEVICE=comma@DEVICE_IP [RUNTIME=1]' '  make device-install DEVICE=comma@DEVICE_IP [CHANNEL=main|nightly|dev] [RELEASE=TAG] [DEVICE_KEY=/path/to/key] [RUNTIME=1]' '  make release CHANNEL=dev BUILD=1 / ota-smoke'
+	@printf '%s\n' 'Dash workflows:' '  make install / dev / build / check / lint (Vite+, Oxlint, Oxfmt)' '  make generate-mcap-schemas / regenerate-telemetry-fixtures [PYTHON=path]' '  make fixture / serve / smoke / design-smoke / appearance-smoke / shelf-smoke / viewer-smoke / statistics-smoke / mobile-scroll-smoke / map-smoke / index-ui-smoke / updates-smoke / mobile-flow-smoke / live-capture-smoke / live-layout-smoke / motion-smoke / i18n-smoke / frontend-polish-smoke' '  make sandbox-up / sandbox-test / sandbox-smoke / sandbox-logs / sandbox-down' '  make setup-build-env / build-env-check / build-media [MEDIA_ARCH=arm64|amd64]' '  make device-uninstall DEVICE=comma@DEVICE_IP [DEVICE_KEY=/path/to/key]' '  make device-install-source DEVICE=comma@DEVICE_IP / source-release / source-install-smoke' '  make device-check DEVICE=comma@DEVICE_IP [RUNTIME=1]' '  make device-install DEVICE=comma@DEVICE_IP [CHANNEL=main|nightly|dev] [RELEASE=TAG] [DEVICE_KEY=/path/to/key] [RUNTIME=1]' '  make release CHANNEL=dev BUILD=1 / ota-smoke'
 
 .PHONY: build-media device-uninstall
 build-media:

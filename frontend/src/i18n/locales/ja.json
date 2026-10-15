@@ -447,7 +447,10 @@
   },
   "engagement": {
     "enabledInactive": "有効 · 非作動",
-    "disengaged": "制御解除"
+    "disengaged": "制御解除",
+    "confidence_high": "高い信頼度",
+    "confidence_medium": "中程度の信頼度",
+    "confidence_low": "低い信頼度"
   },
   "common": {
     "segments_one": "{{count, number}} 区間",

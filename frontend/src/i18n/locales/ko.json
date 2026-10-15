@@ -447,7 +447,10 @@
   },
   "engagement": {
     "enabledInactive": "활성화됨 · 작동 안 함",
-    "disengaged": "제어 해제"
+    "disengaged": "제어 해제",
+    "confidence_high": "높은 신뢰도",
+    "confidence_medium": "중간 신뢰도",
+    "confidence_low": "낮은 신뢰도"
   },
   "common": {
     "segments_one": "구간 {{count, number}}개",

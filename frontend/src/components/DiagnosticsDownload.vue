@@ -79,7 +79,7 @@ async function download() {
 </template>
 <style scoped>
 .diagnostics-section {
-  border-top: 1px solid var(--border, #e0e5de);
+  border-top: 1px solid var(--separator);
   margin-top: 24px;
   padding-top: 8px;
 }

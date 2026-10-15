@@ -9,7 +9,7 @@ defineEmits<{ switch: [] }>();
   <button
     type="button"
     class="device-switcher"
-    :aria-label="t('device.switchDevice')"
+    :aria-label="`${t('device.switchDevice')}: ${name}`"
     aria-haspopup="dialog"
     :title="t('device.currentDevice', { name })"
     @click="$emit('switch')"

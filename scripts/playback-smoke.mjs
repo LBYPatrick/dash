@@ -184,7 +184,41 @@ try {
   await expect(page.locator('.notice')).toHaveCount(1);
   await page.setViewportSize({ width: 390, height: 844 });
   const notice = page.locator('.notice');
-  const box = await notice.boundingBox();
+  // A quick movement followed by a hold must not retain flick velocity.
+  let box = await notice.boundingBox();
+  const x = box.x + 70,
+    y = box.y + box.height / 2;
+  await page.mouse.move(x, y);
+  await page.mouse.down();
+  await page.mouse.move(x + 8, y);
+  await page.mouse.move(x + 65, y);
+  await page.waitForTimeout(180);
+  await page.mouse.up();
+  await expect(notice).toHaveCount(1);
+  await expect
+    .poll(() =>
+      notice.evaluate(
+        (e) => new DOMMatrixReadOnly(getComputedStyle(e).transform).m41,
+      ),
+    )
+    .toBe(0);
+  // Pointer cancellation is an interrupted gesture, never a deliberate throw.
+  await page.mouse.move(x, y);
+  await page.mouse.down();
+  await page.mouse.move(x + 8, y);
+  await page.mouse.move(x + 80, y);
+  await page.evaluate(() => window.dispatchEvent(new Event('blur')));
+  await page.mouse.up();
+  await expect(notice).toHaveCount(1);
+  await expect
+    .poll(() =>
+      notice.evaluate(
+        (e) => new DOMMatrixReadOnly(getComputedStyle(e).transform).m41,
+      ),
+    )
+    .toBe(0);
+  await page.evaluate(() => window.dispatchEvent(new Event('focus')));
+  box = await notice.boundingBox();
   await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
   await page.mouse.down();
   await page.mouse.move(box.x + box.width + 100, box.y + box.height / 2, {

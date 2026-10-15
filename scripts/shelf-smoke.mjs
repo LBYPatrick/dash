@@ -164,7 +164,7 @@ try {
   await page.keyboard.press('Escape');
   for (const [trigger, title, close] of [
     ['Settings', 'Settings', 'Close settings'],
-    ['Switch device', 'Device', 'Close device settings'],
+    [/^Switch device:/, 'Device', 'Close device settings'],
     ['Help and installation', 'Help', 'Close help'],
   ]) {
     await page.getByRole('button', { name: trigger, exact: true }).click();

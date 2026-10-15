@@ -52,8 +52,12 @@ function position() {
   };
 }
 async function show() {
-  if (props.disabled || !props.options.length) return;
-  active.value = Math.max(0, selected.value);
+  if (props.disabled || !props.options.some((option) => !option.disabled))
+    return;
+  active.value =
+    selected.value >= 0 && !props.options[selected.value].disabled
+      ? selected.value
+      : props.options.findIndex((option) => !option.disabled);
   position();
   list.value?.showPopover();
   opened.value = true;
@@ -123,6 +127,16 @@ function keys(event: KeyboardEvent) {
     hide();
     return;
   }
+  if (event.key === 'Home' || event.key === 'End') {
+    event.preventDefault();
+    if (!opened.value) void show();
+    active.value =
+      event.key === 'Home'
+        ? props.options.findIndex((option) => !option.disabled)
+        : props.options.findLastIndex((option) => !option.disabled);
+    void nextTick(revealActive);
+    return;
+  }
   if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
     event.preventDefault();
     move(event.key === 'ArrowDown' ? 1 : -1);
@@ -146,6 +160,7 @@ function keys(event: KeyboardEvent) {
       event.preventDefault();
       if (!opened.value) void show();
       active.value = index;
+      void nextTick(revealActive);
     }
   }
 }

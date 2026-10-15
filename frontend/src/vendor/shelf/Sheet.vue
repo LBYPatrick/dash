@@ -1,5 +1,5 @@
-<!-- Vendored from Shelf (MIT). Only import paths, portal target, close label
-     and Dash integration classes differ; sizing and transitions are upstream. -->
+<!-- Vendored from Shelf (MIT), with browser modal isolation, import paths,
+     portal target, translated close label and Dash integration classes. -->
 <script setup lang="ts">
 /**
  * A modal sheet.
@@ -14,6 +14,7 @@
  */
 import { nextTick, onBeforeUnmount, onMounted, ref, useId, watch } from 'vue';
 import { useDismiss } from './useDismiss';
+import { isolateModal } from './modalIsolation';
 import AppIcon from '../../components/AppIcon.vue';
 
 const props = defineProps<{
@@ -113,6 +114,7 @@ const panel = ref<HTMLElement>();
  */
 const titleId = useId();
 let previouslyFocused: HTMLElement | null = null;
+let releaseIsolation: (() => void) | undefined;
 
 function focusables(): HTMLElement[] {
   if (!panel.value) return [];
@@ -167,9 +169,14 @@ watch(
     if (isOpen) {
       previouslyFocused = document.activeElement as HTMLElement | null;
       await nextTick();
-      if (open.value) focusables()[0]?.focus();
+      if (open.value && panel.value) {
+        releaseIsolation = isolateModal(panel.value);
+        (focusables()[0] || panel.value).focus({ preventScroll: true });
+      }
     } else {
-      previouslyFocused?.focus();
+      releaseIsolation?.();
+      releaseIsolation = undefined;
+      previouslyFocused?.focus({ preventScroll: true });
       previouslyFocused = null;
     }
   },
@@ -535,7 +542,10 @@ onBeforeUnmount(() => {
   window.removeEventListener('resize', onWindowResize);
 });
 
-onBeforeUnmount(() => previouslyFocused?.focus());
+onBeforeUnmount(() => {
+  releaseIsolation?.();
+  previouslyFocused?.focus({ preventScroll: true });
+});
 
 void props;
 </script>
@@ -564,6 +574,7 @@ void props;
           :class="{ 'panel--wide': wide, 'panel--broad': broad }"
           :style="height !== null ? { height: `${height}px` } : undefined"
           role="dialog"
+          tabindex="-1"
           aria-modal="true"
           :aria-labelledby="titleId"
           @transitionend="onSettled"

@@ -85,6 +85,7 @@ export function positionAt(
 export function engagementAt(
   segments: TimelineSegment[],
   offset: number,
+  includeConfidence = false,
 ): string {
   const segment = segments.find(
     (part) => offset >= part.start && offset < part.start + part.duration,
@@ -105,8 +106,15 @@ export function engagementAt(
   }
   if (!sample || time - sample.time > 3)
     return t('player.engagementNotRecorded');
+  const confidence =
+    includeConfidence &&
+    sample.active &&
+    sample.confidence &&
+    ['high', 'medium', 'low'].includes(sample.confidence)
+      ? t(`engagement.confidence_${sample.confidence}`)
+      : '';
   return sample.active
-    ? t('player.engaged')
+    ? [t('player.engaged'), confidence].filter(Boolean).join(' · ')
     : sample.enabled
       ? t('engagement.enabledInactive')
       : t('engagement.disengaged');

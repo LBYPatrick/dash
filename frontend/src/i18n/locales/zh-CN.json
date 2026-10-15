@@ -447,7 +447,10 @@
   },
   "engagement": {
     "enabledInactive": "已启用 · 未激活",
-    "disengaged": "未接管"
+    "disengaged": "未接管",
+    "confidence_high": "高置信度",
+    "confidence_medium": "中等置信度",
+    "confidence_low": "低置信度"
   },
   "common": {
     "segments_one": "{{count, number}} 个片段",

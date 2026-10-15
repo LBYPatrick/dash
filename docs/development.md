@@ -16,18 +16,19 @@ An existing Vite+ 1.2.0 installation with the pinned Node runtime also works: ru
 
 ## Commands
 
-| Task                                            | Command                        |
-| ----------------------------------------------- | ------------------------------ |
-| Install locked dependencies                     | `vp install --frozen-lockfile` |
-| Add a frontend dependency                       | `vp -C frontend add PACKAGE`   |
-| Add shared development tooling                  | `vp add -Dw PACKAGE`           |
-| Develop against the running backend             | `make dev`                     |
-| Format JavaScript, Vue, CSS and docs with Oxfmt | `vp fmt`                       |
-| Lint with Oxlint and fail on warnings           | `make lint`                    |
-| Check format, lint and TypeScript               | `vp check`                     |
-| Run all JavaScript tests                        | `vp test run`                  |
-| Build and check Vue templates                   | `vp -C frontend run build`     |
-| Verify the whole project                        | `make check`                   |
+| Task                                                           | Command                        |
+| -------------------------------------------------------------- | ------------------------------ |
+| Install locked dependencies                                    | `vp install --frozen-lockfile` |
+| Add a frontend dependency                                      | `vp -C frontend add PACKAGE`   |
+| Add shared development tooling                                 | `vp add -Dw PACKAGE`           |
+| Develop against the running backend                            | `make dev`                     |
+| Format JavaScript, Vue, CSS and docs with Oxfmt                | `vp fmt`                       |
+| Lint with Oxlint and fail on warnings                          | `make lint`                    |
+| Check format, lint and TypeScript                              | `vp check`                     |
+| Run all JavaScript tests                                       | `vp test run`                  |
+| Build and check Vue templates                                  | `vp -C frontend run build`     |
+| Audit accent contrast, modal focus and localized phone layouts | `make frontend-polish-smoke`   |
+| Verify the whole project                                       | `make check`                   |
 
 `vp dev` and `vp build` target `frontend/` by default through the root configuration. Built-in `vp build` runs the bundler; the frontend build task also runs `vue-tsc`. Use `make build` to include template checking and the Go binary. Release and source-install targets call that checked build path.
 

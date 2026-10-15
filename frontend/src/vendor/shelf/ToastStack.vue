@@ -38,6 +38,16 @@ const { toasts, dismiss } = useToasts();
  * reads as having come loose from it.
  */
 defineProps<{ centred?: boolean }>();
+function freezeLeaving(element: Element) {
+  if (!(element instanceof HTMLElement)) return;
+  const rect = element.getBoundingClientRect();
+  Object.assign(element.style, {
+    position: 'fixed',
+    left: `${rect.left}px`,
+    top: `${rect.top}px`,
+    width: `${rect.width}px`,
+  });
+}
 const target = ref<string | Element>('#app');
 function fullscreenChanged() {
   target.value = document.fullscreenElement || '#app';
@@ -72,7 +82,7 @@ onBeforeUnmount(() =>
         but it is the whole of what the stories show, and motion that only runs
         where nobody can look at it is motion nobody checks.
       -->
-      <TransitionGroup name="notice" appear>
+      <TransitionGroup name="notice" appear @before-leave="freezeLeaving">
         <!--
           The wrapper is what arrives and leaves, and that is its whole reason
           for being. The notice itself carries the transform of the hand
@@ -96,6 +106,7 @@ onBeforeUnmount(() =>
   );
   inset-inline-end: var(--gap-loose);
   z-index: 300;
+  width: min(24rem, calc(100vw - 2rem));
   display: flex;
   flex-direction: column;
   gap: var(--gap-tight);
@@ -104,6 +115,7 @@ onBeforeUnmount(() =>
 
 .notices--centre {
   inset-inline: 0;
+  margin-inline: auto;
   inset-block-end: var(--gap-section);
   align-items: center;
 }
@@ -112,6 +124,7 @@ onBeforeUnmount(() =>
    cards take pointer events back one at a time. */
 .notice-slot {
   pointer-events: auto;
+  width: 100%;
 }
 
 /*
@@ -146,6 +159,10 @@ onBeforeUnmount(() =>
   transform: translateY(0.75rem);
 }
 
+.notice-leave-active {
+  position: fixed;
+}
+
 /* The ones below a dismissed notice close the gap rather than jumping. */
 .notice-move {
   transition: transform var(--t-pop) var(--ease-out);
@@ -162,6 +179,7 @@ onBeforeUnmount(() =>
 @media (max-width: 760px) {
   .notices {
     inset-inline: 16px;
+    margin-inline: auto;
     align-items: center;
     --statusbar-h: 100px;
   }

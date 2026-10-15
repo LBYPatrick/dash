@@ -447,7 +447,10 @@
   },
   "engagement": {
     "enabledInactive": "Đã bật · chưa hoạt động",
-    "disengaged": "Đã ngắt điều khiển"
+    "disengaged": "Đã ngắt điều khiển",
+    "confidence_high": "Độ tin cậy cao",
+    "confidence_medium": "Độ tin cậy trung bình",
+    "confidence_low": "Độ tin cậy thấp"
   },
   "common": {
     "segments_one": "{{count, number}} đoạn",

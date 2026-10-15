@@ -118,6 +118,7 @@ const backLabel = computed(() =>
     : t('app.allDrives'),
 );
 const scrollPositions = new Map<string, number>();
+const routeFocus = new Map<string, HTMLElement>();
 const routeKey = (route: WorkspaceRoute) =>
   route.driveId ? `drive:${route.driveId}` : route.view;
 function rememberScroll() {
@@ -135,6 +136,21 @@ function rememberScroll() {
     );
 }
 async function applyWorkspace(route: WorkspaceRoute) {
+  const focused =
+    document.activeElement instanceof HTMLElement
+      ? document.activeElement
+      : null;
+  const previousKey =
+    view.value === 'drives' && mobileDetail.value && activeId.value
+      ? `drive:${activeId.value}`
+      : view.value;
+  if (
+    focused &&
+    focused !== document.body &&
+    !previousKey.startsWith('drive:') &&
+    !focused.closest('.scrim, dialog, .workspace-navigation')
+  )
+    routeFocus.set(previousKey, focused);
   rememberScroll();
   view.value = route.view;
   returnView.value = route.returnView || 'drives';
@@ -153,6 +169,30 @@ async function applyWorkspace(route: WorkspaceRoute) {
     route.view === 'drives' && !route.driveId ? '.drive-scroll' : '.detail',
   );
   if (pane) pane.scrollTop = scrollPositions.get(routeKey(route)) || 0;
+  // Preserve the desktop sidebar's focus; move it when the source is hidden or
+  // replaced so keyboard and screen-reader users arrive with the new content.
+  if (
+    focused &&
+    focused !== document.body &&
+    (!focused.isConnected ||
+      !focused.checkVisibility() ||
+      focused.closest('dialog'))
+  ) {
+    const remembered = routeFocus.get(routeKey(route));
+    const destination =
+      remembered?.isConnected && remembered.checkVisibility()
+        ? remembered
+        : document.querySelector<HTMLElement>(
+            route.view === 'drives' && !route.driveId
+              ? '.sidebar-heading h2, .sidebar-heading h1'
+              : '.detail h1, .detail h2',
+          );
+    if (destination) {
+      if (!destination.matches('button, input, a[href], [tabindex]'))
+        destination.tabIndex = -1;
+      destination.focus({ preventScroll: true });
+    }
+  }
 }
 const workspaceHistory = new WorkspaceHistory((route) => {
   void applyWorkspace(route);
@@ -348,6 +388,20 @@ async function prepareNext(drive: Drive) {
   }
 }
 watch(indexEntries, () => {
+  // A restored route can precede the first index snapshot. Wait for readiness
+  // without losing that destination or opening unindexed footage.
+  const route = workspaceHistory.current;
+  const restored =
+    route.driveId && drives.value.find((drive) => drive.id === route.driveId);
+  if (
+    route.view === 'drives' &&
+    restored &&
+    readiness(restored).ready &&
+    (activeId.value !== restored.id || (narrow.value && !mobileDetail.value))
+  ) {
+    void applyWorkspace(route);
+    return;
+  }
   if (!narrow.value && !activeId.value && view.value === 'drives')
     activeId.value =
       drives.value.find((drive) => readiness(drive).ready)?.id || '';
@@ -1061,7 +1115,7 @@ onBeforeUnmount(() => {
                     ? t('app.tryAnotherDateOrClearYourSearch')
                     : filter === 'saved'
                       ? t('app.bookmarkADriveToFindItHere')
-                      : t('app.chooseTheFolderContainingYourOpenpilotSegment')
+                      : t('app.yourDeviceIsConnectedWhenRecordingsAppear')
                 }}
               </p>
               <button
@@ -1074,7 +1128,7 @@ onBeforeUnmount(() => {
               >
                 {{ t('app.showAllDrives') }}</button
               ><button v-else class="text-button" @click="openConnection">
-                {{ t('app.changeFolder') }}
+                {{ t('app.deviceSettings') }}
               </button>
             </div>
           </div>

@@ -43,7 +43,9 @@ async function change(requested: string) {
       ><span>{{ t('sandbox.syntheticRecordingsNoVehicleConnected') }}</span>
     </div>
     <label
-      >{{ t('sandbox.simulatedState') }}
+      ><span class="simulation-state-label">{{
+        t('sandbox.simulatedState')
+      }}</span>
       <SelectMenu
         :model-value="state"
         :aria-label="t('sandbox.simulatedState')"
@@ -84,6 +86,9 @@ async function change(requested: string) {
   align-items: center;
   gap: 10px;
 }
+.simulation-state-label {
+  flex-shrink: 0;
+}
 .simulation-banner select {
   font-size: 16px;
   padding: 6px 10px;
@@ -91,5 +96,30 @@ async function change(requested: string) {
   border: 1px solid #c8bca1;
   border-radius: 8px;
   color: inherit;
+}
+@media (max-width: 900px) {
+  .simulation-banner {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    padding: 4px 14px;
+    gap: 8px;
+  }
+  .simulation-banner > div > span,
+  .simulation-state-label {
+    display: none;
+  }
+  .simulation-banner > label {
+    min-width: 0;
+  }
+  .simulation-banner > span[role='alert'] {
+    grid-column: 1 / -1;
+  }
+  :global(#app .simulation-banner .selectmenu) {
+    width: 124px;
+    max-width: 40vw;
+  }
+  :global(#app .simulation-banner .select-trigger) {
+    min-height: 44px;
+  }
 }
 </style>

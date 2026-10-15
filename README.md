@@ -158,7 +158,7 @@ make help         # Available workflows
 
 Vite+ supplies the frontend dev server, Rolldown production builds, Vitest runner, **Oxlint** (including Vue/TypeScript rules and type-aware checks), and **Oxfmt**. `vue-tsc` additionally checks Vue templates. Dependency operations go through `vp install` / `vp add`; the underlying pnpm version is pinned in `package.json`. No separate npm, ESLint, Prettier or Vitest installation is needed. See the [Vite+ workflow](docs/development.md).
 
-With `make serve` running against `make fixture`, run `make smoke` for browser integration tests. Chrome is required; set `CHROME_PATH` if needed. These tests change synthetic params and write artifacts under ignored `.artifacts/`. Specialized viewer, map, statistics, mobile, appearance, and motion checks are listed by `make help` and explained in the audit guides.
+With `make serve` running against `make fixture`, run `make smoke` for browser integration tests. Chrome is required; set `CHROME_PATH` if needed. These tests change synthetic params and write artifacts under ignored `.artifacts/`. `make frontend-polish-smoke` checks accent/theme contrast, nested modal focus, and localized phone layouts. Specialized viewer, map, statistics, mobile, appearance, and motion checks are listed by `make help` and explained in the audit guides.
 
 ```text
 frontend/        Vue PWA: src/, public/, package.json, Vite and TypeScript config

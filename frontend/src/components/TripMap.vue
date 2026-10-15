@@ -79,6 +79,21 @@ const request = new AbortController();
 const rendererFailed = ref(false);
 const ready = ref(false);
 let fitted = false;
+function mapKeydown(event: KeyboardEvent) {
+  if (
+    ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', '+', '-', '='].includes(
+      event.key,
+    )
+  )
+    following.value = false;
+}
+function zoomDuration() {
+  return window.matchMedia('(prefers-reduced-motion: reduce)').matches ||
+    document.documentElement.dataset.performance === 'true' ||
+    document.documentElement.dataset.interaction === 'keyboard'
+    ? 0
+    : 180;
+}
 function fitRoute(user = false) {
   if (user) following.value = false;
   if (
@@ -299,7 +314,7 @@ onBeforeUnmount(() => {
       :aria-label="t('map.recordedGpsRoute')"
       @pointerdown="following = false"
       @wheel="following = false"
-      @keydown="following = false"
+      @keydown="mapKeydown"
     ></div>
     <svg
       v-if="rendererFailed"
@@ -330,7 +345,7 @@ onBeforeUnmount(() => {
         :disabled="!ready"
         @click="
           following = false;
-          map?.zoomIn();
+          map?.zoomIn({ duration: zoomDuration() });
         "
       >
         +
@@ -341,7 +356,7 @@ onBeforeUnmount(() => {
         :disabled="!ready"
         @click="
           following = false;
-          map?.zoomOut();
+          map?.zoomOut({ duration: zoomDuration() });
         "
       >
         −

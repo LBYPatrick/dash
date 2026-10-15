@@ -239,12 +239,21 @@ button,
     border-radius: 0;
   }
 }
-@media (max-width: 900px) and (max-height: 500px) {
+@media (max-width: 900px) and (max-height: 500px) and (orientation: landscape) {
+  #app .workspace > .detail.session-view {
+    padding-top: 2px;
+    padding-bottom: max(4px, env(safe-area-inset-bottom));
+  }
+  #app .app-shell > .simulation-banner {
+    padding-block: 2px;
+  }
   #app .session-view .detail-heading {
     margin-bottom: 4px;
   }
   #app .session-mobile-tabs {
-    margin-bottom: 4px;
+    margin-bottom: 2px;
+    padding: 0;
+    border: 0;
   }
   #app .session-view .detail-heading h1 {
     font-size: 16px;
@@ -271,7 +280,7 @@ button,
     margin: 0;
   }
 }
-@media (max-width: 900px) and (max-height: 500px) {
+@media (max-width: 900px) and (max-height: 500px) and (orientation: landscape) {
   #app .session-shell .show-detail .session-view {
     display: grid;
     grid-template-columns: minmax(0, 1fr) minmax(220px, 1fr);
@@ -300,12 +309,7 @@ button,
 }
 
 @container dash-player (max-width:440px) {
-  #app
-    .playback-toolbar:has(.timestamp-form)
-    > button:is(
-      [aria-label='Back 10 seconds'],
-      [aria-label='Forward 10 seconds']
-    ) {
+  #app .playback-toolbar:has(.timestamp-form) > .player-skip {
     display: none;
   }
 }

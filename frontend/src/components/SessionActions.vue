@@ -41,7 +41,7 @@ function detach() {
   window.removeEventListener('resize', position);
   window.removeEventListener('scroll', position, true);
 }
-function toggle() {
+async function toggle() {
   if (menu.value?.matches(':popover-open')) {
     close();
     return;
@@ -51,6 +51,10 @@ function toggle() {
   opened.value = true;
   window.addEventListener('resize', position);
   window.addEventListener('scroll', position, true);
+  await nextTick();
+  menu.value
+    ?.querySelector<HTMLButtonElement>('button:not([disabled])')
+    ?.focus({ preventScroll: true });
 }
 function toggled() {
   opened.value = !!menu.value?.matches(':popover-open');
@@ -64,9 +68,10 @@ async function keyboard(event: KeyboardEvent) {
     trigger.value?.focus();
     return;
   }
-  if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return;
+  if (!['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) return;
   event.preventDefault();
-  if (!opened.value) toggle();
+  const wasOpen = opened.value;
+  if (!wasOpen) await toggle();
   await nextTick();
   const buttons = [
     ...menu.value!.querySelectorAll<HTMLButtonElement>(
@@ -74,10 +79,18 @@ async function keyboard(event: KeyboardEvent) {
     ),
   ];
   const index = buttons.indexOf(document.activeElement as HTMLButtonElement);
-  buttons[
-    (index + (event.key === 'ArrowDown' ? 1 : -1) + buttons.length) %
-      buttons.length
-  ]?.focus();
+  const target =
+    event.key === 'Home'
+      ? 0
+      : event.key === 'End'
+        ? buttons.length - 1
+        : !wasOpen || index < 0
+          ? event.key === 'ArrowUp'
+            ? buttons.length - 1
+            : 0
+          : (index + (event.key === 'ArrowDown' ? 1 : -1) + buttons.length) %
+            buttons.length;
+  buttons[target]?.focus({ preventScroll: true });
 }
 useDismiss(opened, close);
 onBeforeUnmount(detach);
@@ -86,11 +99,12 @@ defineExpose({ close });
 <template>
   <div class="session-actions">
     <button
+      :id="`${menuId}-trigger`"
       ref="trigger"
       type="button"
       class="icon-button"
       :aria-label="props.label || t('actions.sessionActions')"
-      aria-haspopup="true"
+      :aria-controls="menuId"
       :aria-expanded="opened"
       :popovertarget="menuId"
       @click.prevent="toggle"
@@ -102,6 +116,8 @@ defineExpose({ close });
       :id="menuId"
       ref="menu"
       popover="auto"
+      role="group"
+      :aria-labelledby="`${menuId}-trigger`"
       class="session-action-menu"
       :style="placement"
       @toggle="toggled"

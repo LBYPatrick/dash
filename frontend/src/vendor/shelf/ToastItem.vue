@@ -71,6 +71,10 @@ const { start, dragging } = useDrag({
   axis: 'x',
   getValue: () => offset.value,
   onDrag: (state) => (offset.value = state.value),
+  onCancel: () => {
+    offset.value = 0;
+    abandonGrab();
+  },
   onRelease: (state) => {
     const width = root.value?.offsetWidth ?? 320;
 

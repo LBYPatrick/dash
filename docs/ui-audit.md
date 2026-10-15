@@ -122,3 +122,29 @@ Settings uses the shared Shelf popup and select menu for channel selection, auto
 ## Mobile flows and motion follow-up
 
 See [the mobile/motion audit](mobile-motion-audit.md) for shared transport across mobile panels, compact Trip details, contextual browser history, retained Overview/live capture state, restored fullscreen, safe areas/touch targets, and verified interruptible popovers/divider resets.
+
+## Frontend polish follow-up
+
+| Before                                                             | After                                                                                           | Why                                                             |
+| ------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------- | --------------------------------------------------------------- |
+| Short portrait uses landscape toolbar/header rules                 | Landscape-only compact layout; translated timestamp editing uses stable classes                 | Keep every control inside a 320px viewport                      |
+| Sandbox explanation consumes several rows on phones                | Compact labelled sandbox and 44px state control                                                 | Preserve the viewer and map area                                |
+| Red accent text narrowly fails contrast on a raised dark surface   | Brighter accent text across dark themes; inset keyboard focus mark                              | Legible text and visible focus without perimeter outlines       |
+| Screen readers can reach background and lower sheets               | Topmost sheet isolates siblings with inert, restoring authored state before focus returns       | Make modal behavior match its semantics                         |
+| Reloading a phone session applies its route before index readiness | Retry the retained route when the first ready index snapshot arrives                            | Restore the session while keeping unindexed footage unavailable |
+| Opening a phone recording leaves focus in the hidden list          | Destination heading receives focus; returning restores the source row                           | Retain location and keyboard context                            |
+| Actions announce a menu but contain ordinary buttons               | Labelled action group, initial focus, first/last and arrow navigation                           | Predictable semantics and keyboard operation                    |
+| Tab inside the map disables Follow                                 | Only map navigation keys interrupt Follow; zoom honors motion settings                          | Preserve playback tracking when navigating controls             |
+| Engagement confidence is only a colored band                       | Current confidence is also translated text; timeline includes its legend in its accessible name | Give recorded color meaning a textual equivalent                |
+| A held/interrupted toast swipe can retain throw velocity           | Velocity expires during a hold; cancelled gestures return to rest                               | Avoid accidental dismissal                                      |
+| Toast exits can jump as the stack collapses                        | Freeze the leaving card in place while Vue moves the remaining cards                            | Continuous, interruptible stack motion                          |
+| Reduced motion globally removes intended status fades              | Opacity-only component fades remain; spatial motion is removed                                  | Preserve feedback with less movement                            |
+| Empty library describes a removed folder chooser                   | Same-device recording guidance and Device settings                                              | Offer a recovery action that actually exists                    |
+
+Verification uses the local synthetic backend and headless Chromium with software
+rendering. `make frontend-polish-smoke` checks all 16 accent/theme combinations,
+nested modal isolation/focus return, action keys, Follow on Tab, and timestamp
+entry at four phone sizes in all five languages. Existing motion, playback,
+mobile-flow, live-layout, Shelf and i18n checks cover the related flows. Automated
+axe checks are regression coverage, not a WCAG certification; physical iPhone
+Safari and assistive-technology testing remain outstanding. No car was contacted.

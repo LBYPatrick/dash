@@ -115,6 +115,9 @@ const telemetryTime = ref(0);
 const status = computed(() =>
   engagementAt(props.segments || [], telemetryTime.value),
 );
+const statusDescription = computed(() =>
+  engagementAt(props.segments || [], telemetryTime.value, true),
+);
 const motionPreference = window.matchMedia('(prefers-reduced-motion: reduce)');
 const reducedMotion = ref(motionPreference.matches);
 let clockFrame = 0;
@@ -557,7 +560,7 @@ onBeforeUnmount(() => {
             class="status-dot"
             :class="{ amber: status !== t('player.engaged') }"
           ></span
-          >{{ status }}
+          >{{ statusDescription }}
         </div>
         <svg
           v-if="engagement && hasEngagement && bands.length && duration"
@@ -565,7 +568,7 @@ onBeforeUnmount(() => {
           viewBox="0 0 1000 8"
           preserveAspectRatio="none"
           role="img"
-          :aria-label="t('player.recordedEngagementTimeline')"
+          :aria-label="`${t('player.recordedEngagementTimeline')}. ${t('player.engagementColors')}`"
         >
           <title>
             {{ t('player.engagementColors') }}
@@ -613,7 +616,7 @@ onBeforeUnmount(() => {
           </button>
           <button
             type="button"
-            class="player-control"
+            class="player-control player-skip"
             :aria-label="t('player.back10Seconds')"
             :disabled="!duration"
             @click="seek(time - 10)"
@@ -622,7 +625,7 @@ onBeforeUnmount(() => {
           </button>
           <button
             type="button"
-            class="player-control"
+            class="player-control player-skip"
             :aria-label="t('player.forward10Seconds')"
             :disabled="!duration"
             @click="seek(time + 10)"

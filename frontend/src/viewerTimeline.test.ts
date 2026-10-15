@@ -81,7 +81,7 @@ describe('viewer time and telemetry', () => {
     expect(engagementAt(parts, 9)).toBe('Engagement not recorded');
   });
   it('keeps unknown confidence distinct and preserves recorded confidence changes', () => {
-    const bands = engagementBands([
+    const parts: Parameters<typeof engagementAt>[0] = [
       {
         start: 0,
         duration: 6,
@@ -98,7 +98,14 @@ describe('viewer time and telemetry', () => {
           ],
         },
       },
-    ]);
+    ];
+    const bands = engagementBands(parts);
+    expect(engagementAt(parts, 1, true)).toBe('Engaged');
+    expect(engagementAt(parts, 2, true)).toBe('Engaged · High confidence');
+    expect(engagementAt(parts, 3, true)).toBe('Engaged · Medium confidence');
+    expect(engagementAt(parts, 4, true)).toBe('Engaged · Low confidence');
+    expect(engagementAt(parts, 5, true)).toBe('Enabled · inactive');
+    expect(engagementAt(parts, 9, true)).toBe('Engagement not recorded');
     expect(bands.map((b) => [b.state, b.confidence])).toEqual([
       ['disengaged', undefined],
       ['engaged', undefined],

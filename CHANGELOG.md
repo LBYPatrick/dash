@@ -6,6 +6,8 @@ All notable changes to Dash are documented here using Keep a Changelog.
 
 ### Added
 
+- Add a frontend polish acceptance check covering accent/theme contrast, nested modal isolation, keyboard focus, and precise timestamp controls across five languages and four phone sizes.
+
 - Switch device Go scheduling between the full offroad budget and one processor onroad/unknown, keeping heavy work gated and reporting the active budget in diagnostics.
 
 - Fit Live camera and bottom controls to phone and desktop viewports, with recording elapsed time and secondary details in a Shelf popup.
@@ -49,6 +51,11 @@ All notable changes to Dash are documented here using Keep a Changelog.
 - Remove completed animation handoff plans and an unused screenshot generator; retain maintained design/validation documentation under `docs/`.
 
 ### Fixed
+
+- Keep short portrait playback controls within the viewport; fit localized timestamp entry and compact sandbox/landscape chrome while retaining touch targets and map space.
+- Improve dark accent text contrast and inset keyboard focus, isolate nested sheets from background controls, restore mobile navigation focus, and describe recorded engagement confidence in text.
+- Restore a selected mobile session after reload once the first index snapshot arrives, keeping unindexed footage unavailable.
+- Preserve map Follow during Tab navigation, respect motion settings when zooming, and make toast stack exits and interrupted/held swipe gestures predictable.
 
 - Refuse temporary installation over persistent boot registration, clean both registration layers during uninstall, and verify physical unit enablement alongside backend readiness.
 

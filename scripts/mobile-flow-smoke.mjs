@@ -194,11 +194,17 @@ try {
   await page
     .locator('.mobile-playback-dock .enhanced-controls')
     .waitFor({ state: 'visible' });
-  for (const theme of ['light', 'dark']) {
-    await page.evaluate(
-      (theme) => (document.documentElement.dataset.theme = theme),
-      theme,
-    );
+  for (const theme of ['Light', 'Dark']) {
+    // Exercise the public preference so palette variables and theme selectors
+    // change together; changing only data-theme creates an impossible palette.
+    await page.getByRole('button', { name: 'Settings', exact: true }).click();
+    await page.getByRole('radio', { name: theme, exact: true }).check();
+    await page
+      .getByRole('button', { name: 'Close settings', exact: true })
+      .click();
+    await page
+      .getByRole('dialog', { name: 'Settings', exact: true })
+      .waitFor({ state: 'hidden' });
     const result = await new AxeBuilder({ page })
       .withTags(['wcag2a', 'wcag2aa', 'wcag21aa', 'wcag22aa'])
       .analyze();

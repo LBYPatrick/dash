@@ -598,7 +598,7 @@ onBeforeUnmount(() => {
     grid-column: 1 / -1;
   }
 }
-@media (max-height: 500px) {
+@media (max-height: 500px) and (min-width: 540px) {
   :global(#app .workspace.show-detail > .live-detail) {
     padding: 4px 12px max(6px, env(safe-area-inset-bottom));
   }
