@@ -5,6 +5,7 @@ import {
   timelinePositions,
   positionAt,
   engagementAt,
+  engagementBands,
 } from './viewerTimeline';
 describe('viewer time and telemetry', () => {
   it('accepts precise timestamps and rejects malformed minutes', () => {
@@ -78,5 +79,33 @@ describe('viewer time and telemetry', () => {
     expect(engagementAt(parts, 2)).toBe('Enabled · inactive');
     expect(engagementAt(parts, 3)).toBe('Disengaged');
     expect(engagementAt(parts, 9)).toBe('Engagement not recorded');
+  });
+  it('keeps unknown confidence distinct and preserves recorded confidence changes', () => {
+    const bands = engagementBands([
+      {
+        start: 0,
+        duration: 6,
+        metadata: {
+          status: 'ready',
+          startMonotonic: 100,
+          engagement: [
+            { time: 100, enabled: false, active: false },
+            { time: 101, enabled: true, active: true },
+            { time: 102, enabled: true, active: true, confidence: 'high' },
+            { time: 103, enabled: true, active: true, confidence: 'medium' },
+            { time: 104, enabled: true, active: true, confidence: 'low' },
+            { time: 105, enabled: true, active: false },
+          ],
+        },
+      },
+    ]);
+    expect(bands.map((b) => [b.state, b.confidence])).toEqual([
+      ['disengaged', undefined],
+      ['engaged', undefined],
+      ['engaged', 'high'],
+      ['engaged', 'medium'],
+      ['engaged', 'low'],
+      ['overriding', undefined],
+    ]);
   });
 });

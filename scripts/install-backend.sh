@@ -5,12 +5,20 @@ DASH_CHANNEL=main
 DASH_RELEASE=''
 DASH_REPOSITORY=LBYPatrick/dash
 DASH_TARGET=''
+DASH_IDENTITY=''
+DASH_GOARCH=arm64
+DASH_RUNTIME=false
 DASH_SOURCE=false
 DASH_FEED_OPTION=false
 while (( $# )); do
   case "$1" in
     --check) DASH_MODE=check; shift ;;
+    --runtime) DASH_RUNTIME=true; shift ;;
     --source) DASH_SOURCE=true; shift ;;
+    --identity|--arch)
+      if (( $# < 2 )); then echo "Missing value for $1"; exit 2; fi
+      case "$1" in --identity) DASH_IDENTITY="$2" ;; --arch) DASH_GOARCH="$2" ;; esac
+      shift 2 ;;
     --channel|--release|--repo)
       DASH_FEED_OPTION=true
       if (( $# < 2 )); then echo "Missing value for $1"; exit 2; fi
@@ -21,7 +29,7 @@ while (( $# )); do
   esac
 done
 if [[ ! "$DASH_TARGET" =~ ^[a-zA-Z0-9._-]+@[a-zA-Z0-9._-]+$ ]]; then
-  echo 'Usage: bash scripts/install-backend.sh [--check] [--source | --channel main|nightly|dev] [--release TAG] [--repo OWNER/REPO] comma@DEVICE_IP'
+  echo 'Usage: bash scripts/install-backend.sh [--runtime] [--identity KEY] [--arch arm64|amd64] [--check] [--source | --channel main|nightly|dev] [--release TAG] [--repo OWNER/REPO] comma@DEVICE_IP'
   exit 2
 fi
 if "$DASH_SOURCE" && "$DASH_FEED_OPTION"; then echo '--source cannot be combined with channel/release/repository options'; exit 2; fi
@@ -30,44 +38,28 @@ if [[ ! "$DASH_REPOSITORY" =~ ^[a-zA-Z0-9_-][a-zA-Z0-9_.-]*/[a-zA-Z0-9_-][a-zA-Z
 DASH_PROJECT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$DASH_PROJECT"
 DASH_SSH_OPTIONS=(-o BatchMode=yes -o ConnectTimeout=10)
-# This block is intentionally read-only and never changes driving params.
-ssh "${DASH_SSH_OPTIONS[@]}" "$DASH_TARGET" bash -s <<'PREFLIGHT'
-set -euo pipefail
-[[ "$(uname -s)" == Linux ]]
-case "$(uname -m)" in aarch64|arm64|x86_64) ;; *) echo 'Unsupported device architecture'; exit 1 ;; esac
-[[ -f /sys/fs/cgroup/cgroup.controllers ]] || { echo 'Unified cgroup v2 is required'; exit 1; }
-for controller in cpu memory pids; do
-  tr ' ' '\n' < /sys/fs/cgroup/cgroup.controllers | grep -qx "$controller" || { echo "Missing controller: $controller"; exit 1; }
-done
-[[ "$(cat /proc/1/comm)" == systemd ]] || { echo 'systemd must manage device startup'; exit 1; }
-command -v systemctl >/dev/null
-command -v systemd-analyze >/dev/null
-command -v ffmpeg >/dev/null
-command -v ffprobe >/dev/null
-ffmpeg -hide_banner -encoders 2>/dev/null | grep -F libx264 >/dev/null
-if ! ffmpeg -hide_banner -h full 2>/dev/null | grep -F -- '-fps_mode' >/dev/null; then
-  echo 'FFmpeg with -fps_mode support (5 or later) is required for MCAP video conversion.'
-  exit 1
+case "$DASH_GOARCH" in arm64|amd64) ;; *) echo 'Unsupported architecture'; exit 2 ;; esac
+if [[ -n "$DASH_IDENTITY" ]]; then
+  [[ -f "$DASH_IDENTITY" ]] || { echo 'SSH identity file is missing'; exit 2; }
+  DASH_SSH_OPTIONS+=(-i "$DASH_IDENTITY" -o IdentitiesOnly=yes)
 fi
-DASH_BITSTREAM_FILTERS="$(ffmpeg -hide_banner -bsfs 2>/dev/null)"
-for DASH_FILTER in h264_metadata hevc_metadata; do
-  if ! grep -Eq "^[[:space:]]*$DASH_FILTER[[:space:]]*$" <<< "$DASH_BITSTREAM_FILTERS"; then
-    echo "FFmpeg requires $DASH_FILTER for playable MCAP video."
-    exit 1
-  fi
-done
+# This block is intentionally read-only and never changes driving params.
+ssh "${DASH_SSH_OPTIONS[@]}" "$DASH_TARGET" bash -s -- "$DASH_RUNTIME" <<'PREFLIGHT'
+set -euo pipefail
+command -v systemctl >/dev/null
+command -v findmnt >/dev/null
+command -v mount >/dev/null
 id comma >/dev/null
-sudo -n true
+[[ ! -L /data/dash ]] || { echo '/data/dash must not be a symlink'; exit 1; }
+# Only inspect our own unit, never replace another application's registration.
+fragment="$(systemctl show dash.service --property=FragmentPath --value 2>/dev/null || true)"
+[[ -z "$fragment" || "$(readlink -f -- "$fragment")" == /data/dash/systemd/dash.service ]] || { echo 'dash.service belongs to another installation'; exit 1; }
 [[ -d /data/media/0/realdata && -d /data/params/d ]]
 [[ "$(cat /data/params/d/IsOnroad)" == 0 && "$(cat /data/params/d/IsOffroad)" == 1 ]] || { echo 'Install only with confirmed parked state'; exit 1; }
 [[ -r /data/media/0/realdata && -w /data ]]
-available=$(df -Pk /data | awk 'NR==2 {print $4}')
-(( available >= 2097152 )) || { echo 'At least 2 GiB free /data storage required'; exit 1; }
-echo 'Preflight passed: parked, architecture, systemd, cgroup controllers, FFmpeg/H.264/MCAP filters, permissions, sudo, and free space.'
+echo 'Preflight passed: confirmed parked, recording permissions, app folder and systemd. No CPU, memory, controller or topology probes.'
 PREFLIGHT
 if [[ "$DASH_MODE" == check ]]; then exit 0; fi
-DASH_ARCH="$(ssh "${DASH_SSH_OPTIONS[@]}" "$DASH_TARGET" uname -m)"
-case "$DASH_ARCH" in aarch64|arm64) DASH_GOARCH=arm64 ;; x86_64) DASH_GOARCH=amd64 ;; esac
 command -v python3 >/dev/null || { echo 'The SSH client requires Python 3.9+ to verify the prebuilt release'; exit 1; }
 DASH_STAGING="$(mktemp -d)"
 trap 'rm -rf "$DASH_STAGING"' EXIT
@@ -81,26 +73,44 @@ else
   python3 scripts/fetch-release.py --channel "$DASH_CHANNEL" --release "$DASH_RELEASE" --repo "$DASH_REPOSITORY" --arch "$DASH_GOARCH" --destination "$DASH_STAGING/payload"
 fi
 DASH_TAG="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["tag"])' "$DASH_STAGING/payload/release.json")"
+if "$DASH_RUNTIME"; then printf runtime > "$DASH_STAGING/startup-mode"; else printf persistent > "$DASH_STAGING/startup-mode"; fi
 python3 - "$DASH_STAGING/update.json" "$DASH_REPOSITORY" "$DASH_CHANNEL" "$DASH_SOURCE" <<'CONFIG'
 import json, sys
 with open(sys.argv[1], 'w') as output:
     json.dump({'repository': sys.argv[2], 'channel': sys.argv[3], 'automatic': sys.argv[4] != 'true'}, output)
 CONFIG
 ssh "${DASH_SSH_OPTIONS[@]}" "$DASH_TARGET" 'set -e; [[ "$(cat /data/params/d/IsOnroad)" == 0 && "$(cat /data/params/d/IsOffroad)" == 1 ]] || exit 1; sudo -n install -d -o root -g comma -m 1770 /data/dash; mkdir -p /data/dash/releases; rm -rf -- /data/dash/.install.new; mkdir -p /data/dash/.install.new'
-scp -o BatchMode=yes -o ConnectTimeout=10 -r "$DASH_STAGING/payload/." "$DASH_TARGET:/data/dash/.install.new/"
-scp -o BatchMode=yes -o ConnectTimeout=10 dash-backend/install-service.sh "$DASH_TARGET:/data/dash/.install-service.new"
-scp -o BatchMode=yes -o ConnectTimeout=10 dash-backend/verify-service.sh "$DASH_TARGET:/data/dash/.verify-service.new"
-scp -o BatchMode=yes -o ConnectTimeout=10 dash-backend/systemd/dash.service "$DASH_TARGET:/data/dash/.service.new"
-scp -o BatchMode=yes -o ConnectTimeout=10 "$DASH_STAGING/update.json" "$DASH_TARGET:/data/dash/.update.new"
+scp "${DASH_SSH_OPTIONS[@]}" -r "$DASH_STAGING/payload/." "$DASH_TARGET:/data/dash/.install.new/"
+scp "${DASH_SSH_OPTIONS[@]}" dash-backend/install-service.sh "$DASH_TARGET:/data/dash/.install-service.new"
+scp "${DASH_SSH_OPTIONS[@]}" dash-backend/systemd-registration.sh "$DASH_TARGET:/data/dash/.registration.new"
+scp "${DASH_SSH_OPTIONS[@]}" dash-backend/uninstall-service.sh "$DASH_TARGET:/data/dash/.uninstall-service.new"
+scp "${DASH_SSH_OPTIONS[@]}" dash-backend/verify-service.sh "$DASH_TARGET:/data/dash/.verify-service.new"
+scp "${DASH_SSH_OPTIONS[@]}" dash-backend/systemd/dash.service "$DASH_TARGET:/data/dash/.service.new"
+scp "${DASH_SSH_OPTIONS[@]}" "$DASH_STAGING/startup-mode" "$DASH_TARGET:/data/dash/.startup.new"
+scp "${DASH_SSH_OPTIONS[@]}" "$DASH_STAGING/update.json" "$DASH_TARGET:/data/dash/.update.new"
 ssh "${DASH_SSH_OPTIONS[@]}" "$DASH_TARGET" bash -s <<'ACTIVATE'
 set -euo pipefail
 [[ "$(cat /data/params/d/IsOnroad)" == 0 && "$(cat /data/params/d/IsOffroad)" == 1 ]] || { echo 'Device no longer parked; staged files left inactive'; exit 1; }
+DASH_PREVIOUS="$(readlink /data/dash/current || true)"
+dash_activation_failed() {
+  trap - ERR
+  sudo -n systemctl stop dash.service || true
+  if [[ "$DASH_PREVIOUS" =~ ^releases/[a-zA-Z0-9.+_-]+$ ]]; then
+    ln -sfn "$DASH_PREVIOUS" /data/dash/.current.new
+    mv -Tf /data/dash/.current.new /data/dash/current
+  fi
+  echo 'Activation failed; previous release restored when available. Dash remains stopped.' >&2
+  exit 1
+}
+trap dash_activation_failed ERR
 if systemctl cat dash.service >/dev/null 2>&1; then sudo -n systemctl stop dash.service; fi
 DASH_TAG="$(sed -n 's/.*"tag": *"\([a-zA-Z0-9.+_-]*\)".*/\1/p' /data/dash/.install.new/release.json)"
 [[ "$DASH_TAG" =~ ^[a-zA-Z0-9][a-zA-Z0-9.+_-]{0,127}$ ]] || { echo 'Invalid staged tag'; exit 1; }
 # The bootstrap is stable across OTA. Only an explicit SSH install replaces it.
 sudo -n install -o root -g root -m 755 /data/dash/.install.new/dash-backend /data/dash/dash-bootstrap
-sudo -n install -o root -g root -m 755 /data/dash/.install-service.new /data/dash/install-service.sh
+sudo -n install -o root -g root -m 755 /data/dash/.install-service.new /data/dash/install.sh
+sudo -n install -o root -g root -m 755 /data/dash/.registration.new /data/dash/systemd-registration.sh
+sudo -n install -o root -g root -m 755 /data/dash/.uninstall-service.new /data/dash/uninstall.sh
 sudo -n install -o root -g root -m 755 /data/dash/.verify-service.new /data/dash/verify-service.sh
 sudo -n install -d -o root -g root -m 755 /data/dash/systemd
 sudo -n install -o root -g root -m 644 /data/dash/.service.new /data/dash/systemd/dash.service
@@ -113,13 +123,16 @@ if [[ -e "/data/dash/releases/$DASH_TAG" ]]; then
 else
   mv /data/dash/.install.new "/data/dash/releases/$DASH_TAG"
 fi
-DASH_PREVIOUS="$(readlink /data/dash/current || true)"
 ln -s "releases/$DASH_TAG" /data/dash/.current.new
 mv -Tf /data/dash/.current.new /data/dash/current
 mv /data/dash/.update.new /data/dash/update.json
 rm -f /data/dash/pending.json /data/dash/activation.json /data/dash/ready.json
-if ! sudo -n bash /data/dash/install-service.sh; then
-  sudo -n systemctl disable --now dash.service || true
+sudo -n install -o root -g root -m 644 /data/dash/.startup.new /data/dash/startup-mode
+rm -f /data/dash/.startup.new
+DASH_INSTALL_FLAGS=()
+if [[ "$(cat /data/dash/startup-mode)" == runtime ]]; then DASH_INSTALL_FLAGS=(--runtime); fi
+if ! sudo -n bash /data/dash/install.sh "${DASH_INSTALL_FLAGS[@]}"; then
+  sudo -n systemctl stop dash.service || true
   if [[ "$DASH_PREVIOUS" =~ ^releases/[a-zA-Z0-9.+_-]+$ ]]; then
     ln -s "$DASH_PREVIOUS" /data/dash/.current.new
     mv -Tf /data/dash/.current.new /data/dash/current
@@ -127,7 +140,8 @@ if ! sudo -n bash /data/dash/install-service.sh; then
   echo 'Installation failed; previous release restored when available. Service remains stopped.'
   exit 1
 fi
-rm -f /data/dash/.install-service.new /data/dash/.verify-service.new /data/dash/.service.new
+trap - ERR
+rm -f /data/dash/.registration.new /data/dash/.install-service.new /data/dash/.verify-service.new /data/dash/.uninstall-service.new /data/dash/.service.new
 ACTIVATE
 echo "Installed. Open http://${DASH_TARGET#*@}:8088 on the same LAN or device hotspot."
 echo 'Lifecycle: sudo systemctl {start|stop|restart|status} dash.service'

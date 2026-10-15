@@ -12,6 +12,8 @@ import (
 	"path/filepath"
 	"regexp"
 	"sort"
+	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -36,6 +38,8 @@ type IndexedSegment struct {
 	Files            []FileInfo         `json:"files"`
 }
 type IndexStatus struct {
+	Current   string `json:"current,omitempty"`
+	Priority  string `json:"priority,omitempty"`
 	Running   bool   `json:"running"`
 	Completed int    `json:"completed"`
 	Total     int    `json:"total"`
@@ -48,13 +52,15 @@ type IndexSnapshot struct {
 	Segments map[string]IndexedSegment `json:"segments"`
 }
 type Index struct {
-	root, cache string
-	db          *sql.DB
-	state       StateReader
-	mu          sync.Mutex
-	status      IndexStatus
-	generation  uint64
-	cancel      context.CancelFunc
+	root, cache   string
+	db            *sql.DB
+	state         StateReader
+	mu            sync.Mutex
+	status        IndexStatus
+	scanning      bool
+	priorityDrive string
+	generation    uint64
+	cancel        context.CancelFunc
 }
 
 func newIndex(root, cache string, state StateReader) (*Index, error) {
@@ -109,6 +115,7 @@ func newIndex(root, cache string, state StateReader) (*Index, error) {
 func (i *Index) snapshot() (IndexSnapshot, error) {
 	i.mu.Lock()
 	status := i.status
+	status.Priority = i.priorityDrive
 	i.mu.Unlock()
 	status.Driving = i.state()
 	result := IndexSnapshot{Version: 1, Status: status, Segments: map[string]IndexedSegment{}}
@@ -154,15 +161,22 @@ func (i *Index) scan(parent context.Context) error {
 	ctx, cancel := parkedContext(parent, i.state)
 	defer cancel()
 	i.mu.Lock()
-	if i.status.Running {
+	if i.scanning {
 		i.mu.Unlock()
 		return nil
 	}
-	i.status = IndexStatus{Running: true}
+	i.scanning = true
+	i.status = IndexStatus{}
 	generation := i.generation
 	i.cancel = cancel
 	i.mu.Unlock()
-	defer func() { i.mu.Lock(); i.status.Running = false; i.mu.Unlock() }()
+	defer func() {
+		i.mu.Lock()
+		i.scanning = false
+		i.status.Running = false
+		i.status.Current = ""
+		i.mu.Unlock()
+	}()
 	folders, err := os.ReadDir(i.root)
 	if err != nil {
 		return err
@@ -177,14 +191,38 @@ func (i *Index) scan(parent context.Context) error {
 	i.mu.Lock()
 	i.status.Total = len(names)
 	i.mu.Unlock()
+	pending := []string{}
 	for _, folder := range folders {
-		if !names[folder.Name()] {
-			continue
+		if names[folder.Name()] {
+			pending = append(pending, folder.Name())
 		}
+	}
+	for len(pending) > 0 {
 		if ctx.Err() != nil {
 			return ctx.Err()
 		}
-		if err := i.scanSegment(ctx, folder.Name(), generation); err != nil {
+		i.mu.Lock()
+		priority := i.priorityDrive
+		i.mu.Unlock()
+		next := 0
+		if priority != "" {
+			best := int(^uint(0) >> 1)
+			for n, name := range pending {
+				if strings.HasPrefix(name, priority+"--") {
+					number, err := strconv.Atoi(strings.TrimPrefix(name, priority+"--"))
+					if err == nil && number < best {
+						next = n
+						best = number
+					}
+				}
+			}
+		}
+		name := pending[next]
+		i.mu.Lock()
+		i.status.Current = name
+		i.mu.Unlock()
+		pending = append(pending[:next], pending[next+1:]...)
+		if err := i.scanSegment(ctx, name, generation); err != nil {
 			if ctx.Err() != nil {
 				return ctx.Err()
 			}
@@ -196,6 +234,7 @@ func (i *Index) scan(parent context.Context) error {
 		i.status.Completed++
 		i.mu.Unlock()
 	}
+
 	if ctx.Err() != nil {
 		return ctx.Err()
 	}
@@ -263,11 +302,6 @@ func (i *Index) scan(parent context.Context) error {
 	return nil
 }
 func (i *Index) scanSegment(ctx context.Context, name string, generation uint64) error {
-	release, err := acquireCompute(ctx)
-	if err != nil {
-		return err
-	}
-	defer release()
 	folder, err := safePath(i.root, name)
 	if err != nil {
 		return err
@@ -298,7 +332,7 @@ func (i *Index) scanSegment(ctx context.Context, name string, generation uint64)
 	var oldHash, oldRaw string
 	_ = i.db.QueryRow("SELECT fingerprint,entry FROM segments WHERE name=?", name).Scan(&oldHash, &oldRaw)
 	var old IndexedSegment
-	if oldHash == fingerprint && json.Unmarshal([]byte(oldRaw), &old) == nil && old.Metadata.Status != "error" && old.MediaVersion == 1 && old.TelemetryVersion == 4 {
+	if oldHash == fingerprint && json.Unmarshal([]byte(oldRaw), &old) == nil && old.Metadata.Status != "error" && old.MediaVersion == 1 && old.TelemetryVersion == 7 {
 		if old.Thumbnail == "" {
 			return nil
 		}
@@ -306,11 +340,58 @@ func (i *Index) scanSegment(ctx context.Context, name string, generation uint64)
 			return nil
 		}
 	}
+	release, err := acquireCompute(ctx)
+	if err != nil {
+		return err
+	}
+	defer release()
+	i.mu.Lock()
+	i.status.Running = true
+	i.mu.Unlock()
 	entry.MediaVersion = 1
-	entry.TelemetryVersion = 4
+	entry.TelemetryVersion = 7
+	var camera string
+	var logPaths []string
+	for _, file := range entry.Files {
+		if file.Size > 0 {
+			logPaths = append(logPaths, filepath.Join(folder, file.Name))
+		}
+		if file.Size > 0 && cameras[file.Name] && (camera == "" || file.Name == "qcamera.ts") {
+			camera = filepath.Join(folder, file.Name)
+		}
+	}
+	if qlog := telemetry.PreferredLog(logPaths, false); qlog != "" {
+		meta, err := telemetry.Decode(ctx, qlog)
+		if meta.Partial {
+			if full := telemetry.PreferredLog(logPaths, true); full != qlog {
+				if recovered, fullErr := telemetry.Decode(ctx, full); fullErr == nil && recovered.Duration >= meta.Duration {
+					meta = recovered
+				}
+			}
+		}
+		if err != nil {
+			if ctx.Err() != nil {
+				return ctx.Err()
+			}
+			entry.Metadata = telemetry.Metadata{Status: "error", Reason: err.Error()}
+		} else {
+			entry.Metadata = meta
+		}
+	}
 	for n, file := range entry.Files {
-		if !cameras[file.Name] || file.Size > 256<<20 {
+		if !cameras[file.Name] || file.Size == 0 || file.Size > 256<<20 {
 			continue
+		}
+		// loggerd records every stored frame and its encoded byte count.
+		// A complete log whose sizes account for the raw file (plus bounded
+		// Annex-B headers) avoids reparsing hundreds of large HEVC files.
+		if strings.HasSuffix(file.Name, ".hevc") && entry.Metadata.Status == "ready" && !entry.Metadata.Partial {
+			summary := entry.Metadata.Cameras[cameraTopics[file.Name]]
+			extra := int64(file.Size) - int64(summary.Bytes)
+			if summary.Frames > 0 && summary.Frames <= maxVideoPackets && summary.Bytes > 0 && extra >= 0 && extra <= 64<<10 {
+				entry.Files[n].Duration = float64(summary.Frames) / 20
+				continue
+			}
 		}
 		if oldHash == fingerprint && old.MediaVersion == 1 {
 			for _, previous := range old.Files {
@@ -329,26 +410,12 @@ func (i *Index) scanSegment(ctx context.Context, name string, generation uint64)
 			entry.Files[n].Duration = duration
 		}
 	}
-	var camera string
-	var logPaths []string
-	for _, file := range entry.Files {
-		logPaths = append(logPaths, filepath.Join(folder, file.Name))
-		if cameras[file.Name] && (camera == "" || file.Name == "qcamera.ts") {
-			camera = filepath.Join(folder, file.Name)
+	if camera != "" && oldHash == fingerprint && old.Thumbnail != "" {
+		if info, err := os.Stat(filepath.Join(i.cache, filepath.Base(old.Thumbnail))); err == nil && info.Mode().IsRegular() {
+			entry.Thumbnail = old.Thumbnail
 		}
 	}
-	if qlog := telemetry.PreferredLog(logPaths, false); qlog != "" {
-		meta, err := telemetry.Decode(ctx, qlog)
-		if err != nil {
-			if ctx.Err() != nil {
-				return ctx.Err()
-			}
-			entry.Metadata = telemetry.Metadata{Status: "error", Reason: err.Error()}
-		} else {
-			entry.Metadata = meta
-		}
-	}
-	if camera != "" {
+	if camera != "" && entry.Thumbnail == "" {
 		digest := sha256.Sum256([]byte(name + fingerprint))
 		thumbnail := fmt.Sprintf("%x.jpg", digest)
 		target := filepath.Join(i.cache, thumbnail)

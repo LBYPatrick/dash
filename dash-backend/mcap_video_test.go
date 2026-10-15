@@ -172,7 +172,7 @@ func assertDecodableVideo(t *testing.T, data []byte, codec string, frames int) {
 	}
 }
 
-func TestMCAPVideoCopiesCompatibleStreams(t *testing.T) {
+func TestMCAPVideoMakesEveryFrameSeekable(t *testing.T) {
 	for _, codec := range []string{"h264", "hevc"} {
 		t.Run(codec, func(t *testing.T) {
 			extension := ".ts"
@@ -196,13 +196,30 @@ func TestMCAPVideoCopiesCompatibleStreams(t *testing.T) {
 			}
 			frames := 0
 			var stream []byte
-			if err := streamMCAPVideo(context.Background(), filename, probe, func(data []byte) error { frames++; stream = append(stream, data...); return nil }); err != nil {
+			if err := streamMCAPVideo(context.Background(), filename, probe, func(data []byte) error {
+				frames++
+				stream = append(stream, data...)
+				kinds := map[byte]bool{}
+				for at, prefix := annexBStart(data, 0); at >= 0; {
+					kinds[data[at+prefix]&31] = true
+					at, prefix = annexBStart(data, at+prefix)
+				}
+				if !kinds[5] || !kinds[7] || !kinds[8] {
+					t.Fatal("frame cannot decode after seek: missing IDR/SPS/PPS", frames, kinds)
+				}
+				// Decode a frame out of sequence in a fresh decoder. This fails
+				// for the original copied streams' dependent delta messages.
+				if frames == 7 || frames == 3 {
+					assertDecodableVideo(t, data, "h264", 1)
+				}
+				return nil
+			}); err != nil {
 				t.Fatal(err)
 			}
 			if frames != 10 {
 				t.Fatal("wrong frame count", frames)
 			}
-			assertDecodableVideo(t, stream, codec, 10)
+			assertDecodableVideo(t, stream, "h264", 10)
 		})
 	}
 }
@@ -279,11 +296,16 @@ func TestMCAPVideoStopsOnIgnitionOrUnknown(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	// The wrapper repeats ten copies; advertise the repeated inventory so the
+	// output frame cap cannot finish before the driving watchdog fires.
+	probe.Offsets = make([]float64, len(probe.Offsets)*10)
 	wrapper := t.TempDir()
-	script := []byte("#!/bin/sh\nexec \"$DASH_TEST_FFMPEG\" -stream_loop 9 -re \"$@\"\n")
+	script := []byte("#!/bin/sh\necho started > \"$DASH_TEST_STARTED\"\nexec \"$DASH_TEST_FFMPEG\" -probesize 32 -analyzeduration 0 -stream_loop 9 -readrate 0.1 \"$@\"\n")
 	if err := os.WriteFile(filepath.Join(wrapper, "ffmpeg"), script, 0700); err != nil {
 		t.Fatal(err)
 	}
+	startedFile := filepath.Join(wrapper, "started")
+	t.Setenv("DASH_TEST_STARTED", startedFile)
 	t.Setenv("DASH_TEST_FFMPEG", ffmpeg)
 	t.Setenv("PATH", wrapper+string(os.PathListSeparator)+os.Getenv("PATH"))
 	for _, next := range []string{"onroad", "unknown"} {
@@ -294,6 +316,16 @@ func TestMCAPVideoStopsOnIgnitionOrUnknown(t *testing.T) {
 			defer stop()
 			ctx, cancel := parkedContext(parent, func() string { return state.Load().(string) })
 			defer cancel()
+			_ = os.Remove(startedFile)
+			go func() {
+				for ctx.Err() == nil {
+					if _, err := os.Stat(startedFile); err == nil {
+						state.Store(next)
+						return
+					}
+					time.Sleep(5 * time.Millisecond)
+				}
+			}()
 			frames := 0
 			started := time.Now()
 			err := streamMCAPVideo(ctx, filename, probe, func([]byte) error {
@@ -301,7 +333,7 @@ func TestMCAPVideoStopsOnIgnitionOrUnknown(t *testing.T) {
 				state.Store(next)
 				return ctx.Err()
 			})
-			if err == nil || frames == 0 || frames >= 10 || ctx.Err() == nil || time.Since(started) > 2*time.Second {
+			if err == nil || frames >= 10 || ctx.Err() == nil || time.Since(started) > 2*time.Second {
 				t.Fatal("video worker did not stop promptly", err, frames, time.Since(started))
 			}
 		})

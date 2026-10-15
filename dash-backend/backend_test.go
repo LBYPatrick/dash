@@ -399,14 +399,15 @@ func TestKernelResourceLimitsFailClosed(t *testing.T) {
 
 func TestLiveOwnershipCleanup(t *testing.T) {
 	directory := t.TempDir()
-	server := &Server{params: directory}
+	cache := t.TempDir()
+	server := &Server{params: directory, index: &Index{cache: cache}}
 	if err := server.setLive(true); err != nil {
 		t.Fatal(err)
 	}
 	if data, err := os.ReadFile(filepath.Join(directory, "IsLiveStreaming")); err != nil || string(data) != "1" {
 		t.Fatal("live flag not enabled", err)
 	}
-	if _, err := os.Stat(filepath.Join(directory, ".dash-live-owned")); err != nil {
+	if _, err := os.Stat(filepath.Join(cache, ".dash-live-owned")); err != nil {
 		t.Fatal(err)
 	}
 	if err := server.setLive(false); err != nil {
@@ -415,7 +416,7 @@ func TestLiveOwnershipCleanup(t *testing.T) {
 	if data, err := os.ReadFile(filepath.Join(directory, "IsLiveStreaming")); err != nil || string(data) != "0" {
 		t.Fatal("live flag not cleared", err)
 	}
-	if _, err := os.Stat(filepath.Join(directory, ".dash-live-owned")); !os.IsNotExist(err) {
+	if _, err := os.Stat(filepath.Join(cache, ".dash-live-owned")); !os.IsNotExist(err) {
 		t.Fatal("ownership survived cleanup")
 	}
 }
@@ -505,5 +506,74 @@ func TestExportsAlwaysResolveCompleteSession(t *testing.T) {
 			t.Fatal("raw archive includes non-camera data or wrong extension")
 		}
 		archive.Close()
+	}
+}
+
+func TestPlaybackReadinessPrioritizesWithoutConflictErrors(t *testing.T) {
+	index, parked := fixtureIndex(t)
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	server := &Server{ctx: ctx, index: index}
+	parked.Store(false)
+	request := httptest.NewRequest("POST", "/api/playback/prepare?drive="+fixtureDrive+"&camera=qcamera.ts", nil)
+	response := httptest.NewRecorder()
+	server.ServeHTTP(response, request)
+	var result struct {
+		Ready  bool   `json:"ready"`
+		Status string `json:"status"`
+		Total  int    `json:"total"`
+	}
+	if response.Code != 200 || json.Unmarshal(response.Body.Bytes(), &result) != nil || result.Status != "parkedRequired" || result.Total != 1 {
+		t.Fatal("preparation should wait without an HLS conflict", response.Code, response.Body.String())
+	}
+	parked.Store(true)
+	response = httptest.NewRecorder()
+	server.ServeHTTP(response, request)
+	if response.Code != 200 || json.Unmarshal(response.Body.Bytes(), &result) != nil || result.Status != "indexing" {
+		t.Fatal("parked preparation did not queue index", response.Body.String())
+	}
+	index.mu.Lock()
+	priority := index.priorityDrive
+	index.mu.Unlock()
+	if priority != fixtureDrive {
+		t.Fatal("opened drive not prioritized")
+	}
+	// Wait for the canceled scheduling goroutine before fixture DB cleanup.
+	time.Sleep(20 * time.Millisecond)
+}
+
+func TestLiveViewerLeaseOwnership(t *testing.T) {
+	index, _ := fixtureIndex(t)
+	const owner = "11111111111111111111111111111111"
+	const stranger = "22222222222222222222222222222222"
+	stopped, released := 0, 0
+	started := time.Now().Add(-time.Second)
+	server := &Server{index: index, liveOwned: true, liveLease: owner, liveTouched: started,
+		liveCancel: func() { stopped++ }, liveRelease: func() { released++ }}
+	call := func(path, lease string) *httptest.ResponseRecorder {
+		response := httptest.NewRecorder()
+		server.ServeHTTP(response, httptest.NewRequest("POST", path, strings.NewReader(`{"lease":"`+lease+`"}`)))
+		return response
+	}
+	call("/api/stream/heartbeat", stranger)
+	if !server.liveTouched.Equal(started) {
+		t.Fatal("another viewer renewed the lease")
+	}
+	call("/api/stream/stop", stranger)
+	call("/api/stream/stop", "")
+	if stopped != 0 {
+		t.Fatal("unrelated browser stopped owner")
+	}
+	response := call("/api/stream/heartbeat", owner)
+	if !strings.Contains(response.Body.String(), `"active":true`) || !server.liveTouched.After(started) {
+		t.Fatal("owner cannot renew")
+	}
+	call("/api/stream/stop", owner)
+	if stopped != 1 || released != 1 || server.liveOwned || server.liveLease != "" {
+		t.Fatal("lease did not release worker and compute slot")
+	}
+	call("/api/stream/stop", owner)
+	if stopped != 1 || released != 1 {
+		t.Fatal("worker released twice")
 	}
 }

@@ -29,6 +29,13 @@ const distance = computed(() =>
         <p>{{ t('facts.decoded', { count: metadata.length, total }) }}</p>
       </div>
     </div>
+    <p
+      v-if="metadata.some((meta) => meta.partial)"
+      class="metadata-warning"
+      role="status"
+    >
+      {{ t('facts.incompleteRecording') }}
+    </p>
     <div class="stat-grid">
       <div>
         <small>{{ t('facts.measuredDistance') }}</small

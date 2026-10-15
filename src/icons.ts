@@ -50,3 +50,6 @@ export const Square = icon('stop');
 
 export const Play = icon('play');
 export const Pause = icon('pause');
+
+export const Volume = icon('volume');
+export const VolumeOff = icon('volumeOff');

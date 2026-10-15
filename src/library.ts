@@ -18,6 +18,7 @@ export interface Drive {
   id: string;
   date: number;
   dated: boolean;
+  dateEstimated?: boolean;
   segments: Segment[];
 }
 
@@ -165,17 +166,50 @@ export function downloadUrl(address: string): string {
   return url.href;
 }
 
-// Modern route identifiers contain no date. Prefer the recorded capture clock
-// from the lightweight index summary; copying a folder must not redate a trip.
+// GPS is authoritative; initData can repeat a pre-sync boot clock for an
+// entire route. Calibrate the first part with any GPS-timed part in that route.
 export function recordingDate(
   drive: Drive,
-  entries: Record<string, { metadata?: { startUTC?: number } }>,
+  entries: Record<
+    string,
+    {
+      metadata?: {
+        startUTC?: number;
+        startMonotonic?: number;
+        timeSource?: string;
+      };
+    }
+  >,
 ): Drive {
-  const segment = drive.segments.find(
-    (part) =>
-      Number.isFinite(entries[part.url]?.metadata?.startUTC) &&
-      entries[part.url]!.metadata!.startUTC! > 0,
-  );
-  const utc = segment && entries[segment.url]?.metadata?.startUTC;
-  return utc ? { ...drive, date: utc * 1000, dated: true } : drive;
+  const anchor = drive.segments.find((part) => {
+    const meta = entries[part.url]?.metadata;
+    return (
+      meta?.timeSource === 'gps' &&
+      Number.isFinite(meta.startUTC) &&
+      meta.startUTC! > 0
+    );
+  });
+  if (anchor) {
+    const gps = entries[anchor.url]!.metadata!;
+    const first = drive.segments[0];
+    const firstMono = first && entries[first.url]?.metadata?.startMonotonic;
+    const calibrated =
+      Number.isFinite(firstMono) &&
+      firstMono! > 0 &&
+      Number.isFinite(gps.startMonotonic) &&
+      gps.startMonotonic! > 0 &&
+      firstMono! <= gps.startMonotonic!;
+    const utc = calibrated
+      ? gps.startUTC! + firstMono! - gps.startMonotonic!
+      : gps.startUTC! - (anchor.index - (first?.index || 0)) * 60;
+    return {
+      ...drive,
+      date: utc * 1000,
+      dated: true,
+      dateEstimated: !calibrated && anchor.index !== first?.index,
+    };
+  }
+  // A timestamp-named legacy route is usable. Counter-ID routes without GPS
+  // have no proven calendar date; show that honestly rather than the boot date.
+  return drive.dated ? drive : { ...drive, date: 0, dated: false };
 }

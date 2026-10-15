@@ -227,3 +227,21 @@ func TestRecordedRouteWallClockWithoutGPS(t *testing.T) {
 		t.Fatal("wrong summary without GPS", summary.StartUTC, summary.Duration)
 	}
 }
+
+func TestInterruptedCameraIndexesUseVerifiedPrefix(t *testing.T) {
+	offset := int64(1700000000000000000)
+	clock := mcapClock{OffsetNS: &offset}
+	frames := []telemetry.FrameIndex{{PresentationIndex: 20, EndNS: 1000000000, Bytes: 100}, {PresentationIndex: 21, EndNS: 1050000000, Bytes: 40}, {PresentationIndex: 23, EndNS: 1100000000, Bytes: 45}}
+	probe := videoProbe{Codec: "hevc", Offsets: []float64{0, .05, .1, .15}, Sizes: []int{188, 40, 45, 50}, Step: .05}
+	times, err := recoveredFrameTimes(frames, probe, clock)
+	if err != nil || len(times) != 4 || times[2] != uint64(offset)+1100000000 || times[3] != uint64(offset)+1150000000 {
+		t.Fatal("prefix exposure times or disclosed estimated tail lost", times, err)
+	}
+	probe.Sizes[1] = 39
+	if _, err := recoveredFrameTimes(frames, probe, clock); err == nil {
+		t.Fatal("misaligned interrupted index accepted")
+	}
+	if _, err := recordedFrameTimes(frames, 4, clock); err == nil {
+		t.Fatal("complete log count mismatch accepted")
+	}
+}

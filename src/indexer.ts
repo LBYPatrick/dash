@@ -11,11 +11,18 @@ export interface Position {
 }
 export interface Telemetry {
   status: string;
+  partial?: boolean;
   reason?: string;
   duration?: number;
   startMonotonic?: number;
   startUTC?: number;
-  engagement?: { time: number; enabled: boolean; active: boolean }[];
+  timeSource?: string;
+  engagement?: {
+    time: number;
+    enabled: boolean;
+    active: boolean;
+    confidence?: 'high' | 'medium' | 'low';
+  }[];
   distanceKm?: number;
   distanceSamples?: number;
   points?: Position[];
@@ -28,6 +35,7 @@ export interface IndexedSegment {
   thumbnail?: string;
   metadata?: Telemetry;
   fingerprint: string;
+  mediaVersion?: number;
 }
 export interface BackendIndex {
   version: number;
@@ -37,6 +45,8 @@ export interface BackendIndex {
     total: number;
     errors: number;
     driving?: string;
+    current?: string;
+    priority?: string;
   };
   segments: Record<
     string,
@@ -44,6 +54,7 @@ export interface BackendIndex {
       files: { name: string; size: number; mtime: number; duration?: number }[];
       thumbnail?: string;
       metadata: Telemetry;
+      mediaVersion?: number;
     }
   >;
 }
@@ -54,6 +65,8 @@ export const indexStatus = ref({
   total: 0,
   errors: 0,
   driving: 'unknown',
+  current: '',
+  priority: '',
 });
 export const backendOrigin = ref('');
 let controller: AbortController | undefined;
@@ -95,6 +108,8 @@ export async function startIndexing(
     total: segments.length,
     errors: 0,
     driving: 'unknown',
+    current: '',
+    priority: '',
   };
   backendOrigin.value = await detectBackend(address, run.signal);
   if (run.signal.aborted) return;
@@ -136,8 +151,15 @@ export async function startIndexing(
           );
           const indexed = snapshot.segments[name];
           if (!indexed) continue;
+          const fingerprint = JSON.stringify(indexed);
+          const previous = indexEntries.value[segment.url];
+          if (previous?.fingerprint === fingerprint) {
+            entries[segment.url] = previous;
+            continue;
+          }
           entries[segment.url] = {
-            fingerprint: '',
+            fingerprint,
+            mediaVersion: indexed.mediaVersion,
             metadata: {
               ...indexed.metadata,
               points: indexEntries.value[segment.url]?.metadata?.points,
@@ -160,6 +182,8 @@ export async function startIndexing(
         indexStatus.value = {
           ...snapshot.status,
           driving: snapshot.status.driving || 'unknown',
+          current: snapshot.status.current || '',
+          priority: snapshot.status.priority || '',
         };
       } catch {
         if (!run.signal.aborted) indexStatus.value.errors++;
@@ -213,4 +237,39 @@ export function distanceKm(points: Position[]): number {
 
 export function recordingAddress(drive: string, camera: string): string {
   return `/api/playlist?${new URLSearchParams({ drive, camera })}`;
+}
+
+export function recordingReadiness(
+  drive: Drive,
+  entries: Record<string, IndexedSegment>,
+  sample = false,
+) {
+  if (sample)
+    return {
+      ready: true,
+      complete: drive.segments.length,
+      total: drive.segments.length,
+      empty: false,
+    };
+  let complete = 0,
+    playable = false;
+  for (const part of drive.segments) {
+    const entry = entries[part.url];
+    if (entry?.mediaVersion !== 1) continue;
+    complete++;
+    playable ||= entry.files.some(
+      (file) =>
+        /\.(ts|hevc|mp4|webm)$/.test(file.name) &&
+        file.size > 0 &&
+        (file.duration || 0) > 0,
+    );
+  }
+  const indexed =
+    drive.segments.length > 0 && complete === drive.segments.length;
+  return {
+    ready: indexed && playable,
+    complete,
+    total: drive.segments.length,
+    empty: indexed && !playable,
+  };
 }

@@ -71,6 +71,19 @@ func PreferredLog(paths []string, fullRate bool) string {
 	return ""
 }
 
+// IncompleteLogError reports an interrupted file after complete messages were
+// recovered. Malformed messages, budget errors and cancellation remain fatal.
+type IncompleteLogError struct {
+	Records int
+	Cause   error
+}
+
+func (e *IncompleteLogError) Error() string {
+	return fmt.Sprintf("incomplete log tail; recovered %d complete events: %v", e.Records, e.Cause)
+}
+func (e *IncompleteLogError) Unwrap() error { return e.Cause }
+func IsIncomplete(err error) bool           { var tail *IncompleteLogError; return errors.As(err, &tail) }
+
 // Stream reads unpacked cereal without generated comma types or Python. Layouts
 // are checked against the pinned upstream schemas by independently built fixtures.
 // Unknown events still reach emit for clock observation, with no invented fields.
@@ -105,6 +118,9 @@ func Stream(ctx context.Context, filename string, emit func(Record) error) error
 			break
 		}
 		if err != nil {
+			if count > 0 && limited.N > 0 && errors.Is(err, io.ErrUnexpectedEOF) {
+				return &IncompleteLogError{Records: count, Cause: err}
+			}
 			return fmt.Errorf("decode cereal: %w", err)
 		}
 		root, err := message.Root()

@@ -123,7 +123,19 @@
     "driveCount": "{{total, number}} 件中 {{visible, number}} 件の走行",
     "indexProgress": "索引作成中 {{completed, number}} / {{total, number}}",
     "originalFilesHint": "区間 {{segment, number}} のファイルをお使いの端末にダウンロードできます。",
-    "originalFileSize": "{{size}} · 元のファイル"
+    "originalFileSize": "{{size}} · 元のファイル",
+    "dateUnavailable": "日時不明",
+    "estimatedDate": "推定開始時刻",
+    "recordingNumber": "録画 {{number}}",
+    "notIndexedYet": "未索引 · {{completed}} / {{total}}",
+    "preparingRecording": "準備中 · {{completed}} / {{total}}",
+    "indexingPaused": "索引作成は一時停止中",
+    "noPlayableFootage": "再生可能な映像なし",
+    "prepareNext": "次に準備",
+    "queuedNext": "次の準備待ち",
+    "couldNotPrioritize": "録画の優先順位を変更できませんでした。再試行してください。",
+    "recordingsWillUnlock": "タイムラインの索引作成後に録画を開けます。「次に準備」で優先できます。",
+    "notifications": "通知"
   },
   "chart": {
     "gpsDistance": "GPS 距離",
@@ -215,7 +227,7 @@
     "recordThisFeed": "この映像を録画",
     "saveRecording": "録画を保存",
     "yourClipStaysAvailableWhenSwitchingDash": "画面を切り替えてもクリップを保存できます。新しい録画で置き換わり、タブの更新や終了で失われます。",
-    "keepThisTabOpenWhileRecordingCapture": "録画中はこのタブを開いてください。約 128 MB で停止します。駐車時の配信を管理できるファームウェアのみ対応し、古い非管理型サービスは使用しません。Dash は運転操作を送信しません。",
+    "keepThisTabOpenWhileRecordingCapture": "録画中はこのタブを表示してください。約 128 MB で停止します。ライブ映像は表示中かつ駐車確認済みの場合のみ動作し、画面を離れる、接続が切れる、点火、走行状態不明のときは停止します。車両操作は送信しません。",
     "httpError": "配信サービスが {{status, number}} を返しました。"
   },
   "dashboard": {
@@ -280,7 +292,6 @@
     "snapshotsAppearAfterParkedIndexing": "スナップショットは駐車中の索引作成後に表示されます。",
     "engaged": "制御中",
     "recordedEngagementTimeline": "記録された制御状態のタイムライン",
-    "greenEngagedGrayEnabledButInactiveBlue": "緑：制御中。灰：有効ですが非作動。青：制御解除。空白：状態の記録なし。",
     "recordingTimeline": "録画のタイムライン",
     "playRecording": "録画を再生",
     "pauseRecording": "録画を一時停止",
@@ -302,7 +313,14 @@
     "hideSnapshots": "スナップショットを非表示",
     "showSnapshots": "スナップショットを表示",
     "hideEngagement": "制御状態を非表示",
-    "showEngagement": "制御状態を表示"
+    "showEngagement": "制御状態を表示",
+    "preparingTimeline": "タイムラインを準備中 · {{completed}} / {{total}}",
+    "timelineNeedsParked": "駐車中にタイムラインの準備を再開します。",
+    "preparingVideo": "動画を準備中…",
+    "mute": "ミュート",
+    "unmute": "ミュート解除",
+    "noRecordedAudio": "録音なし",
+    "engagementColors": "作動中：信頼度記録なしはアクセント色、高は緑、中はオレンジ、低は赤。淡色は解除中、薄いアクセント色は有効・非作動。"
   },
   "panels": {
     "resizeVideoAndMap": "動画と地図の幅を変更",
@@ -321,7 +339,8 @@
     "vehicle": "車両",
     "notRecorded": "記録なし",
     "decoded_one": "{{count, number}} / {{total, number}} 区間を解析済み",
-    "decoded_other": "{{count, number}} / {{total, number}} 区間を解析済み"
+    "decoded_other": "{{count, number}} / {{total, number}} 区間を解析済み",
+    "incompleteRecording": "録画が予期せず終了しました。利用可能なデータは復元されましたが、最後の部分は不完全な場合があります。"
   },
   "settings": {
     "light": "ライト",
@@ -341,7 +360,16 @@
     "language": "言語",
     "followSystem": "システムに合わせる",
     "indexErrors_one": "{{count, number}} ファイルの索引を作成できませんでした。再作成して試してください。",
-    "indexErrors_other": "{{count, number}} ファイルの索引を作成できませんでした。再作成して試してください。"
+    "indexErrors_other": "{{count, number}} ファイルの索引を作成できませんでした。再作成して試してください。",
+    "accent": "アクセントカラー",
+    "accentBlue": "ブルー",
+    "accentPurple": "パープル",
+    "accentPink": "ピンク",
+    "accentRed": "レッド",
+    "accentOrange": "オレンジ",
+    "accentYellow": "イエロー",
+    "accentGreen": "グリーン",
+    "accentGraphite": "グラファイト"
   },
   "sidebar": {
     "resizeRecordingSidebar": "録画サイドバーの幅を変更"
@@ -364,7 +392,8 @@
     "follow": "追従",
     "fullRoute": "経路全体",
     "interactiveMapUnavailableShowingTheRecordedRoute": "操作可能な地図は使えないため、記録された経路を表示しています。",
-    "mapBackgroundUnavailableRecordedGpsStillWorks": "地図の背景を表示できません。記録された GPS は使えます。"
+    "mapBackgroundUnavailableRecordedGpsStillWorks": "地図の背景を表示できません。記録された GPS は使えます。",
+    "gpsGap": "この時刻に GPS 測位はありません"
   },
   "updates": {
     "updateInformationIsUnavailable": "更新情報を取得できません。",
@@ -424,7 +453,8 @@
     "coveredParts": "{{covered, number}} / {{total, number}} 区間",
     "coverage": "{{covered, number}}/{{total, number}} 区間",
     "range": "{{total, number}} 件中 {{start, number}}–{{end, number}}",
-    "technicalDetails": "技術的な詳細"
+    "technicalDetails": "技術的な詳細",
+    "dismiss": "閉じる"
   },
   "units": {
     "km": "km",

@@ -28,7 +28,11 @@ Dash turns your device's recordings into a searchable drive library. Connect ove
 
 Desktop offers resizable library and video/map panels. Mobile keeps playback controls available across Video and Map tabs, with trip details in a sheet. Light, dark, and system themes include an opaque performance mode and reduced-motion support. Settings also offers English, 日本語, 简体中文, 한국어, Tiếng Việt, or Follow system; language changes apply immediately.
 
-Live view and bounded browser recording are available **only on compatible firmware with managed WebRTC support**. Metadata and statistics depend on the logs actually recorded; unavailable data stays unavailable.
+MCAP video uses H.264 with a keyframe in every message for paused Foxglove scrubbing. Exports preserve recorded frame timing and resolution, and include original files as attachments. This costs additional conversion time and storage; previously downloaded MCAPs need to be exported again.
+
+Live view and bounded browser recording support firmware-managed WebRTC and a Dash-owned adapter for older sunnypilot builds with installed camera/media libraries. Both require a visible viewer and confirmed parked state. Leaving Live or losing the viewer stops capture. Metadata and statistics depend on the logs actually recorded; unavailable data stays unavailable.
+
+HEVC cameras use short, cached H.264 previews while parked, with visible preparation feedback. Recorded AAC audio follows camera selection and stays in MP4 downloads. Follow remains enabled during GPS gaps, with a small availability indicator. Shelf’s dismissible notifications and eight accent presets apply throughout the interface; blue is the default.
 
 ## Try it locally
 
@@ -72,9 +76,9 @@ Use `make sandbox-logs` to follow logs and `make sandbox-down` to stop it. Docke
 
 ## Install on your device
 
-Dash installs alongside sunnypilot over SSH. A firmware merge is not required. **Physical comma-device installation and live camera compatibility have not yet been validated.** Check your actual firmware and AGNOS image before deploying.
+Dash installs alongside sunnypilot over SSH. A firmware merge is not required. Installation, native recording playback and exports have been exercised on a physical sunnypilot device. Firmware camera/API compatibility can vary; see the [live-view requirements](docs/installation.md#firmware-live-view).
 
-The target needs systemd, unified cgroup v2 with CPU/memory/PID controllers, FFmpeg 5+ with the required encoders/filters, SSH access, and noninteractive sudo. Installation requires confirmed parked state. The [installation guide](docs/installation.md) covers the complete requirements; the installer rejects unsupported configurations.
+The target needs systemd, SSH access and noninteractive sudo for Dash’s service registration. Static FFmpeg/ffprobe are bundled; no device packages or Docker are needed. Installation requires confirmed parked state. The [installation guide](docs/installation.md) covers the complete requirements; the installer rejects unsupported configurations.
 
 ### From a release
 
@@ -92,7 +96,7 @@ make device-install DEVICE=comma@DEVICE_IP CHANNEL=nightly
 make device-install DEVICE=comma@DEVICE_IP CHANNEL=dev RELEASE=TAG
 ```
 
-The installer verifies the downloaded release, transfers the Go binary and prebuilt site, installs under `/data/dash`, enables `dash.service`, and verifies the live kernel resource limits. A channel must have a published release before this route can work.
+The installer verifies the downloaded release, transfers the Go binary, prebuilt site and static media tools, installs under `/data/dash`, enables `dash.service`, and verifies fresh supervised startup. A channel must have a published release before this route can work. AGNOS boot setup briefly remounts root to add only Dash’s two systemd symlinks, then restores read-only mode. Use `RUNTIME=1` for temporary testing with no system-partition writes.
 
 Open **`http://DEVICE_IP:8088`** from the same network. Trusted HTTPS is required to install the PWA on a LAN address; ordinary HTTP still serves the interface. See [HTTPS setup](docs/installation.md#local-https-and-pwa-installation).
 
@@ -111,20 +115,9 @@ This route runs local checks, cross-compiles for the target, and uses the same s
 
 Heavy workers run only when firmware explicitly reports **`IsOnroad=0` and `IsOffroad=1`**. Onroad, unknown, missing, or contradictory state blocks them; a 100 ms watchdog cancels active work when state changes. Cached information and existing original downloads remain available. This is software cancellation, not a hard real-time guarantee.
 
-One heavy operation runs at a time. The installed service enforces these limits across Dash **and its child processes**:
+One heavy operation runs at a time, only with confirmed parked state. Onroad or unknown state cancels processing. Fixed tunable constants in [`policy.go`](dash-backend/policy.go) assume eight cores, allow up to eight media threads and set bounded Go/media allocations. CPU is neither pinned nor throttled, and device mode does not probe system resources.
 
-| Resource        | Service limit                                        |
-| --------------- | ---------------------------------------------------- |
-| CPU             | 50% of one core                                      |
-| Memory          | 256 MiB pressure threshold; 384 MiB hard maximum     |
-| Swap / tasks    | No swap; 64 tasks                                    |
-| Low-memory gate | Heavy work pauses below 512 MiB device available RAM |
-
-Go also has a 128 MiB soft memory target; FFmpeg has a monitored 192 MiB RSS ceiling. Firmware-owned WebRTC processes are outside Dash's cgroup. Systemd provides restart limits, journal logging, and process-group cleanup. See [resource controls and lifecycle](docs/installation.md#verified-limits).
-
-Recordings are read-only. SQLite indexes, previews, and exports are disposable cache. Rebuild the index in Settings; download bounded backend logs through the device card's **Download backend diagnostics** action.
-
-Dash has **no authentication**: anyone who can reach its port can access recordings and request parked work. Keep it on a trusted hotspot/LAN. Maps load OpenStreetMap tiles automatically and require internet for their background; the tile provider sees the requested area. GPS overlays remain available when tiles fail. The PWA caches its shell, not footage, exports, or map tiles. [Map configuration and usage policy →](docs/maps.md)
+Systemd requests 256 MiB memory high / 384 MiB maximum, zero swap and 128 tasks, and provides restart limits, journal logging and process-group cleanup. Available kernel enforcement varies by AGNOS; the app also uses soft memory targets and bounded buffers. See [resource policy and lifecycle](docs/installation.md#resource-policy). All installed assets and helpers live under `/data/dash`; `make device-uninstall DEVICE=comma@DEVICE_IP` removes them cleanly.
 
 ## Releases and updates
 

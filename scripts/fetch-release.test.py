@@ -59,6 +59,24 @@ class ReleaseInstallerTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 module.identity(manifest, "main", "arm64")
 
+    def test_bundled_media_architecture_and_digest(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "bin").mkdir()
+            binary = bytearray(64)
+            binary[:6] = b"\x7fELF\x02\x01"
+            binary[18:20] = (183).to_bytes(2, "little")
+            record = {"bytes": len(binary), "sha256": hashlib.sha256(binary).hexdigest()}
+            for name in ("ffmpeg", "ffprobe"):
+                (root / "bin" / name).write_bytes(binary)
+            (root / "bin/manifest.json").write_text(json.dumps({"protocol": 1, "arch": "arm64", "binaries": {"ffmpeg": record, "ffprobe": record}}))
+            module.verify_media(root, "arm64")
+            with self.assertRaises(ValueError):
+                module.verify_media(root, "amd64")
+            (root / "bin/ffmpeg").write_bytes(binary + b"changed")
+            with self.assertRaises(ValueError):
+                module.verify_media(root, "arm64")
+
     def test_extraction_rejects_traversal_and_links(self):
         for name, kind in [("../outside", tarfile.REGTYPE), ("dist/../../outside", tarfile.REGTYPE), ("dist/link", tarfile.SYMTYPE), ("unexpected", tarfile.REGTYPE)]:
             with tempfile.TemporaryDirectory() as directory:

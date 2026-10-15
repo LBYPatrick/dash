@@ -148,7 +148,7 @@ func pendingRelease(home string) (string, error) {
 // A bootstrap/protocol or unit upgrade requires SSH; app updates need no root.
 func runSupervisor(ctx context.Context, home string, state StateReader, args []string) error {
 	runtime.GOMAXPROCS(1)
-	debug.SetMemoryLimit(24 << 20)
+	debug.SetMemoryLimit(SupervisorHeapTargetMiB << 20)
 	debug.SetGCPercent(60)
 	serviceReady := filepath.Join(home, "cache", "supervisor-ready.json")
 	_ = os.Remove(serviceReady)

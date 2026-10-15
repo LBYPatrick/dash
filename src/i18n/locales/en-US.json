@@ -123,7 +123,19 @@
     "driveCount": "{{visible, number}} of {{total, number}} drives",
     "indexProgress": "Indexing {{completed, number}} / {{total, number}}",
     "originalFilesHint": "Files from segment {{segment, number}}. Download directly to your device.",
-    "originalFileSize": "{{size}} · Original file"
+    "originalFileSize": "{{size}} · Original file",
+    "dateUnavailable": "Date unavailable",
+    "estimatedDate": "Estimated start time",
+    "recordingNumber": "Recording {{number}}",
+    "notIndexedYet": "Not indexed · {{completed}} / {{total}}",
+    "preparingRecording": "Preparing · {{completed}} / {{total}}",
+    "indexingPaused": "Indexing paused",
+    "noPlayableFootage": "No playable footage",
+    "prepareNext": "Prepare next",
+    "queuedNext": "Queued next",
+    "couldNotPrioritize": "Could not prioritize this recording. Try again.",
+    "recordingsWillUnlock": "Recordings unlock when their timelines are indexed. Use Prepare next to move one ahead.",
+    "notifications": "Notifications"
   },
   "chart": {
     "gpsDistance": "GPS distance",
@@ -215,7 +227,7 @@
     "recordThisFeed": "Record this feed",
     "saveRecording": "Save recording",
     "yourClipStaysAvailableWhenSwitchingDash": "Your clip stays available when switching Dash views. A new recording replaces it; refreshing or closing this tab discards it.",
-    "keepThisTabOpenWhileRecordingCapture": "Keep this tab open while recording. Capture stops at approximately 128 MB. Only firmware with managed offroad streaming is supported. Older unmanaged streaming services are intentionally rejected. Dash does not send driving controls.",
+    "keepThisTabOpenWhileRecordingCapture": "Keep this tab open while recording. Capture stops at approximately 128 MB. Live capture requires a visible viewer and confirmed parked state; leaving Live, losing the viewer, ignition or unknown driving state stops it. Dash does not send driving controls.",
     "httpError": "Streaming service returned {{status, number}}."
   },
   "dashboard": {
@@ -280,7 +292,6 @@
     "snapshotsAppearAfterParkedIndexing": "Snapshots appear after parked indexing.",
     "engaged": "Engaged",
     "recordedEngagementTimeline": "Recorded engagement timeline",
-    "greenEngagedGrayEnabledButInactiveBlue": "Green: engaged. Gray: enabled but inactive. Blue: disengaged. Blank: no recorded state.",
     "recordingTimeline": "Recording timeline",
     "playRecording": "Play recording",
     "pauseRecording": "Pause recording",
@@ -302,7 +313,14 @@
     "hideSnapshots": "Hide snapshots",
     "showSnapshots": "Show snapshots",
     "hideEngagement": "Hide engagement status",
-    "showEngagement": "Show engagement status"
+    "showEngagement": "Show engagement status",
+    "preparingTimeline": "Preparing timeline · {{completed}} / {{total}}",
+    "timelineNeedsParked": "Timeline preparation will resume when parked.",
+    "preparingVideo": "Preparing video…",
+    "mute": "Mute",
+    "unmute": "Unmute",
+    "noRecordedAudio": "No recorded audio",
+    "engagementColors": "Engaged: accent color without recorded confidence, green for high, orange for medium, red for low. Faint: disengaged. Muted accent: enabled but inactive."
   },
   "panels": {
     "resizeVideoAndMap": "Resize video and map",
@@ -321,7 +339,8 @@
     "vehicle": "Vehicle",
     "notRecorded": "Not recorded",
     "decoded_one": "{{count, number}} / {{total, number}} segment decoded",
-    "decoded_other": "{{count, number}} / {{total, number}} segments decoded"
+    "decoded_other": "{{count, number}} / {{total, number}} segments decoded",
+    "incompleteRecording": "This recording ended unexpectedly. Available data was recovered; its final part may be incomplete."
   },
   "settings": {
     "light": "Light",
@@ -341,7 +360,16 @@
     "language": "Language",
     "followSystem": "Follow system",
     "indexErrors_one": "{{count, number}} file could not be indexed. Rebuild to retry.",
-    "indexErrors_other": "{{count, number}} files could not be indexed. Rebuild to retry."
+    "indexErrors_other": "{{count, number}} files could not be indexed. Rebuild to retry.",
+    "accent": "Accent color",
+    "accentBlue": "Blue",
+    "accentPurple": "Purple",
+    "accentPink": "Pink",
+    "accentRed": "Red",
+    "accentOrange": "Orange",
+    "accentYellow": "Yellow",
+    "accentGreen": "Green",
+    "accentGraphite": "Graphite"
   },
   "sidebar": {
     "resizeRecordingSidebar": "Resize recording sidebar"
@@ -364,7 +392,8 @@
     "follow": "Follow",
     "fullRoute": "Full route",
     "interactiveMapUnavailableShowingTheRecordedRoute": "Interactive map unavailable. Showing the recorded route.",
-    "mapBackgroundUnavailableRecordedGpsStillWorks": "Map background unavailable. Recorded GPS still works."
+    "mapBackgroundUnavailableRecordedGpsStillWorks": "Map background unavailable. Recorded GPS still works.",
+    "gpsGap": "GPS unavailable here"
   },
   "updates": {
     "updateInformationIsUnavailable": "Update information is unavailable.",
@@ -424,7 +453,8 @@
     "coveredParts": "{{covered, number}} / {{total, number}} parts",
     "coverage": "{{covered, number}}/{{total, number}} segments",
     "range": "{{start, number}}–{{end, number}} of {{total, number}}",
-    "technicalDetails": "Technical details"
+    "technicalDetails": "Technical details",
+    "dismiss": "Dismiss"
   },
   "units": {
     "km": "km",

@@ -112,7 +112,12 @@ export function engagementAt(
       : t('engagement.disengaged');
 }
 export function engagementBands(segments: TimelineSegment[]) {
-  const bands: { start: number; end: number; state: string }[] = [];
+  const bands: {
+    start: number;
+    end: number;
+    state: string;
+    confidence?: 'high' | 'medium' | 'low';
+  }[] = [];
   for (const part of segments) {
     const meta = part.metadata;
     const samples = meta?.engagement || [];
@@ -135,10 +140,20 @@ export function engagementBands(segments: TimelineSegment[]) {
         : sample.enabled
           ? 'overriding'
           : 'disengaged';
+      const confidence =
+        sample.active &&
+        sample.confidence &&
+        ['high', 'medium', 'low'].includes(sample.confidence)
+          ? sample.confidence
+          : undefined;
       const previous = bands.at(-1);
-      if (previous?.state === state && Math.abs(previous.end - start) < 0.01)
+      if (
+        previous?.state === state &&
+        previous.confidence === confidence &&
+        Math.abs(previous.end - start) < 0.01
+      )
         previous.end = end;
-      else bands.push({ start, end, state });
+      else bands.push({ start, end, state, confidence });
     }
   }
   // A bounded visual overview; the status at the exact playhead remains precise.

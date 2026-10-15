@@ -6,12 +6,24 @@ All notable changes to Dash are documented here using Keep a Changelog.
 
 ### Added
 
+- Port Shelf's eight accent presets and OKLCH palette derivation with blue defaults, live Settings swatches and persistent cross-tab preferences. Reuse its borderless notification widget for playback errors, with Retry and Dismiss.
+
+- Add recorded AAC playback with remembered mute controls and preserve session audio in MP4 and HEVC browser previews.
+- Add a Dash-owned parked WebRTC adapter using the firmware's installed camera and Python media libraries, with early ignition checks, owned process groups and per-viewer heartbeat leases.
+
+- Port Shelf's notification stack, swipe dismissal, close/actions and pause-aware expiry to the PWA with touch targets and reduced motion.
+- Keep map Follow enabled during GPS gaps and show a small animated availability indicator until recorded fixes resume.
+
+- Bundle pinned, static FFmpeg/ffprobe with matching sources, licenses and build recipes; deploy and update media tools with each release without device packages or Docker.
+- Add clean SSH/device uninstall scripts, identity-key selection and persistent or runtime systemd registration. Restore AGNOS root to read-only after scoped boot-link setup/removal.
+- Add recording readiness states and Prepare next: keep unindexed and empty sessions disabled across the library/dashboard, prioritize complete timelines and wait quietly before loading HLS.
+
 - Add Shelf-compatible i18next/i18next-vue localization with five bundled languages, System following, persistent cross-tab preferences, translated controls/help/accessibility text, and locale-aware dashboard values. Accept decimal commas in precise timestamp entry.
 
 - Shared mobile playback controls across video/map panels, compact Trip details, supported fullscreen and touch/keyboard-safe timestamp editing.
 - Contextual browser navigation and retained Overview state, plus live clips that remain downloadable after changing views.
 
-- Separate Linux/macOS build-host setup and source-to-device SSH installer, with architecture detection, full local checks, verified minimal payloads, shared systemd activation and OTA disabled for local builds.
+- Separate Linux/macOS build-host setup and source-to-device SSH installer, with explicit architecture selection, full local checks, verified minimal payloads, shared systemd activation and OTA disabled for local builds.
 
 ### Security
 
@@ -21,8 +33,22 @@ All notable changes to Dash are documented here using Keep a Changelog.
 
 ### Fixed
 
+- Make every MCAP video message an independent H.264 keyframe with decoder headers so paused Foxglove seeks do not depend on preceding frames. Preserve recorded timing and original attachments.
+
+- Preserve leading and internal microphone gaps when exporting sessions that only contain audio in some parts.
+- Ignore declared-but-empty AAC tracks instead of failing video/MP4 muxing; cache codec checks and seek HEVC from indexed keyframes rather than repeatedly decoding full prefixes.
+- Serve retained immutable frontend assets across release switches and prevent stale app-shell caching.
+- Render disengaged intervals faintly and engaged intervals in the primary accent, reserving green/orange/red for explicit recorded confidence.
+
+- Prepare HEVC playback in short cached chunks, avoid camera-triggered indexing and repeated full telemetry reloads, ignore canceled play requests during camera changes, and make playback errors dismissible. Show indexing activity only for changed recordings.
+
+- Recover complete telemetry records from interrupted native logs, use longer rlog prefixes when available, and export typed MCAP/video with explicit recovery/timing notes and original attachments.
+- Handle nonzero/gapped native camera indexes, truncated final video packets and zero-byte tails; retain unchanged thumbnails and avoid full raw-video scans when complete log byte counts account for frames.
+- Derive session dates from GPS-calibrated monotonic clocks, including later parts after device time sync; label estimates and keep unknown dates out of calendar graphs instead of displaying stale March boot timestamps.
+- Restore the previous release on SSH activation errors, canonicalize systemd unit ownership checks and allow clean reinstallation of root-owned startup configuration.
+
 - Model sunnypilot recordings with native zstd cereal logs, 60-second rotation, full/reduced-rate telemetry and matching 20 fps camera indexes. Exclude repeated route initData from segment durations and date modern route IDs from recorded clocks.
-- Export full-rate telemetry from rlog (qlog fallback), typed Protobuf messages with embedded descriptors, Foxglove GPS fixes, engagement, identity, segment boundaries and camera indexes. Use recorded camera EOF timestamps when present; reject incomplete indexes. This replaces the JSON MCAP v1 contract with v2.
+- Export full-rate telemetry from rlog (qlog fallback), typed Protobuf messages with embedded descriptors, Foxglove GPS fixes, engagement, identity, segment boundaries and camera indexes. Use recorded camera EOF timestamps when present; reject misaligned indexes and disclose recovered interrupted prefixes. This replaces the JSON MCAP v1 contract with v2.
 
 - Keep MCAP assets, telemetry and camera frames on the capture clock; preserve source modification times separately so copied files cannot inflate playback to days. Give synthetic session parts distinct UTC and monotonic clocks.
 
@@ -36,6 +62,8 @@ All notable changes to Dash are documented here using Keep a Changelog.
 - Restore mobile dashboard and detail-page scrolling by bounding content panes to the available viewport; retain the fixed session viewer.
 
 ### Changed
+
+- Centralize fixed comma 3X/4 budgets: eight cores/media threads, one heavy job, bounded Go/media allocations and requested systemd memory controls; remove device CPU quotas, affinity and system-resource probing. Keep host validation sequential with lower Go concurrency.
 
 - Group icon-only Help and Settings beside the desktop Dash brand with Shelf hover labels; move mobile Help inside Settings with nested-sheet dismissal and focus restoration.
 

@@ -72,22 +72,22 @@ def extract(archive, destination, expected):
                     or str(path) != name):
                 raise ValueError("Unsafe or duplicate archive path")
             seen.add(name)
-            if not (name in {"dash-backend", "release.json", "dist"}
-                    or name.startswith("dist/")):
+            if not (name in {"dash-backend", "release.json", "dist", "bin"}
+                    or name.startswith("dist/") or name.startswith("bin/")):
                 raise ValueError("Unexpected archive file")
             target = destination / name
             if entry.isdir():
-                if name != "dist" and not name.startswith("dist/"):
+                if name not in {"dist", "bin"} and not name.startswith(("dist/", "bin/")):
                     raise ValueError("Unexpected archive directory")
                 target.mkdir(parents=True, exist_ok=True)
-            elif entry.isreg() and name != "dist":
+            elif entry.isreg() and name not in {"dist", "bin"}:
                 expanded += entry.size
                 if entry.size < 0 or expanded > MAX_EXPANDED:
                     raise ValueError("Archive exceeds extraction budget")
                 target.parent.mkdir(parents=True, exist_ok=True)
                 with bundle.extractfile(entry) as source, target.open("xb") as output:
                     shutil.copyfileobj(source, output, 128 << 10)
-                target.chmod(0o700 if name == "dash-backend" else 0o600)
+                target.chmod(0o700 if name in {"dash-backend", "bin/ffmpeg", "bin/ffprobe"} else 0o600)
             else:
                 raise ValueError("Archive links and special files are forbidden")
     metadata = destination / "release.json"
@@ -101,6 +101,43 @@ def extract(archive, destination, expected):
     if (header[:6] != b"\x7fELF\x02\x01"
             or int.from_bytes(header[18:20], "little") != machine):
         raise ValueError("Incorrect Linux binary architecture")
+
+    if (destination / "bin").exists():
+        verify_media(destination, expected["arch"])
+
+
+def verify_media(destination, arch):
+    import struct
+    path = destination / "bin/manifest.json"
+    if path.stat().st_size > 16384:
+        raise ValueError("Media manifest exceeds budget")
+    manifest = json.loads(path.read_text())
+    if manifest.get("protocol") != 1 or manifest.get("arch") != arch:
+        raise ValueError("Incorrect media manifest")
+    machine = 183 if arch == "arm64" else 62
+    for name in ("ffmpeg", "ffprobe"):
+        path = destination / "bin" / name
+        checksum = hashlib.sha256()
+        with path.open("rb") as binary:
+            header = binary.read(64)
+            if (len(header) != 64 or header[:6] != b"\x7fELF\x02\x01"
+                    or int.from_bytes(header[18:20], "little") != machine):
+                raise ValueError("Incorrect media architecture")
+            offset = struct.unpack_from("<Q", header, 32)[0]
+            entry_size, entries = struct.unpack_from("<HH", header, 54)
+            if entries > 128 or (entries and entry_size != 56):
+                raise ValueError("Invalid media executable headers")
+            for index in range(entries):
+                binary.seek(offset + index * entry_size)
+                program = binary.read(56)
+                if len(program) != 56 or struct.unpack_from("<I", program)[0] == 3:
+                    raise ValueError("Media executable must be static")
+            binary.seek(0)
+            while chunk := binary.read(128 << 10):
+                checksum.update(chunk)
+        expected = manifest["binaries"][name]
+        if path.stat().st_size != expected["bytes"] or checksum.hexdigest() != expected["sha256"]:
+            raise ValueError("Media checksum mismatch")
 
 
 def main():

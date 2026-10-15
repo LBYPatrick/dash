@@ -7,6 +7,7 @@ Use --fixture to validate the native 68-second simulator session's exact rates.
 import argparse
 import collections
 import pathlib
+import re
 
 from google.protobuf import descriptor_pb2, descriptor_pool, message_factory
 from mcap.reader import make_reader
@@ -15,6 +16,10 @@ parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument("file", type=pathlib.Path)
 parser.add_argument("--fixture", action="store_true")
 parser.add_argument("--extract-video", type=pathlib.Path)
+parser.add_argument(
+    "--seekable-video", action="store_true",
+    help="Require an independently decodable H.264 IDR with SPS/PPS in every video message",
+)
 args = parser.parse_args()
 counts, types, classes = collections.Counter(), {}, {}
 video_times, index_times = collections.defaultdict(list), collections.defaultdict(list)
@@ -56,6 +61,14 @@ with args.file.open("rb") as source:
             index_times[value.camera].append(value.end_of_frame_nanoseconds)
         if schema.name == "foxglove.CompressedVideo":
             assert value.format in ("h264", "h265") and value.data
+            if args.seekable_video:
+                assert value.format == "h264", (channel.topic, value.format)
+                nals = re.split(b"\x00\x00(?:\x00)?\x01", value.data)
+                kinds = {nal[0] & 31 for nal in nals if nal}
+                assert {5, 7, 8}.issubset(kinds), (
+                    channel.topic, "not independently seekable", kinds,
+                )
+                assert not ({1, 2, 3, 4} & kinds), "dependent video slice"
             camera = channel.topic.split("/")[-2]
             video_times[camera].append(message.log_time)
             if args.extract_video:

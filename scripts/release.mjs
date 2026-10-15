@@ -11,6 +11,7 @@ import {
 } from 'node:fs/promises';
 import { resolve, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { buildMedia } from './build-media.mjs';
 
 export function releaseIdentity(channel, sequence, revision, baseVersion) {
   if (!['main', 'nightly', 'dev'].includes(channel))
@@ -107,6 +108,7 @@ async function main() {
       },
     );
     await cp('dist', join(stage, 'dist'), { recursive: true });
+    await cp(await buildMedia(arch), join(stage, 'bin'), { recursive: true });
     await writeFile(
       join(stage, 'release.json'),
       JSON.stringify({ ...identity, arch }) + '\n',
@@ -122,6 +124,7 @@ async function main() {
         'dash-backend',
         'release.json',
         'dist',
+        'bin',
       ],
       { stdio: 'inherit', env: { ...process.env, COPYFILE_DISABLE: '1' } },
     );

@@ -23,7 +23,9 @@ try {
     await route.fulfill({ response, json: data });
   });
   await context.route('**/api/stream**', (route) =>
-    route.fulfill({ json: { sdp: 'test answer', driving: 'parked' } }),
+    route.fulfill({
+      json: { sdp: 'test answer', driving: 'parked', active: true },
+    }),
   );
   await context.addInitScript(() => {
     window.__stoppedTracks = 0;

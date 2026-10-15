@@ -29,19 +29,26 @@ type Engagement struct {
 	Enabled bool    `json:"enabled"`
 	Active  bool    `json:"active"`
 }
+type CameraSummary struct {
+	Frames int    `json:"frames"`
+	Bytes  uint64 `json:"bytes"`
+}
 type Metadata struct {
-	StartUTC        float64        `json:"startUTC,omitempty"`
-	DistanceSamples int            `json:"distanceSamples,omitempty"`
-	StartMonotonic  float64        `json:"startMonotonic"`
-	Engagement      []Engagement   `json:"engagement,omitempty"`
-	Status          string         `json:"status"`
-	Reason          string         `json:"reason,omitempty"`
-	Duration        float64        `json:"duration"`
-	DistanceKM      float64        `json:"distanceKm"`
-	Points          []Position     `json:"points,omitempty"`
-	Speeds          []VehicleState `json:"speeds,omitempty"`
-	Car             string         `json:"car,omitempty"`
-	Version         string         `json:"version,omitempty"`
+	TimeSource      string                   `json:"timeSource,omitempty"`
+	Cameras         map[string]CameraSummary `json:"cameras,omitempty"`
+	Partial         bool                     `json:"partial,omitempty"`
+	StartUTC        float64                  `json:"startUTC,omitempty"`
+	DistanceSamples int                      `json:"distanceSamples,omitempty"`
+	StartMonotonic  float64                  `json:"startMonotonic"`
+	Engagement      []Engagement             `json:"engagement,omitempty"`
+	Status          string                   `json:"status"`
+	Reason          string                   `json:"reason,omitempty"`
+	Duration        float64                  `json:"duration"`
+	DistanceKM      float64                  `json:"distanceKm"`
+	Points          []Position               `json:"points,omitempty"`
+	Speeds          []VehicleState           `json:"speeds,omitempty"`
+	Car             string                   `json:"car,omitempty"`
+	Version         string                   `json:"version,omitempty"`
 }
 type contextReader struct {
 	ctx    context.Context
@@ -66,12 +73,18 @@ func finite(values ...float64) bool {
 // Decode builds a bounded display summary. initData is reused by loggerd across
 // parts; its route-start timestamp must never extend later segment durations.
 func Decode(ctx context.Context, filename string) (Metadata, error) {
-	result := Metadata{Status: "ready"}
+	result := Metadata{Status: "ready", Cameras: map[string]CameraSummary{}}
 	var span CaptureSpan
 	var wallOffset float64
 	err := Stream(ctx, filename, func(record Record) error {
 		mono := float64(record.MonotonicNS) / 1e9
 		span.Observe(record)
+		if frame := record.Frame; frame != nil {
+			camera := result.Cameras[frame.Camera]
+			camera.Frames++
+			camera.Bytes += uint64(frame.Bytes)
+			result.Cameras[frame.Camera] = camera
+		}
 		if record.Kind == 0 && record.WallTimeNS > 946684800000000000 && record.WallTimeNS < math.MaxInt64 {
 			wallOffset = float64(record.WallTimeNS)/1e9 - mono
 		}
@@ -99,7 +112,11 @@ func Decode(ctx context.Context, filename string) (Metadata, error) {
 		return nil
 	})
 	if err != nil {
-		return result, err
+		if !IsIncomplete(err) {
+			return result, err
+		}
+		result.Partial = true
+		result.Reason = err.Error()
 	}
 	start, end, observed := span.Bounds()
 	if observed {
@@ -109,8 +126,10 @@ func Decode(ctx context.Context, filename string) (Metadata, error) {
 	if len(result.Points) > 0 {
 		point := result.Points[0]
 		result.StartUTC = point.Time + result.StartMonotonic - point.Monotonic
+		result.TimeSource = "gps"
 	} else if wallOffset != 0 && observed {
 		result.StartUTC = result.StartMonotonic + wallOffset
+		result.TimeSource = "device"
 	}
 	for i := 1; i < len(result.Points); i++ {
 		a, b := result.Points[i-1], result.Points[i]

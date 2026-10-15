@@ -12,9 +12,9 @@ import (
 	"net/http"
 	"net/url"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -36,6 +36,8 @@ type Server struct {
 	liveMu                          sync.Mutex
 	liveOwned                       bool
 	liveTouched                     time.Time
+	liveLease                       string
+	liveCancel                      func()
 }
 
 func newServer(ctx context.Context, index *Index, exports *ExportManager, app, params, firmware, upstream string) *Server {
@@ -55,7 +57,7 @@ func newServer(ctx context.Context, index *Index, exports *ExportManager, app, p
 					lastState = state
 				}
 				server.liveMu.Lock()
-				stop := server.liveOwned && (index.state() != "parked" || time.Since(server.liveTouched) > 12*time.Second || !memoryAvailable())
+				stop := server.liveOwned && (index.state() != "parked" || time.Since(server.liveTouched) > LiveLeaseTimeout || !memoryAvailable())
 				server.liveMu.Unlock()
 				if stop {
 					server.stopLive()
@@ -110,8 +112,13 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	file, err := safePath(s.app, path)
 	if err != nil {
-		http.NotFound(w, r)
-		return
+		// An open tab may still request immutable assets from the last build.
+		// Resolve only hash-named public assets from retained Dash releases.
+		file, err = s.retainedAsset(path)
+		if err != nil {
+			http.NotFound(w, r)
+			return
+		}
 	}
 	info, err := os.Stat(file)
 	if err != nil || info.IsDir() {
@@ -119,7 +126,10 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if strings.HasSuffix(file, "index.html") || strings.HasSuffix(file, "sw.js") {
-		w.Header().Set("Cache-Control", "no-cache")
+		w.Header().Set("Cache-Control", "no-store")
+	}
+	if immutableAssetPattern.MatchString(path) {
+		w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
 	}
 	http.ServeFile(w, r, file)
 }
@@ -130,8 +140,8 @@ func (s *Server) getAPI(w http.ResponseWriter, r *http.Request) {
 	case "/api/updates":
 		s.updateAPI(w, r)
 	case "/api/info":
-		_, ffmpeg := exec.LookPath("ffmpeg")
-		writeJSON(w, 200, map[string]any{"build": currentBuild(), "simulation": s.simulation, "kind": "dash-backend", "version": 1, "metadata": true, "ffmpeg": ffmpeg == nil, "recordings": "/files/", "driving": s.index.state(), "managedLive": s.managedLive(), "resources": map[string]any{"heavyJobs": 1, "heapMiB": 128, "ffmpegRSSMiB": 192, "reservedRAMMiB": 512}})
+		_, ffmpeg := mediaTool("ffmpeg")
+		writeJSON(w, 200, map[string]any{"build": currentBuild(), "simulation": s.simulation, "kind": "dash-backend", "version": 1, "metadata": true, "ffmpeg": ffmpeg == nil, "recordings": "/files/", "driving": s.index.state(), "managedLive": s.managedLive(), "resources": map[string]any{"heavyJobs": HeavyJobLimit, "heapMiB": GoHeapTargetMiB, "mediaThreads": MediaThreads, "cpuCores": DeviceCPUCores, "deviceMode": deviceMode}})
 	case "/api/index":
 		snapshot, err := s.index.snapshot()
 		if err != nil {
@@ -260,7 +270,26 @@ func (s *Server) video(w http.ResponseWriter, r *http.Request) {
 	if r.URL.Query().Get("codec") == "h264" {
 		codec = "h264"
 	}
-	hash := sha256.Sum256([]byte(fmt.Sprintf("%s:%d:%d:%s:%t", file, info.Size(), info.ModTime().UnixNano(), codec, transport)))
+	chunk := -1
+	if value := r.URL.Query().Get("chunk"); value != "" {
+		chunk, err = strconv.Atoi(value)
+		if err != nil || chunk < 0 || chunk >= (600+PreviewChunkSeconds-1)/PreviewChunkSeconds || !transport || codec != "h264" || !strings.HasSuffix(file, ".hevc") {
+			fail(w, 400, errors.New("invalid preview chunk"))
+			return
+		}
+	}
+	companion := ""
+	companionStamp := ""
+	if strings.HasSuffix(file, ".hevc") {
+		candidate, err := safePath(s.index.root, filepath.Join(filepath.Dir(r.URL.Query().Get("file")), "qcamera.ts"))
+		if err == nil {
+			if info, err := os.Stat(candidate); err == nil && info.Size() > 0 {
+				companion = candidate
+				companionStamp = fmt.Sprintf(":%d:%d", info.Size(), info.ModTime().UnixNano())
+			}
+		}
+	}
+	hash := sha256.Sum256([]byte(fmt.Sprintf("%s:%d:%d:%s:%t:chunk-v3-seek-audio:%d:%d%s", file, info.Size(), info.ModTime().UnixNano(), codec, transport, chunk, PreviewChunkSeconds, companionStamp)))
 	folder := filepath.Join(s.index.cache, "previews")
 	_ = os.MkdirAll(folder, 0700)
 	extension := ".mp4"
@@ -292,13 +321,58 @@ func (s *Server) video(w http.ResponseWriter, r *http.Request) {
 			}
 			partial := target + ".partial" + extension
 			defer os.Remove(partial)
+			if companion != "" {
+				present, err := recordedAudio(ctx, companion, folder)
+				if ctx.Err() != nil {
+					fail(w, 409, ctx.Err())
+					return
+				}
+				if err != nil || !present {
+					companion = ""
+				}
+			}
+			log.Printf("preview preparing file=%s chunk=%d", r.URL.Query().Get("file"), chunk)
 			args := []string{}
 			if strings.HasSuffix(file, ".hevc") {
 				args = append(args, "-framerate", "20")
 			}
-			args = append(args, "-i", file, "-map", "0:v:0", "-an")
+			input, relative, audioStart := file, float64(max(0, chunk)*PreviewChunkSeconds), 0.0
+			if chunk > 0 {
+				var cleanup func()
+				var err error
+				input, relative, audioStart, cleanup, err = hevcPreviewWindow(ctx, file, folder, float64(chunk*PreviewChunkSeconds))
+				if err != nil {
+					fail(w, 422, err)
+					return
+				}
+				defer cleanup()
+			}
+			args = append(args, "-i", input)
+			audioInput := 0
+			if strings.HasSuffix(file, ".hevc") {
+				// AAC is stored with the road preview, independently of the
+				// selected raw camera. Both inputs use their native start time.
+				audioInput = -1
+				if companion != "" {
+					if audioStart > 0 {
+						args = append(args, "-ss", strconv.FormatFloat(audioStart, 'f', 6, 64))
+					}
+					args = append(args, "-i", companion)
+					audioInput = 1
+				}
+			}
+			if chunk >= 0 {
+				// Encode only this short range from the nearest independent GOP.
+				args = append(args, "-ss", strconv.FormatFloat(relative, 'f', 6, 64), "-t", strconv.Itoa(PreviewChunkSeconds))
+			}
+			args = append(args, "-map", "0:v:0")
+			if audioInput >= 0 {
+				args = append(args, "-map", fmt.Sprintf("%d:a:0?", audioInput), "-c:a", "copy")
+			} else {
+				args = append(args, "-an")
+			}
 			if codec == "h264" {
-				args = append(args, "-c:v", "libx264", "-threads", "1", "-preset", "ultrafast", "-crf", "25", "-vf", "scale='min(1280,iw)':-2", "-pix_fmt", "yuv420p")
+				args = append(args, "-c:v", "libx264", "-threads", strconv.Itoa(MediaThreads), "-preset", "ultrafast", "-crf", "25", "-vf", fmt.Sprintf("scale='min(%d,iw)':'min(%d,ih)':force_original_aspect_ratio=decrease:force_divisible_by=2", PreviewMaxWidth, PreviewMaxHeight), "-pix_fmt", "yuv420p")
 			} else {
 				args = append(args, "-c:v", "copy")
 				if strings.HasSuffix(file, ".hevc") && !transport {
@@ -357,6 +431,8 @@ func (s *Server) post(w http.ResponseWriter, r *http.Request) {
 	switch r.URL.Path {
 	case "/api/updates":
 		s.updateAPI(w, r)
+	case "/api/playback/prepare":
+		s.preparePlayback(w, r)
 	case "/api/index/rebuild":
 		if err := s.index.rebuild(); err != nil {
 			fail(w, 409, err)
@@ -379,12 +455,18 @@ func (s *Server) post(w http.ResponseWriter, r *http.Request) {
 	case "/api/stream":
 		s.startLive(w, r)
 	case "/api/stream/heartbeat":
+		lease := liveLease(r)
 		s.liveMu.Lock()
-		s.liveTouched = time.Now()
+		active := lease != "" && s.liveOwned && lease == s.liveLease
+		if active {
+			s.liveTouched = time.Now()
+		}
 		s.liveMu.Unlock()
-		writeJSON(w, 200, map[string]string{"driving": s.index.state()})
+		writeJSON(w, 200, map[string]any{"driving": s.index.state(), "active": active})
 	case "/api/stream/stop":
-		s.stopLive()
+		if lease := liveLease(r); lease != "" {
+			s.stopLiveLease(lease)
+		}
 		writeJSON(w, 200, map[string]bool{"stopped": true})
 	default:
 		if strings.HasPrefix(r.URL.Path, "/api/exports/") && strings.HasSuffix(r.URL.Path, "/cancel") {
@@ -403,7 +485,8 @@ func (s *Server) post(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 	}
 }
-func (s *Server) managedLive() bool {
+func (s *Server) managedLive() bool { return s.firmwareManagedLive() || s.localLiveAvailable() }
+func (s *Server) firmwareManagedLive() bool {
 	for _, prefix := range []string{"openpilot/", ""} {
 		helper, err := os.ReadFile(filepath.Join(s.firmware, prefix+"system/webrtc/helpers.py"))
 		if err != nil {
@@ -417,7 +500,7 @@ func (s *Server) managedLive() bool {
 	return false
 }
 func (s *Server) setLive(enabled bool) error {
-	marker := filepath.Join(s.params, ".dash-live-owned")
+	marker := filepath.Join(s.index.cache, ".dash-live-owned")
 	if enabled {
 		if err := os.WriteFile(marker, []byte("1"), 0600); err != nil {
 			return err
@@ -448,12 +531,22 @@ func (s *Server) setLive(enabled bool) error {
 	}
 	return nil
 }
-func (s *Server) stopLive() {
+func (s *Server) stopLive() { s.stopLiveLease("") }
+func (s *Server) stopLiveLease(lease string) {
 	s.liveMu.Lock()
 	defer s.liveMu.Unlock()
+	if lease != "" && lease != s.liveLease {
+		return
+	}
 	if s.liveOwned {
-		_ = s.setLive(false)
+		if s.liveCancel != nil {
+			s.liveCancel()
+			s.liveCancel = nil
+		} else {
+			_ = s.setLive(false)
+		}
 		s.liveOwned = false
+		s.liveLease = ""
 		if s.liveRelease != nil {
 			s.liveRelease()
 			s.liveRelease = nil
@@ -466,10 +559,11 @@ func (s *Server) startLive(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !s.managedLive() {
-		fail(w, 409, errors.New("this firmware lacks managed local streaming; Dash will not start an unmanaged encoder that it cannot stop on ignition"))
+		fail(w, 409, errors.New("local streaming requires installed camera and WebRTC support"))
 		return
 	}
 	var request struct {
+		Lease   string   `json:"lease"`
 		SDP     string   `json:"sdp"`
 		Cameras []string `json:"cameras"`
 	}
@@ -477,8 +571,12 @@ func (s *Server) startLive(w http.ResponseWriter, r *http.Request) {
 		fail(w, 400, err)
 		return
 	}
-	if len(request.SDP) > 100000 || len(request.Cameras) != 1 || (request.Cameras[0] != "road" && request.Cameras[0] != "wideRoad" && request.Cameras[0] != "driver") {
+	if !liveLeasePattern.MatchString(request.Lease) || len(request.SDP) > 100000 || len(request.Cameras) != 1 || (request.Cameras[0] != "road" && request.Cameras[0] != "wideRoad" && request.Cameras[0] != "driver") {
 		fail(w, 400, errors.New("invalid camera request"))
+		return
+	}
+	if !s.firmwareManagedLive() {
+		s.startLocalLive(w, r, request.SDP, request.Cameras[0], request.Lease)
 		return
 	}
 	s.liveMu.Lock()
@@ -517,6 +615,7 @@ func (s *Server) startLive(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.liveOwned = true
+	s.liveLease = request.Lease
 	s.liveTouched = time.Now()
 	s.liveMu.Unlock()
 	ctx, cancel := parkedContext(r.Context(), s.index.state)
@@ -571,4 +670,58 @@ func (s *Server) startLive(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "application/json")
 	_, _ = w.Write(data)
+}
+
+// Readiness is an ordinary 200 response, not an HLS error/retry loop. Opening
+// a session promotes its parts in the existing single parked index worker.
+func (s *Server) preparePlayback(w http.ResponseWriter, r *http.Request) {
+	drive, camera := r.URL.Query().Get("drive"), r.URL.Query().Get("camera")
+	if !segmentPattern.MatchString(drive+"--0") || !cameras[camera] {
+		fail(w, 400, errors.New("invalid recording or camera"))
+		return
+	}
+	folders, err := os.ReadDir(s.index.root)
+	if err != nil {
+		fail(w, 500, err)
+		return
+	}
+	snapshot, err := s.index.snapshot()
+	if err != nil {
+		fail(w, 500, err)
+		return
+	}
+	total, complete, playable := 0, 0, 0
+	for _, folder := range folders {
+		if !folder.IsDir() || !strings.HasPrefix(folder.Name(), drive+"--") || !segmentPattern.MatchString(folder.Name()) {
+			continue
+		}
+		total++
+		entry, ok := snapshot.Segments[folder.Name()]
+		if !ok || entry.MediaVersion != 1 {
+			continue
+		}
+		complete++
+		for _, file := range entry.Files {
+			if file.Name == camera && file.Size > 0 && file.Duration > 0 {
+				playable++
+			}
+		}
+	}
+	if total > 0 && complete < total && s.index.state() == "parked" {
+		s.index.mu.Lock()
+		s.index.priorityDrive = drive
+		s.index.mu.Unlock()
+		go func() { _ = s.index.scan(s.ctx) }()
+	}
+	state := "unavailable"
+	ready := total > 0 && complete == total && playable > 0
+	if ready {
+		state = "ready"
+	} else if total > 0 && complete < total {
+		state = "parkedRequired"
+		if s.index.state() == "parked" {
+			state = "indexing"
+		}
+	}
+	writeJSON(w, 200, map[string]any{"ready": ready, "status": state, "completed": complete, "total": total})
 }

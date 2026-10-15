@@ -9,9 +9,9 @@ import (
 	"strings"
 )
 
-// One compute job across indexing, previews, and exports. HTTP file streaming
-// doesn't take this slot. The firmware retains the rest of the CPU cores.
-var computeSlot = make(chan struct{}, 1)
+// A shared budget across indexing, previews and exports. HTTP file streaming
+// does not occupy a heavy slot.
+var computeSlot = make(chan struct{}, HeavyJobLimit)
 
 func acquireCompute(ctx context.Context) (func(), error) {
 	if !memoryAvailable() {
@@ -45,6 +45,9 @@ func procKB(filename, key string) int64 {
 	return -1
 }
 func memoryAvailable() bool {
+	if deviceMode {
+		return true
+	}
 	available := procKB("/proc/meminfo", "MemAvailable:")
-	return available < 0 || available >= 512*1024
+	return available < 0 || available >= HostRAMReserveMiB*1024
 }

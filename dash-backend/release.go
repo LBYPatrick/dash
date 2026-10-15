@@ -253,28 +253,28 @@ func unpackRelease(ctx context.Context, archive, destination string, expected Bu
 		if count > 2048 || header.Size < 0 || header.Size > maxReleaseExpanded || limited.N <= 0 {
 			return errors.New("release exceeds extraction budget")
 		}
-		allowed := name == "dash-backend" || name == "release.json" || name == "dist" || strings.HasPrefix(name, "dist/")
+		allowed := name == "dash-backend" || name == "release.json" || name == "dist" || strings.HasPrefix(name, "dist/") || name == "bin" || strings.HasPrefix(name, "bin/")
 		if !allowed {
 			return fmt.Errorf("unexpected release file %s", name)
 		}
 		target := filepath.Join(destination, name)
 		switch header.Typeflag {
 		case tar.TypeDir:
-			if name != "dist" && !strings.HasPrefix(name, "dist/") {
+			if name != "dist" && !strings.HasPrefix(name, "dist/") && name != "bin" && !strings.HasPrefix(name, "bin/") {
 				return errors.New("unexpected release directory")
 			}
 			if err := os.MkdirAll(target, 0700); err != nil {
 				return err
 			}
 		case tar.TypeReg, tar.TypeRegA:
-			if name == "dist" {
+			if name == "dist" || name == "bin" {
 				return errors.New("dist must be a directory")
 			}
 			if err := os.MkdirAll(filepath.Dir(target), 0700); err != nil {
 				return err
 			}
 			mode := os.FileMode(0600)
-			if name == "dash-backend" {
+			if name == "dash-backend" || name == "bin/ffmpeg" || name == "bin/ffprobe" {
 				mode = 0700
 			}
 			output, err := os.OpenFile(target, os.O_CREATE|os.O_EXCL|os.O_WRONLY, mode)
@@ -322,6 +322,60 @@ func unpackRelease(ctx context.Context, archive, destination string, expected Bu
 	}
 	if binary.Class != elf.ELFCLASS64 || binary.Machine != machine {
 		return errors.New("release binary architecture mismatch")
+	}
+	if _, err := os.Stat(filepath.Join(destination, "bin")); err == nil {
+		return verifyMediaBundle(destination, expected.Arch)
+	}
+	return nil
+}
+func verifyMediaBundle(folder, arch string) error {
+	data, err := readSmallFile(filepath.Join(folder, "bin/manifest.json"), 16<<10)
+	if err != nil {
+		return fmt.Errorf("media manifest: %w", err)
+	}
+	var manifest struct {
+		Protocol int    `json:"protocol"`
+		Arch     string `json:"arch"`
+		Binaries map[string]struct {
+			Bytes  int64  `json:"bytes"`
+			SHA256 string `json:"sha256"`
+		} `json:"binaries"`
+	}
+	if json.Unmarshal(data, &manifest) != nil || manifest.Protocol != 1 || manifest.Arch != arch {
+		return errors.New("invalid media manifest")
+	}
+	machine := elf.EM_AARCH64
+	if arch == "amd64" {
+		machine = elf.EM_X86_64
+	}
+	for _, name := range []string{"ffmpeg", "ffprobe"} {
+		path := filepath.Join(folder, "bin", name)
+		binary, err := elf.Open(path)
+		if err != nil {
+			return fmt.Errorf("media %s: %w", name, err)
+		}
+		valid := binary.Class == elf.ELFCLASS64 && binary.Machine == machine
+		for _, program := range binary.Progs {
+			if program.Type == elf.PT_INTERP {
+				valid = false
+			}
+		}
+		needed, _ := binary.DynString(elf.DT_NEEDED)
+		binary.Close()
+		if !valid || len(needed) > 0 {
+			return fmt.Errorf("media %s must be static Linux %s", name, arch)
+		}
+		input, err := os.Open(path)
+		if err != nil {
+			return err
+		}
+		hash := sha256.New()
+		size, err := io.CopyBuffer(hash, input, make([]byte, 128<<10))
+		input.Close()
+		expected, exists := manifest.Binaries[name]
+		if err != nil || !exists || size != expected.Bytes || hex.EncodeToString(hash.Sum(nil)) != expected.SHA256 {
+			return fmt.Errorf("media %s checksum mismatch", name)
+		}
 	}
 	return nil
 }

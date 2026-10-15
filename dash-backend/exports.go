@@ -369,17 +369,43 @@ func (e *ExportManager) mp4(ctx context.Context, job *ExportJob, request ExportR
 	defer os.Remove(listing)
 	var lines strings.Builder
 	for _, asset := range assets {
-		fmt.Fprintf(&lines, "file '%s'\n", strings.ReplaceAll(asset.Path, "'", "'\\''"))
+		if asset.Size == 0 {
+			continue
+		}
+		duration, err := e.indexedVideoDuration(ctx, asset)
+		if err != nil {
+			return err
+		}
+		fmt.Fprintf(&lines, "file '%s'\nduration %.6f\n", strings.ReplaceAll(asset.Path, "'", "'\\''"), duration)
+	}
+	if lines.Len() == 0 {
+		return errors.New("session has no non-empty video recordings")
 	}
 	if err := os.WriteFile(listing, []byte(lines.String()), 0600); err != nil {
 		return err
 	}
-	args := []string{"-fflags", "+genpts", "-f", "concat", "-safe", "0", "-i", listing, "-map", "0:v:0", "-an"}
+	args := []string{"-fflags", "+genpts", "-f", "concat", "-safe", "0", "-i", listing}
 	if strings.HasSuffix(request.Camera, ".hevc") {
 		args = append([]string{"-r", "20"}, args...)
 	}
+	audioLines, audioOffset, err := e.audioManifest(ctx, request.Camera, assets)
+	if err != nil {
+		return err
+	}
+	if audioLines != "" {
+		audioListing := listing + ".audio.txt"
+		defer os.Remove(audioListing)
+		if err := os.WriteFile(audioListing, []byte(audioLines), 0600); err != nil {
+			return err
+		}
+		args = append(args, "-itsoffset", strconv.FormatFloat(audioOffset, 'f', 6, 64), "-f", "concat", "-safe", "0", "-i", audioListing, "-map", "1:a:0", "-c:a", "copy")
+	} else {
+		args = append(args, "-an")
+	}
+
+	args = append(args, "-map", "0:v:0")
 	if request.H264 {
-		args = append(args, "-c:v", "libx264", "-threads", "1", "-preset", "ultrafast", "-crf", "23", "-pix_fmt", "yuv420p")
+		args = append(args, "-c:v", "libx264", "-threads", strconv.Itoa(MediaThreads), "-preset", "ultrafast", "-crf", "23", "-pix_fmt", "yuv420p")
 	} else {
 		args = append(args, "-c:v", "copy")
 		if strings.HasSuffix(request.Camera, ".hevc") {

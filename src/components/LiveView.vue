@@ -20,6 +20,7 @@ import {
 } from '../liveCapture';
 const { t } = useTranslation();
 const endpoint = '/api/stream';
+let viewerLease = '';
 let heartbeat: ReturnType<typeof setInterval> | undefined;
 const camera = ref('road');
 const statusMessage = shallowRef<() => string>(() =>
@@ -38,6 +39,8 @@ let timeout: ReturnType<typeof setTimeout> | undefined;
 let recordingBytes = 0;
 async function stop() {
   const hadPeer = !!peer;
+  const lease = viewerLease;
+  viewerLease = '';
   clearInterval(heartbeat);
   heartbeat = undefined;
   request?.abort();
@@ -52,14 +55,22 @@ async function stop() {
   connected.value = false;
   busy.value = false;
   if (hadPeer)
-    await fetch('/api/stream/stop', { method: 'POST', keepalive: true }).catch(
-      () => {},
-    );
+    await fetch('/api/stream/stop', {
+      method: 'POST',
+      keepalive: true,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ lease }),
+    }).catch(() => {});
 }
 async function start() {
   await stop();
   busy.value = true;
   statusMessage.value = () => t('live.connectingToLiveCamera');
+  const lease = Array.from(
+    crypto.getRandomValues(new Uint8Array(16)),
+    (value) => value.toString(16).padStart(2, '0'),
+  ).join('');
+  viewerLease = lease;
   const controller = new AbortController();
   request = controller;
   const pc = new RTCPeerConnection({ iceServers: [] });
@@ -105,23 +116,29 @@ async function start() {
       });
     controller.signal.throwIfAborted();
     heartbeat = setInterval(() => {
-      void fetch('/api/stream/heartbeat', { method: 'POST' })
+      void fetch('/api/stream/heartbeat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ lease }),
+      })
         .then((response) => response.json())
         .then((data) => {
-          if (data.driving !== 'parked') {
+          if (controller.signal.aborted || viewerLease !== lease) return;
+          if (data.driving !== 'parked' || (connected.value && !data.active)) {
             void stop();
             statusMessage.value = () =>
               t('live.liveViewStoppedVehicleIsNoLonger');
           }
         })
         .catch(() => {
-          void stop();
+          if (!controller.signal.aborted && viewerLease === lease) void stop();
         });
     }, 3000);
     const response = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
+        lease,
         sdp: pc.localDescription?.sdp,
         cameras: [camera.value],
         bridge_services_in: [],
@@ -228,9 +245,16 @@ function backgrounded() {
     statusMessage.value = () => t('live.liveViewStoppedWhenDashMovedTo');
   }
 }
-onMounted(() => document.addEventListener('visibilitychange', backgrounded));
+function pageLeft() {
+  void stop();
+}
+onMounted(() => {
+  document.addEventListener('visibilitychange', backgrounded);
+  window.addEventListener('pagehide', pageLeft);
+});
 onBeforeUnmount(() => {
   document.removeEventListener('visibilitychange', backgrounded);
+  window.removeEventListener('pagehide', pageLeft);
   void stop();
 });
 </script>

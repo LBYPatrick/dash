@@ -10,10 +10,19 @@ import {
   onMounted,
   onBeforeUnmount,
 } from 'vue';
-import { Film, CircleAlert, Play, Pause, X } from '../icons';
+import {
+  Film,
+  Play,
+  Pause,
+  X,
+  LoaderCircle,
+  Volume,
+  VolumeOff,
+} from '../icons';
 import type Hls from 'hls.js';
 import SelectMenu from './SelectMenu.vue';
 import SessionActions from './SessionActions.vue';
+import { useToasts } from '../vendor/shelf/toasts';
 import { readStored, writeStored } from '../storage';
 import { performanceMode } from '../appearance';
 import {
@@ -49,6 +58,30 @@ const emit = defineEmits<{
 }>();
 const video = ref<HTMLVideoElement>();
 const error = ref('');
+const notifications = useToasts();
+const errorNoticeId = `playback-${useId()}`;
+watch(error, (message) => {
+  if (!message) {
+    notifications.dismiss(errorNoticeId);
+    return;
+  }
+  notifications.show({
+    id: errorNoticeId,
+    message,
+    tone: 'error',
+    expire: undefined,
+    action: { label: t('player.retryPlayback'), run: () => void initialize() },
+  });
+});
+watch(
+  () =>
+    notifications.toasts.value.some((notice) => notice.id === errorNoticeId),
+  (visible, wasVisible) => {
+    if (!visible && wasVisible) error.value = '';
+  },
+);
+const preparing = ref('');
+const hasAudio = ref(false);
 const time = ref(0),
   duration = ref(0),
   paused = ref(true),
@@ -59,16 +92,19 @@ const time = ref(0),
 const timestampInput = ref<HTMLInputElement>();
 const timestampErrorId = useId();
 const timestampButton = ref<HTMLButtonElement>();
-const options = readStored<{ snapshots?: boolean; engagement?: boolean }>(
-  'dash.viewerOptions',
-  {},
-);
+const options = readStored<{
+  snapshots?: boolean;
+  engagement?: boolean;
+  muted?: boolean;
+}>('dash.viewerOptions', {});
+const muted = ref(options.muted !== false);
 const snapshots = ref(!!options.snapshots),
   engagement = ref(!!options.engagement);
-watch([snapshots, engagement], () =>
+watch([snapshots, engagement, muted], () =>
   writeStored('dash.viewerOptions', {
     snapshots: snapshots.value,
     engagement: engagement.value,
+    muted: muted.value,
   }),
 );
 const hasEngagement = computed(() =>
@@ -140,6 +176,7 @@ const snapshotFrames = computed(() => {
 });
 function sync() {
   if (!video.value) return;
+  detectAudio();
   time.value = video.value.currentTime;
   duration.value = Number.isFinite(video.value.duration)
     ? video.value.duration
@@ -159,11 +196,15 @@ function seekSlider(event: Event) {
   seek(Number((event.target as HTMLInputElement).value));
 }
 async function togglePlay() {
-  if (!video.value) return;
+  if (!video.value || (preparing.value && video.value.paused)) return;
+  const run = generation;
   if (video.value.paused) {
     try {
       await video.value.play();
-    } catch {
+      if (run === generation) error.value = '';
+    } catch (failure) {
+      if (run !== generation || (failure as DOMException).name === 'AbortError')
+        return;
       error.value = t('player.playbackCouldNotStartRetryAfterThe');
     }
   } else video.value.pause();
@@ -197,7 +238,24 @@ function submitTime() {
 watch(rate, (value) => {
   if (video.value) video.value.playbackRate = value;
 });
+function detectAudio() {
+  const element = video.value as
+    | (HTMLVideoElement & {
+        audioTracks?: { length: number };
+        mozHasAudio?: boolean;
+        webkitAudioDecodedByteCount?: number;
+      })
+    | undefined;
+  if (
+    element &&
+    (element.audioTracks?.length ||
+      element.mozHasAudio ||
+      element.webkitAudioDecodedByteCount)
+  )
+    hasAudio.value = true;
+}
 function loaded() {
+  detectAudio();
   if (video.value) video.value.playbackRate = rate.value;
   sync();
   emit('loaded');
@@ -230,24 +288,85 @@ async function fullscreen() {
 let stream: Hls | undefined;
 let generation = 0;
 let retry: ReturnType<typeof setTimeout> | undefined;
-let attempts = 0;
+
+let preparation: AbortController | undefined;
 const playlist = () => !!props.source?.includes('/api/playlist?');
 function cleanup() {
   stopClock();
   generation++;
   clearTimeout(retry);
+  preparation?.abort();
   stream?.destroy();
   stream = undefined;
+  const element = video.value;
+  if (element) {
+    element.pause();
+    element.removeAttribute('src');
+    element.load();
+  }
+}
+function playableNow() {
+  detectAudio();
+  preparing.value = '';
+  error.value = '';
+  sync();
+}
+function waiting() {
+  stopClock();
+  if (!error.value) preparing.value = t('player.preparingVideo');
 }
 async function initialize() {
   const position = video.value?.currentTime || 0;
   const resume = !!video.value && !video.value.paused;
   cleanup();
   error.value = '';
+  preparing.value = '';
+  hasAudio.value = false;
   const run = generation;
   const source = props.source;
   const element = video.value;
-  if (!source || !element || !playlist()) return;
+  if (!source || !element) return;
+  if (!playlist()) {
+    element.src = source;
+    return;
+  }
+  preparing.value = t('player.preparingVideo');
+  preparation = new AbortController();
+  try {
+    const url = new URL(source, location.href);
+    const response = await fetch(`/api/playback/prepare?${url.searchParams}`, {
+      method: 'POST',
+      signal: preparation.signal,
+    });
+    if (!response.ok) throw new Error('Playback preparation unavailable');
+    const status = await response.json();
+    if (run !== generation) return;
+    if (!status.ready) {
+      if (status.status === 'unavailable') {
+        preparing.value = '';
+        error.value = t(
+          'player.recordingUnavailableConfirmParkedStateAndRetry',
+        );
+        return;
+      }
+      preparing.value =
+        status.status === 'parkedRequired'
+          ? t('player.timelineNeedsParked')
+          : t('player.preparingTimeline', {
+              completed: status.completed,
+              total: status.total,
+            });
+      retry = setTimeout(() => void initialize(), 2000);
+      return;
+    }
+    preparing.value = t('player.preparingVideo');
+  } catch {
+    if (run !== generation || preparation?.signal.aborted) return;
+    preparing.value = '';
+    error.value = t('player.recordingUnavailableConfirmParkedStateAndRetry');
+    return;
+  }
+
   element.addEventListener(
     'loadedmetadata',
     () => {
@@ -261,17 +380,27 @@ async function initialize() {
     },
     { once: true },
   );
-  if (element.canPlayType('application/vnd.apple.mpegurl')) {
+  if (
+    element.canPlayType('application/vnd.apple.mpegurl') &&
+    'audioTracks' in element
+  ) {
     element.src = source;
     return;
   }
   const { default: Hls } = await import('hls.js');
   if (run !== generation) return;
   if (!Hls.isSupported()) {
+    if (element.canPlayType('application/vnd.apple.mpegurl')) {
+      element.src = source;
+      return;
+    }
+    preparing.value = '';
     error.value = t('player.thisBrowserDoesNotSupportRecordingStreams');
     return;
   }
   stream = new Hls({
+    enableWorker: true,
+    startFragPrefetch: true,
     startPosition: position,
     fragLoadPolicy: {
       default: {
@@ -285,13 +414,20 @@ async function initialize() {
     backBufferLength: 15,
     maxBufferSize: 32 * 1024 * 1024,
   });
+  stream.on(Hls.Events.BUFFER_CODECS, (_, tracks) => {
+    if (run === generation)
+      hasAudio.value ||= !!(
+        tracks.audio ||
+        tracks.audiovideo ||
+        tracks.tracks?.audio
+      );
+  });
   stream.on(Hls.Events.ERROR, (_, data) => {
     if (!data.fatal || run !== generation) return;
+    preparing.value = '';
     error.value = t(
       'player.playbackUnavailableTimelineIndexingAndCameraPreparation',
     );
-    if (data.type === Hls.ErrorTypes.NETWORK_ERROR && attempts++ < 10)
-      retry = setTimeout(() => void initialize(), 2000);
   });
   stream.on(Hls.Events.MANIFEST_PARSED, () => {
     error.value = '';
@@ -302,15 +438,15 @@ async function initialize() {
 watch(
   () => props.source,
   () => {
-    attempts = 0;
     void initialize();
   },
   { flush: 'post' },
 );
 function playbackError() {
+  // A cleared source emits an abort during camera changes; it is not failure.
+  if (!video.value?.error || stream) return;
+  preparing.value = '';
   error.value = t('player.recordingUnavailableConfirmParkedStateAndRetry');
-  if (playlist() && !stream && attempts++ < 10)
-    retry = setTimeout(() => void initialize(), 2000);
 }
 onMounted(() => {
   document.addEventListener('fullscreenchange', fullscreenChanged);
@@ -331,6 +467,7 @@ onBeforeUnmount(() => {
   document.removeEventListener('visibilitychange', sync);
   motionPreference.removeEventListener('change', motionChanged);
   cleanup();
+  notifications.dismiss(errorNoticeId);
   resizeObserver?.disconnect();
 });
 </script>
@@ -346,6 +483,7 @@ onBeforeUnmount(() => {
       :src="playlist() ? undefined : source"
       :controls="false"
       playsinline
+      :muted="muted"
       preload="metadata"
       :poster="sample ? '/sample-road.svg' : undefined"
       @ended="
@@ -354,11 +492,12 @@ onBeforeUnmount(() => {
       "
       @timeupdate="sync"
       @play="sync"
-      @playing="sync"
-      @waiting="stopClock"
-      @seeking="stopClock"
+      @playing="playableNow"
+      @canplay="playableNow"
+      @waiting="waiting"
+      @seeking="waiting"
       @pause="sync"
-      @seeked="sync"
+      @seeked="playableNow"
       @durationchange="sync"
       @loadedmetadata="loaded"
       @error="playbackError"
@@ -374,17 +513,10 @@ onBeforeUnmount(() => {
       <h3>{{ t('player.noRecordingAvailable') }}</h3>
       <p>{{ t('player.openOriginalFilesToDownloadAvailableFootage') }}</p>
     </div>
-    <div v-if="error" class="player-error" role="alert">
-      <CircleAlert :size="20" /><span>{{ error }}</span
-      ><button
-        class="button"
-        @click="
-          attempts = 0;
-          initialize();
-        "
-      >
-        {{ t('player.retryPlayback') }}
-      </button>
+    <div v-if="preparing" class="player-preparing" role="status">
+      <LoaderCircle v-if="preparing" class="spinning" :size="20" /><span>{{
+        preparing
+      }}</span>
     </div>
     <Teleport
       :to="controlsTarget || 'body'"
@@ -433,7 +565,7 @@ onBeforeUnmount(() => {
           :aria-label="t('player.recordedEngagementTimeline')"
         >
           <title>
-            {{ t('player.greenEngagedGrayEnabledButInactiveBlue') }}
+            {{ t('player.engagementColors') }}
           </title>
           <rect
             v-for="(band, index) in bands"
@@ -445,7 +577,10 @@ onBeforeUnmount(() => {
               1000
             "
             height="8"
-            :class="`engagement-${band.state}`"
+            :class="[
+              `engagement-${band.state}`,
+              band.confidence && `confidence-${band.confidence}`,
+            ]"
           />
         </svg>
         <label class="video-timeline"
@@ -468,7 +603,7 @@ onBeforeUnmount(() => {
             :aria-label="
               paused ? t('player.playRecording') : t('player.pauseRecording')
             "
-            :disabled="!duration"
+            :disabled="!duration || (!!preparing && paused)"
             @click="togglePlay"
           >
             <Play v-if="paused" :size="16" /><Pause v-else :size="16" />
@@ -537,6 +672,32 @@ onBeforeUnmount(() => {
           </button>
           <div class="playback-secondary">
             <slot name="camera" />
+            <button
+              type="button"
+              class="player-control"
+              :disabled="!hasAudio"
+              :aria-label="
+                !hasAudio
+                  ? t('player.noRecordedAudio')
+                  : muted
+                    ? t('player.unmute')
+                    : t('player.mute')
+              "
+              :title="
+                !hasAudio
+                  ? t('player.noRecordedAudio')
+                  : muted
+                    ? t('player.unmute')
+                    : t('player.mute')
+              "
+              :aria-pressed="!muted && hasAudio"
+              @click="muted = !muted"
+            >
+              <VolumeOff v-if="muted || !hasAudio" :size="16" /><Volume
+                v-else
+                :size="16"
+              />
+            </button>
             <SelectMenu
               class="playback-speed"
               v-model="rate"
@@ -604,3 +765,18 @@ onBeforeUnmount(() => {
     }}</span>
   </div>
 </template>
+
+<style scoped>
+.player-preparing {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 24px;
+  background: #121815;
+  color: #fff;
+  text-align: center;
+}
+</style>

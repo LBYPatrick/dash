@@ -1,4 +1,7 @@
 <script setup lang="ts">
+import ToastStack from './vendor/shelf/ToastStack.vue';
+import { useToasts } from './vendor/shelf/toasts';
+const notifications = useToasts();
 import { useTranslation } from 'i18next-vue';
 import {
   computed,
@@ -66,6 +69,7 @@ import {
   startIndexing,
   stopIndexing,
   recordingAddress,
+  recordingReadiness,
   distanceKm,
   type Position,
   type Telemetry,
@@ -136,12 +140,13 @@ async function applyWorkspace(route: WorkspaceRoute) {
   returnView.value = route.returnView || 'drives';
   const drive =
     route.driveId && drives.value.find((item) => item.id === route.driveId);
-  if (drive) {
+  if (drive && readiness(drive).ready) {
     if (activeId.value !== drive.id) sessionPane.value = 'video';
     activeId.value = drive.id;
     segmentIndex.value = 0;
   }
-  mobileDetail.value = route.view !== 'drives' || !!drive;
+  mobileDetail.value =
+    route.view !== 'drives' || !!(drive && readiness(drive).ready);
   navigationDrawer.value?.close();
   await nextTick();
   const pane = document.querySelector<HTMLElement>(
@@ -207,7 +212,10 @@ const timelineSegments = computed<TimelineSegment[]>(() => {
     if (
       !demo.value &&
       entry &&
-      !entry.files.some((file) => file.name === camera)
+      !entry.files.some(
+        (file) =>
+          file.name === camera && file.size > 0 && (file.duration || 0) > 0,
+      )
     )
       return [];
     const duration =
@@ -257,7 +265,7 @@ const listedDrives = ref<Drive[]>([]);
 const drives = computed(() =>
   listedDrives.value
     .map((drive) => recordingDate(drive, indexEntries.value))
-    .sort((a, b) => b.date - a.date),
+    .sort((a, b) => b.date - a.date || b.id.localeCompare(a.id)),
 );
 const activeId = ref('');
 const segmentIndex = ref(0);
@@ -267,7 +275,7 @@ const busy = ref(false);
 const filesBusy = ref(false);
 const connectionError = ref('');
 const fileError = ref('');
-const notice = ref('');
+
 const query = ref('');
 const filter = ref<'all' | 'saved'>('all');
 const mobileDetail = ref(false);
@@ -285,10 +293,65 @@ const bookmarks = ref<string[]>(
 const online = ref(navigator.onLine);
 let connectionRequest: AbortController | undefined;
 let fileRequest: AbortController | undefined;
-let toastTimer: ReturnType<typeof setTimeout>;
-const active = computed(() =>
-  drives.value.find((drive) => drive.id === activeId.value),
+
+const readinessById = computed(
+  () =>
+    new Map(
+      drives.value.map((drive) => [
+        drive.id,
+        recordingReadiness(drive, indexEntries.value, demo.value),
+      ]),
+    ),
 );
+const active = computed(() => {
+  const drive = drives.value.find((drive) => drive.id === activeId.value);
+  return drive && readiness(drive).ready ? drive : undefined;
+});
+function readiness(drive: Drive) {
+  return (
+    readinessById.value.get(drive.id) ||
+    recordingReadiness(drive, indexEntries.value, demo.value)
+  );
+}
+function recordingName(drive: Drive) {
+  return drive.date
+    ? timeLabel(drive.date)
+    : t('app.recordingNumber', {
+        number: /^[a-f0-9]{8}--/i.test(drive.id)
+          ? parseInt(drive.id.slice(0, 8), 16)
+          : drive.id.slice(0, 18),
+      });
+}
+function readinessLabel(drive: Drive) {
+  const state = readiness(drive);
+  if (state.empty) return t('app.noPlayableFootage');
+  if (state.ready)
+    return t('common.segments', { count: drive.segments.length });
+  if (indexStatus.value.driving !== 'parked') return t('app.indexingPaused');
+  return t(
+    indexStatus.value.current?.startsWith(drive.id + '--')
+      ? 'app.preparingRecording'
+      : 'app.notIndexedYet',
+    { completed: state.complete, total: state.total },
+  );
+}
+async function prepareNext(drive: Drive) {
+  try {
+    const response = await fetch(
+      `/api/playback/prepare?${new URLSearchParams({ drive: drive.id, camera: 'qcamera.ts' })}`,
+      { method: 'POST' },
+    );
+    if (!response.ok) throw new Error();
+    indexStatus.value.priority = drive.id;
+  } catch {
+    tell(t('app.couldNotPrioritize'));
+  }
+}
+watch(indexEntries, () => {
+  if (!narrow.value && !activeId.value && view.value === 'drives')
+    activeId.value =
+      drives.value.find((drive) => readiness(drive).ready)?.id || '';
+});
 const segment = computed(() => active.value?.segments[segmentIndex.value]);
 const connected = computed(() => demo.value || !!connectedAddress.value);
 const deviceName = computed(() =>
@@ -313,10 +376,10 @@ const visibleDrives = computed(() =>
     })
     .sort((a, b) =>
       sort.value === 'oldest'
-        ? a.date - b.date
+        ? a.date - b.date || a.id.localeCompare(b.id)
         : sort.value === 'longest'
           ? b.segments.length - a.segments.length
-          : b.date - a.date,
+          : b.date - a.date || b.id.localeCompare(a.id),
     ),
 );
 const groups = computed(() => {
@@ -328,13 +391,35 @@ const groups = computed(() => {
   }
   return result;
 });
-const playable = computed(() =>
-  files.value.filter((file) => /\.(mp4|webm|ts|hevc)(?:\?|$)/i.test(file.name)),
-);
+const playable = computed(() => {
+  if (demo.value)
+    return files.value.filter((file) =>
+      /\.(mp4|webm|ts|hevc)$/.test(file.name),
+    );
+  const available = new Map<string, Entry>();
+  for (const part of active.value?.segments || []) {
+    for (const file of indexEntries.value[part.url]?.files || []) {
+      if (
+        /\.(mp4|webm|ts|hevc)$/.test(file.name) &&
+        file.size > 0 &&
+        (file.duration || 0) > 0
+      )
+        available.set(file.name, file);
+    }
+  }
+  return [...available.values()].sort((a, b) =>
+    a.name === 'qcamera.ts'
+      ? -1
+      : b.name === 'qcamera.ts'
+        ? 1
+        : a.name.localeCompare(b.name),
+  );
+});
 const totalSegments = computed(() =>
   drives.value.reduce((sum, drive) => sum + drive.segments.length, 0),
 );
 function dateLabel(date: number) {
+  if (!date) return t('app.dateUnavailable');
   return new Date(date).toLocaleDateString(locale.value, {
     month: 'long',
     day: 'numeric',
@@ -342,15 +427,14 @@ function dateLabel(date: number) {
   });
 }
 function timeLabel(date: number) {
+  if (!date) return '—';
   return new Date(date).toLocaleTimeString(locale.value, {
     hour: 'numeric',
     minute: '2-digit',
   });
 }
 function tell(message: string) {
-  notice.value = message;
-  clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => (notice.value = ''), 4500);
+  notifications.show({ message, tone: 'info' });
 }
 watch(retainedLiveCapture, (clip) => {
   if (clip?.size) tell(t('app.liveClipReadySaveItFromLive'));
@@ -372,6 +456,7 @@ function saveDrive() {
   );
 }
 function selectDrive(drive: Drive) {
+  if (!readiness(drive).ready) return;
   rememberScroll();
   sessionPane.value = 'video';
   workspaceHistory.navigate({
@@ -385,7 +470,7 @@ async function loadFiles() {
   files.value = [];
   selectedSource.value = '';
   fileError.value = '';
-  if (!segment.value) {
+  if (!segment.value || !active.value) {
     filesBusy.value = false;
     return;
   }
@@ -403,7 +488,7 @@ async function loadFiles() {
     if (request.signal.aborted) return;
     files.value = listing.files;
     const preview =
-      listing.files.find((file) => file.name === 'qcamera.ts') ||
+      playable.value.find((file) => file.name === 'qcamera.ts') ||
       playable.value[0];
     selectedSource.value =
       preview && active.value
@@ -415,7 +500,7 @@ async function loadFiles() {
     if (!request.signal.aborted) filesBusy.value = false;
   }
 }
-watch([activeId, segmentIndex], loadFiles);
+watch([() => active.value?.id, segmentIndex], loadFiles);
 watch(activeId, () => {
   playbackTime.value = 0;
   playbackDuration.value = 0;
@@ -458,7 +543,10 @@ watch(
     view,
     mobileDetail,
     narrow,
-    () => indexStatus.value.completed,
+    () =>
+      active.value?.segments
+        .map((part) => indexEntries.value[part.url]?.fingerprint)
+        .join('|'),
     // The initial metadata request can finish before the index snapshot.
     // Retry once its target entry exists, including when workers are paused.
     () =>
@@ -489,9 +577,13 @@ async function connect() {
     address.value = normalized;
     const previousId = activeId.value;
     listedDrives.value = groupDrives(listing.directories);
-    activeId.value = drives.value.some((item) => item.id === previousId)
+    activeId.value = drives.value.some(
+      (item) => item.id === previousId && readiness(item).ready,
+    )
       ? previousId
-      : drives.value[0]?.id || '';
+      : !narrow.value
+        ? drives.value.find((drive) => readiness(drive).ready)?.id || ''
+        : '';
     segmentIndex.value = 0;
     await applyWorkspace(workspaceHistory.current);
     backendOrigin.value = location.origin;
@@ -532,6 +624,8 @@ function explore() {
     total: 0,
     errors: 0,
     driving: 'unknown',
+    current: '',
+    priority: '',
   };
   loadFiles();
 }
@@ -587,7 +681,7 @@ onBeforeUnmount(() => {
   stopIndexing();
   connectionRequest?.abort();
   fileRequest?.abort();
-  clearTimeout(toastTimer);
+
   window.removeEventListener('online', updateOnline);
   window.removeEventListener('offline', updateOnline);
 });
@@ -864,40 +958,91 @@ onBeforeUnmount(() => {
           <div class="drive-scroll">
             <div v-for="group in groups" :key="group.label" class="drive-group">
               <h3>{{ group.label }}</h3>
-              <button
+              <div
                 v-for="drive in group.drives"
                 :key="drive.id"
-                class="drive-row"
-                :class="{ active: drive.id === activeId }"
-                :aria-current="drive.id === activeId ? 'true' : undefined"
-                @click="selectDrive(drive)"
+                class="drive-item"
+                :data-state="
+                  readiness(drive).ready
+                    ? 'ready'
+                    : readiness(drive).empty
+                      ? 'empty'
+                      : 'pending'
+                "
               >
-                <span class="drive-glyph"
-                  ><img
-                    v-if="thumbnail(drive)"
-                    :src="thumbnail(drive)"
-                    alt=""
-                    loading="lazy" /><ListVideo v-else :size="20" /></span
-                ><span class="drive-row-text"
-                  ><strong
-                    >{{ timeLabel(drive.date) }}
-                    <Bookmark
-                      v-if="isSaved(drive.id)"
-                      :size="12"
-                      fill="currentColor" /></strong
-                  ><small
-                    >{{
-                      t('common.segments', { count: drive.segments.length })
-                    }}
-                    <span>·</span>
-                    {{
-                      drive.dated
-                        ? t('app.recordedDrive')
-                        : t('app.fileTimestamp')
-                    }}</small
-                  ></span
-                ><ChevronRight :size="15" />
-              </button>
+                <button
+                  class="drive-row"
+                  :disabled="!readiness(drive).ready"
+                  :class="{
+                    active: drive.id === activeId && readiness(drive).ready,
+                  }"
+                  :aria-current="
+                    drive.id === activeId && readiness(drive).ready
+                      ? 'true'
+                      : undefined
+                  "
+                  @click="selectDrive(drive)"
+                >
+                  <span class="drive-glyph"
+                    ><img
+                      v-if="thumbnail(drive)"
+                      :src="thumbnail(drive)"
+                      alt=""
+                      loading="lazy" /><ListVideo v-else :size="20" /></span
+                  ><span class="drive-row-text"
+                    ><strong
+                      >{{ recordingName(drive) }}
+                      <Bookmark
+                        v-if="isSaved(drive.id)"
+                        :size="12"
+                        fill="currentColor" /></strong
+                    ><small
+                      >{{ readinessLabel(drive) }}
+                      <span v-if="readiness(drive).ready">·</span>
+                      {{
+                        !readiness(drive).ready
+                          ? ''
+                          : drive.dateEstimated
+                            ? t('app.estimatedDate')
+                            : drive.dated
+                              ? t('app.recordedDrive')
+                              : t('app.dateUnavailable')
+                      }}</small
+                    ></span
+                  ><ChevronRight
+                    v-if="readiness(drive).ready"
+                    :size="15"
+                  /><LoaderCircle
+                    v-else-if="indexStatus.current?.startsWith(drive.id + '--')"
+                    class="spinning"
+                    :size="16"
+                  />
+                </button>
+                <button
+                  v-if="!readiness(drive).ready && !readiness(drive).empty"
+                  class="prepare-next icon-button"
+                  :disabled="
+                    indexStatus.driving !== 'parked' ||
+                    indexStatus.priority === drive.id
+                  "
+                  :aria-label="
+                    indexStatus.priority === drive.id
+                      ? t('app.queuedNext')
+                      : t('app.prepareNext')
+                  "
+                  v-tip="
+                    indexStatus.priority === drive.id
+                      ? t('app.queuedNext')
+                      : t('app.prepareNext')
+                  "
+                  @click="prepareNext(drive)"
+                >
+                  <Check
+                    v-if="indexStatus.priority === drive.id"
+                    :size="16"
+                  /><ArrowUpRight v-else :size="17" />
+                </button>
+              </div>
             </div>
             <div v-if="!visibleDrives.length" class="empty-list">
               <Search :size="25" />
@@ -1016,7 +1161,11 @@ onBeforeUnmount(() => {
               <h1>{{ dateLabel(active.date) }}</h1>
               <p>
                 {{ timeLabel(active.date) }}
-                <span v-if="!active.dated">· {{ t('app.fileTimestamp') }}</span>
+                <span v-if="!active.dated"
+                  >· {{ t('app.dateUnavailable') }}</span
+                ><span v-else-if="active.dateEstimated"
+                  >· {{ t('app.estimatedDate') }}</span
+                >
               </p>
             </div>
             <SessionActions ref="actionMenu">
@@ -1077,7 +1226,7 @@ onBeforeUnmount(() => {
           <ExportDialog
             ref="exportDialog"
             :drive="active"
-            :files="files"
+            :files="playable"
             :sample="demo"
           />
           <Sheet
@@ -1291,7 +1440,9 @@ onBeforeUnmount(() => {
           <p>
             {{
               totalSegments
-                ? t('app.chooseADriveFromTheLibrary')
+                ? drives.some((drive) => readiness(drive).ready)
+                  ? t('app.chooseADriveFromTheLibrary')
+                  : t('app.recordingsWillUnlock')
                 : t('app.yourDeviceIsConnectedWhenRecordingsAppear')
             }}
           </p>
@@ -1371,10 +1522,6 @@ onBeforeUnmount(() => {
         </button>
       </div>
     </Sheet>
-    <Transition name="toast">
-      <div v-if="notice" class="toast" role="status">
-        <Check :size="17" />{{ notice }}
-      </div>
-    </Transition>
+    <ToastStack :centred="!connected" />
   </div>
 </template>

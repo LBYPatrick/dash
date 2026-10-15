@@ -661,19 +661,6 @@ svg {
   max-width: 500px;
   color: #a3b1a4;
 }
-.player-error {
-  position: absolute;
-  bottom: 55px;
-  left: 15px;
-  right: 15px;
-  display: flex;
-  gap: 9px;
-  align-items: center;
-  background: #25362ef0;
-  padding: 14px;
-  border-radius: 8px;
-  font-size: 12px;
-}
 .segment-controls {
   display: flex;
   align-items: center;

@@ -499,15 +499,6 @@ select:focus-visible,
 #app .player :is(p, small, h2, h3, .muted) {
   color: #edf3f7;
 }
-#app .player-error {
-  background: #1d2933;
-  color: #edf3f7;
-  border: 1px solid #6c8594;
-}
-#app .player-error .button {
-  background: #edf3f7;
-  color: #182831;
-}
 #app .sample-label {
   background: #1d2933;
   color: #edf3f7;

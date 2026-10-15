@@ -41,17 +41,21 @@ func (b *videoProbeBuffer) Write(p []byte) (int, error) {
 }
 
 type videoProbe struct {
-	Codec   string
-	BFrames bool
-	Offsets []float64
-	Step    float64
+	Positions []int64
+	Codec     string
+	BFrames   bool
+	Keys      []bool
+	DropLast  bool
+	Sizes     []int
+	Offsets   []float64
+	Step      float64
 }
 
 func probeMCAPVideo(ctx context.Context, filename string) (videoProbe, error) {
 	limited, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 	var output videoProbeBuffer
-	args := []string{"-max_alloc", "33554432", "-v", "error", "-threads", "1", "-select_streams", "v:0", "-show_packets", "-show_streams", "-show_entries", "packet=pts_time:stream=codec_name,has_b_frames,r_frame_rate", "-of", "json", filename}
+	args := []string{"-max_alloc", strconv.Itoa(MediaAllocationLimitMiB << 20), "-v", "error", "-threads", strconv.Itoa(ProbeThreads), "-select_streams", "v:0", "-show_packets", "-show_streams", "-show_entries", "packet=pts_time,size,flags,pos:stream=codec_name,has_b_frames,r_frame_rate", "-of", "json", filename}
 	if err := runMediaCommand(limited, "ffprobe", &output, args...); err != nil {
 		return videoProbe{}, err
 	}
@@ -62,7 +66,10 @@ func probeMCAPVideo(ctx context.Context, filename string) (videoProbe, error) {
 			Rate    string `json:"r_frame_rate"`
 		} `json:"streams"`
 		Packets []struct {
-			PTS string `json:"pts_time"`
+			Pos   string `json:"pos"`
+			PTS   string `json:"pts_time"`
+			Size  string `json:"size"`
+			Flags string `json:"flags"`
 		} `json:"packets"`
 	}
 	if err := json.Unmarshal(output.Bytes(), &result); err != nil {
@@ -89,8 +96,11 @@ func probeMCAPVideo(ctx context.Context, filename string) (videoProbe, error) {
 			return videoProbe{}, errors.New("unsupported camera frame rate")
 		}
 	}
-	probe := videoProbe{Codec: stream.Codec, BFrames: stream.BFrames > 0, Step: 1 / fps, Offsets: make([]float64, len(result.Packets))}
+	probe := videoProbe{Positions: make([]int64, len(result.Packets)), Codec: stream.Codec, BFrames: stream.BFrames > 0, Step: 1 / fps, Offsets: make([]float64, len(result.Packets)), Sizes: make([]int, len(result.Packets)), Keys: make([]bool, len(result.Packets))}
 	for n, packet := range result.Packets {
+		probe.Positions[n], _ = strconv.ParseInt(packet.Pos, 10, 64)
+		probe.Sizes[n], _ = strconv.Atoi(packet.Size)
+		probe.Keys[n] = strings.Contains(packet.Flags, "K")
 		if raw {
 			probe.Offsets[n] = float64(n) / 20
 			continue
@@ -122,7 +132,7 @@ func (e *ExportManager) mcapVideos(ctx context.Context, writer *mcap.Writer, job
 	channels := map[string]uint16{}
 	for _, asset := range assets {
 		camera := filepath.Base(asset.Path)
-		if _, ok := cameraTopics[camera]; !ok {
+		if _, ok := cameraTopics[camera]; !ok || asset.Size == 0 {
 			continue
 		}
 		if len(channels) == 0 {
@@ -143,10 +153,11 @@ func (e *ExportManager) mcapVideos(ctx context.Context, writer *mcap.Writer, job
 	previousStep := map[string]uint64{}
 	cachedSegment := -1
 	var frameIndexes map[string][]telemetry.FrameIndex
+	var partialIndexes bool
 	for i, asset := range assets {
 		camera := filepath.Base(asset.Path)
 		channel := channels[camera]
-		if channel == 0 {
+		if channel == 0 || asset.Size == 0 {
 			continue
 		}
 		e.update(job.ID, "running", fmt.Sprintf("Adding %s video · part %d", cameraTopics[camera], asset.Segment), float64(i)/float64(len(assets)))
@@ -157,13 +168,23 @@ func (e *ExportManager) mcapVideos(ctx context.Context, writer *mcap.Writer, job
 		clock := clocks[asset.Segment]
 		if cachedSegment != asset.Segment {
 			frameIndexes, err = loadMCAPFrameIndexes(ctx, logs[asset.Segment])
-			if err != nil {
+			partialIndexes = telemetry.IsIncomplete(err)
+			if err != nil && !partialIndexes {
 				return err
 			}
 			cachedSegment = asset.Segment
 		}
 		indexes := frameIndexes[cameraTopics[camera]]
 		timings, err := recordedFrameTimes(indexes, len(probe.Offsets), clock)
+		recoveredTiming := false
+		if partialIndexes && len(indexes) > 1 && !probe.BFrames {
+			timings, err = recoveredFrameTimes(indexes, probe, clock)
+			recoveredTiming = err == nil && len(timings) > 0
+			if recoveredTiming && len(timings) < len(probe.Offsets) {
+				probe.DropLast = true
+				probe.Offsets = probe.Offsets[:len(timings)]
+			}
+		}
 		if err != nil {
 			return fmt.Errorf("%d/%s: %w", asset.Segment, camera, err)
 		}
@@ -173,6 +194,9 @@ func (e *ExportManager) mcapVideos(ctx context.Context, writer *mcap.Writer, job
 		if len(timings) > 0 {
 			start = timings[0]
 			basis = clock.Basis + "; recorded EncodeIdx timestampEof"
+			if recoveredTiming {
+				basis += "; interrupted log/video: verified index prefix, unlogged tail estimated from measured frame rate"
+			}
 			if start < previousEnd[camera] {
 				return fmt.Errorf("%d/%s: recorded frames overlap previous part", asset.Segment, camera)
 			}
@@ -188,16 +212,10 @@ func (e *ExportManager) mcapVideos(ctx context.Context, writer *mcap.Writer, job
 		previousStep[camera] = uint64(math.Round(probe.Step * 1e9))
 		if err := writer.WriteMetadata(&mcap.Metadata{Name: fmt.Sprintf("dash.video.%d.%s", asset.Segment, cameraTopics[camera]), Metadata: map[string]string{
 			"timeBasis": basis, "estimatedStartNanoseconds": strconv.FormatUint(estimatedStart, 10), "startNanoseconds": strconv.FormatUint(start, 10),
-			"overlapAdjusted": strconv.FormatBool(len(indexes) == 0 && start != estimatedStart), "rawHEVC20fps": strconv.FormatBool(len(indexes) == 0 && strings.HasSuffix(camera, ".hevc")), "bFramesConverted": strconv.FormatBool(probe.BFrames), "frames": strconv.Itoa(len(probe.Offsets)),
+			"droppedIncompletePackets": strconv.FormatBool(probe.DropLast), "partialLog": strconv.FormatBool(partialIndexes), "recoveredTiming": strconv.FormatBool(recoveredTiming), "recordedIndexes": strconv.Itoa(len(indexes)),
+			"overlapAdjusted": strconv.FormatBool(len(indexes) == 0 && start != estimatedStart), "rawHEVC20fps": strconv.FormatBool(len(indexes) == 0 && strings.HasSuffix(camera, ".hevc")), "bFramesConverted": strconv.FormatBool(probe.BFrames), "frames": strconv.Itoa(len(probe.Offsets)), "outputCodec": "h264", "keyframeIntervalFrames": strconv.Itoa(MCAPKeyframeIntervalFrames),
 		}}); err != nil {
 			return err
-		}
-		format := probe.Codec
-		if format == "hevc" {
-			format = "h265"
-		}
-		if probe.BFrames {
-			format = "h264"
 		}
 		frame := 0
 		err = streamMCAPVideo(ctx, asset.Path, probe, func(data []byte) error {
@@ -205,14 +223,15 @@ func (e *ExportManager) mcapVideos(ctx context.Context, writer *mcap.Writer, job
 				return errors.New("more video frames than presentation timestamps")
 			}
 			timestamp := timings[frame]
-			value := &foxglove.CompressedVideo{Timestamp: protobufTime(timestamp), FrameId: "dash_" + cameraTopics[camera] + "_optical", Format: format, Data: data}
+			value := &foxglove.CompressedVideo{Timestamp: protobufTime(timestamp), FrameId: "dash_" + cameraTopics[camera] + "_optical", Format: "h264", Data: data}
 			frame++
 			return message(channel, timestamp, value)
 		})
 		if err != nil {
 			return fmt.Errorf("%d/%s video: %w", asset.Segment, camera, err)
 		}
-		if frame != len(probe.Offsets) {
+		expectedFrames := len(probe.Offsets)
+		if frame != expectedFrames {
 			return fmt.Errorf("%d/%s video: incomplete frames (%d of %d)", asset.Segment, camera, frame, len(probe.Offsets))
 		}
 	}
@@ -222,23 +241,20 @@ func (e *ExportManager) mcapVideos(ctx context.Context, writer *mcap.Writer, job
 func streamMCAPVideo(ctx context.Context, filename string, probe videoProbe, emit func([]byte) error) error {
 	limited, cancel := context.WithTimeout(ctx, 30*time.Minute)
 	defer cancel()
-	format := probe.Codec
-	args := []string{"-hide_banner", "-loglevel", "error", "-nostdin", "-max_alloc", "33554432", "-threads", "1", "-filter_threads", "1"}
+	args := []string{"-hide_banner", "-loglevel", "error", "-nostdin", "-max_alloc", strconv.Itoa(MediaAllocationLimitMiB << 20), "-threads", strconv.Itoa(MediaThreads), "-filter_threads", strconv.Itoa(MediaThreads)}
 	if strings.HasSuffix(filename, ".hevc") {
 		args = append(args, "-r", "20")
 	}
 	args = append(args, "-i", filename, "-map", "0:v:0", "-an", "-sn", "-dn")
-	if probe.BFrames {
-		format = "h264"
-		args = append(args, "-c:v", "libx264", "-threads", "1", "-preset", "ultrafast", "-crf", "23", "-pix_fmt", "yuv420p", "-bf", "0", "-fps_mode", "passthrough")
-	} else {
-		args = append(args, "-c:v", "copy")
-	}
-	filter := "h264_metadata=aud=insert"
-	if format == "hevc" {
-		filter = "hevc_metadata=aud=insert"
-	}
-	args = append(args, "-bsf:v", filter, "-f", format, "-flush_packets", "1", "pipe:1")
+	// Foxglove may resume a paused seek at any individual message, without the
+	// preceding GOP. Every message therefore needs its own IDR and parameters.
+	// Normalize HEVC as well to avoid platform-dependent HEVC decoder support.
+	args = append(args, "-c:v", "libx264", "-threads", strconv.Itoa(MediaThreads),
+		"-preset", "ultrafast", "-tune", "zerolatency", "-crf", "23", "-pix_fmt", "yuv420p",
+		"-bf", "0", "-g", strconv.Itoa(MCAPKeyframeIntervalFrames), "-keyint_min", "1",
+		"-sc_threshold", "0", "-x264-params", "repeat-headers=1:open-gop=0",
+		"-fps_mode", "passthrough", "-frames:v", strconv.Itoa(len(probe.Offsets)),
+		"-bsf:v", "h264_metadata=aud=insert", "-f", "h264", "-flush_packets", "1", "pipe:1")
 	reader, output := io.Pipe()
 	done := make(chan error, 1)
 	go func() {
@@ -246,7 +262,7 @@ func streamMCAPVideo(ctx context.Context, filename string, probe videoProbe, emi
 		_ = output.CloseWithError(err)
 		done <- err
 	}()
-	parseErr := readAccessUnits(reader, format, emit)
+	parseErr := readAccessUnits(reader, "h264", emit)
 	// Closing the read side and canceling before waiting guarantees no orphaned
 	// worker even when a malformed frame or the output budget stops the consumer.
 	_ = reader.Close()
@@ -426,6 +442,57 @@ func recordedFrameTimes(frames []telemetry.FrameIndex, count int, clock mcapCloc
 			return nil, errors.New("invalid or duplicate camera exposure index")
 		}
 		times[n] = clock.timestampNS(frame.EndNS)
+	}
+	return times, nil
+}
+
+// Interrupted logger files and camera buffers can stop at different points.
+// Match a verified prefix by EncodeIdx order and payload sizes before using
+// exposure times. AVC transport packets add AUD bytes; HEVC may prepend headers
+// to the first keyframe. Never use this recovery path for a complete log.
+func recoveredFrameTimes(frames []telemetry.FrameIndex, probe videoProbe, clock mcapClock) ([]uint64, error) {
+	if len(frames) == 0 {
+		return nil, nil
+	}
+	sorted := append([]telemetry.FrameIndex(nil), frames...)
+	sort.Slice(sorted, func(i, j int) bool { return sorted[i].PresentationIndex < sorted[j].PresentationIndex })
+	count := min(len(sorted), len(probe.Offsets))
+	if count < 2 || probe.BFrames {
+		return nil, errors.New("cannot verify interrupted camera index alignment")
+	}
+	dropLast := false
+	keyOverhead := 0
+	if len(probe.Sizes) > 0 {
+		keyOverhead = probe.Sizes[0] - int(sorted[0].Bytes)
+	}
+	for n := 0; n < count; n++ {
+		frame := sorted[n]
+		if n > 0 && frame.Bytes > 0 && (n < len(probe.Sizes)) {
+			difference := probe.Sizes[n] - int(frame.Bytes)
+			// H.264 MPEG-TS introduces a six-byte access-unit delimiter.
+			knownOverhead := probe.Codec == "h264" && (difference == 6 || (n < len(probe.Keys) && probe.Keys[n] && difference == keyOverhead && keyOverhead >= 6 && keyOverhead <= 4096))
+			if difference != 0 && !knownOverhead {
+				// The final packet may be the interrupted write itself. It is
+				// omitted from video messages, but retained in the raw attachment.
+				if n != len(probe.Offsets)-1 {
+					return nil, errors.New("interrupted camera payload differs from recorded index")
+				}
+				count = n
+				dropLast = true
+				break
+			}
+		}
+	}
+	times, err := recordedFrameTimes(sorted[:count], count, clock)
+	if err != nil {
+		return nil, err
+	}
+	target := len(probe.Offsets)
+	if dropLast {
+		target--
+	}
+	for len(times) < target {
+		times = append(times, times[len(times)-1]+uint64(math.Round(probe.Step*1e9)))
 	}
 	return times, nil
 }

@@ -80,7 +80,7 @@ else: shutil.copy2(source,root/target.rsplit('/',1)[-1])
     .trim()
     .split('\n')
     .map(JSON.parse);
-  assert.equal(calls.length, 4);
+  assert.equal(calls.length, 3);
   console.log(
     'Source installer passed: full local checks, cross-compiled ARM64/PWA, verified payload, OTA disabled, parked activation and shared systemd unit; SSH/SCP transport was mocked, no device contacted.',
   );

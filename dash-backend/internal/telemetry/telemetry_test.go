@@ -190,3 +190,28 @@ func TestSegmentSentinelsOverrideQueuedReceiveTimes(t *testing.T) {
 		t.Fatal("queued messages stretched sentinel boundaries", first, last)
 	}
 }
+
+func TestInterruptedLogRecoversOnlyCompleteEvents(t *testing.T) {
+	source, err := os.ReadFile("../../../scripts/fixtures/device/000001a3--c20ba54385--0/rlog.zst")
+	if err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(t.TempDir(), "rlog.zst")
+	if err := os.WriteFile(path, source[:len(source)*2/3], 0600); err != nil {
+		t.Fatal(err)
+	}
+	count := 0
+	err = Stream(context.Background(), path, func(Record) error { count++; return nil })
+	if !IsIncomplete(err) || count == 0 {
+		t.Fatal("interruption not reported", count, err)
+	}
+	result, err := Decode(context.Background(), path)
+	if err != nil || !result.Partial || result.Status != "ready" || result.Reason == "" || result.Duration <= 0 || result.Duration >= 60 || len(result.Speeds) == 0 {
+		t.Fatalf("valid prefix lost: duration=%v partial=%t error=%v", result.Duration, result.Partial, err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if result, err := Decode(ctx, path); err == nil || result.Partial {
+		t.Fatal("cancellation recovered as an interruption")
+	}
+}

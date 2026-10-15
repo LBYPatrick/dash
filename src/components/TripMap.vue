@@ -349,7 +349,7 @@ onBeforeUnmount(() => {
       <button
         type="button"
         :aria-pressed="following"
-        :disabled="!ready || !position"
+        :disabled="!ready || !points.length"
         @click="follow"
       >
         {{ t('map.follow') }}
@@ -363,6 +363,12 @@ onBeforeUnmount(() => {
         {{ t('map.fullRoute') }}
       </button>
     </div>
+    <Transition name="gps-gap" appear>
+      <div v-if="!position" class="map-gps-gap" role="status">
+        <span class="gps-status-dot" aria-hidden="true"></span>
+        {{ t('map.gpsGap') }}
+      </div>
+    </Transition>
     <p v-if="unavailable || rendererFailed" class="map-notice" role="status">
       {{
         rendererFailed
@@ -374,6 +380,56 @@ onBeforeUnmount(() => {
 </template>
 
 <style scoped>
+.map-gps-gap {
+  position: absolute;
+  left: 12px;
+  bottom: 30px;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 10px;
+  font-size: 12px;
+  color: var(--ink);
+  background: var(--color-base-100);
+  border-radius: var(--radius-control);
+  box-shadow: var(--elev-popover);
+  pointer-events: none;
+}
+.gps-status-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--muted);
+}
+.gps-gap-enter-active {
+  transition:
+    opacity 180ms ease-out,
+    transform 180ms var(--ease-sheet);
+}
+.gps-gap-leave-active {
+  transition: opacity 120ms ease-out;
+}
+.gps-gap-enter-from {
+  transform: translateY(4px);
+  opacity: 0;
+}
+.gps-gap-leave-to {
+  opacity: 0;
+}
+@media (prefers-reduced-motion: reduce) {
+  .gps-gap-enter-active,
+  .gps-gap-leave-active {
+    transition: opacity 120ms linear;
+  }
+  .gps-gap-enter-from {
+    transform: none;
+  }
+}
+:global(:root[data-performance='true']) .gps-gap-enter-active,
+:global(:root[data-performance='true']) .gps-gap-leave-active {
+  transition: none;
+}
 .map-route-fallback {
   position: absolute;
   inset: 0;

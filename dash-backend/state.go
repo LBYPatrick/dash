@@ -11,6 +11,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -37,7 +38,7 @@ func parkedContext(parent context.Context, state StateReader) (context.Context, 
 		return ctx, cancel
 	}
 	go func() {
-		ticker := time.NewTicker(100 * time.Millisecond)
+		ticker := time.NewTicker(DrivingWatchInterval)
 		defer ticker.Stop()
 		for {
 			select {
@@ -54,13 +55,17 @@ func parkedContext(parent context.Context, state StateReader) (context.Context, 
 	return ctx, cancel
 }
 func runFFmpeg(ctx context.Context, args ...string) error {
-	return runMediaCommand(ctx, "ffmpeg", nil, append([]string{"-hide_banner", "-loglevel", "error", "-nostdin", "-y", "-max_alloc", "33554432", "-threads", "1", "-filter_threads", "1"}, args...)...)
+	return runMediaCommand(ctx, "ffmpeg", nil, append([]string{"-hide_banner", "-loglevel", "error", "-nostdin", "-y", "-max_alloc", strconv.Itoa(MediaAllocationLimitMiB << 20), "-threads", strconv.Itoa(MediaThreads), "-filter_threads", strconv.Itoa(MediaThreads)}, args...)...)
 }
 func runMediaCommand(ctx context.Context, binary string, stdout io.Writer, args ...string) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	command := exec.CommandContext(ctx, binary, args...)
+	tool, err := mediaTool(binary)
+	if err != nil {
+		return err
+	}
+	command := exec.CommandContext(ctx, tool, args...)
 	command.Stdout = stdout
 	var stderr limitedBuffer
 	command.Stderr = &stderr
@@ -72,13 +77,13 @@ func runMediaCommand(ctx context.Context, binary string, stdout io.Writer, args 
 	defer func() {
 		log.Printf("%s finished pid=%d duration=%s canceled=%t", binary, command.Process.Pid, time.Since(started).Round(time.Millisecond), ctx.Err() != nil)
 	}()
-	if runtime.GOOS == "linux" {
+	if runtime.GOOS == "linux" && !deviceMode {
 		_ = unix.Setpriority(unix.PRIO_PROCESS, command.Process.Pid, 15)
 	}
 	done := make(chan struct{})
 	defer close(done)
 	go func() {
-		ticker := time.NewTicker(100 * time.Millisecond)
+		ticker := time.NewTicker(DrivingWatchInterval)
 		defer ticker.Stop()
 		for {
 			select {
@@ -87,7 +92,7 @@ func runMediaCommand(ctx context.Context, binary string, stdout io.Writer, args 
 			case <-ctx.Done():
 				return
 			case <-ticker.C:
-				if procKB(fmt.Sprintf("/proc/%d/status", command.Process.Pid), "VmRSS:") > 192*1024 || !memoryAvailable() {
+				if !deviceMode && (procKB(fmt.Sprintf("/proc/%d/status", command.Process.Pid), "VmRSS:") > MediaRSSLimitMiB*1024 || !memoryAvailable()) {
 					_ = command.Process.Kill()
 					return
 				}
@@ -134,4 +139,16 @@ func safePath(root, relative string) (string, error) {
 		return "", errors.New("path outside recordings")
 	}
 	return path, nil
+}
+
+// A verification gate can only restrict work. It cannot override actual
+// onroad/unknown firmware state and never writes to the firmware params.
+func combinedState(actual, gate StateReader) StateReader {
+	return func() string {
+		real := actual()
+		if real != "parked" {
+			return real
+		}
+		return gate()
+	}
 }

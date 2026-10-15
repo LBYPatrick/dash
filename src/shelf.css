@@ -32,6 +32,15 @@
   --gap-section: 20px;
   --hit-min: 28px;
   --radius-pill: 8px;
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --statusbar-h: 48px;
+  --gap-tight: 4px;
+  --radius-box: var(--radius-popover);
+  --control-radius: var(--radius-control);
+  --field-h: 32px;
+  --color-success: #21673b;
+  --color-warning: #7b5500;
+  --color-error: var(--danger-text);
   --ease-sheet: cubic-bezier(0.32, 0.72, 0, 1);
   --t-press: 140ms;
   --t-hover: 180ms;
@@ -56,6 +65,8 @@
   background: var(--color-base-200);
 }
 :root[data-theme='dark'] {
+  --color-success: #a4dfbb;
+  --color-warning: #f3cc77;
   --color-base-100: oklch(21% 0.008 250);
   --color-base-200: oklch(17.5% 0.008 250);
   --color-base-300: oklch(27% 0.01 250);
@@ -1110,23 +1121,29 @@ body,
   width: 100%;
   height: 8px;
   margin-top: 2px;
-  background: var(--fill-3);
+  background: var(--color-base-200);
   border-radius: 3px;
 }
 #app .engagement-engaged {
-  fill: #216b4e;
+  fill: var(--color-primary);
 }
 #app .engagement-overriding {
-  fill: #767f85;
+  fill: color-mix(in oklab, var(--color-primary) 35%, var(--color-base-200));
 }
 #app .engagement-disengaged {
-  fill: #2a65ac;
+  fill: var(--fill-4);
 }
-:root[data-theme='dark'] #app .engagement-engaged {
-  fill: #6fd4ab;
+#app .engagement-engaged.confidence-high {
+  fill: var(--color-success);
 }
-:root[data-theme='dark'] #app .engagement-disengaged {
-  fill: #87c5ff;
+#app .engagement-engaged.confidence-medium {
+  fill: #bc5b0d;
+}
+#app .engagement-engaged.confidence-low {
+  fill: var(--color-error);
+}
+:root[data-theme='dark'] #app .engagement-engaged.confidence-medium {
+  fill: #ffb06b;
 }
 .sr-only {
   position: absolute;
@@ -1439,4 +1456,37 @@ body,
 :root[data-interaction='keyboard'] #app .task-feedback-enter-active,
 :root[data-interaction='keyboard'] #app .task-feedback-leave-active {
   transition: none !important;
+}
+
+/* Pending sessions retain readable text; only the separate queue action is interactive. */
+#app .drive-item {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+#app .drive-item .drive-row {
+  flex: 1;
+  min-width: 0;
+}
+#app .drive-row:disabled,
+#app .dashboard-drive:disabled {
+  opacity: 1;
+  cursor: default;
+}
+#app .drive-row:disabled {
+  background: transparent;
+  color: var(--muted);
+}
+#app .drive-row:disabled strong,
+#app .drive-row:disabled small {
+  color: var(--muted);
+}
+#app .prepare-next {
+  flex: none;
+  width: 44px;
+  height: 44px;
+  min-width: 44px;
+}
+#app .drive-item[data-state='pending'] .drive-glyph {
+  opacity: 0.6;
 }

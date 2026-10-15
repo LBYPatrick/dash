@@ -17,6 +17,9 @@ import (
 )
 
 func main() {
+	device := flag.Bool("device", false, "Fixed comma 3X/4 budgets; bundled tools; no system/controller probing")
+	computeGate := flag.String("compute-gate", "", "Optional Dash-owned test gate; actual firmware parked state is always required")
+	resourceSettings := flag.Bool("resource-settings", false, "Print fixed application resource budgets and exit")
 	root := flag.String("root", "/data/media/0/realdata", "Read-only recording directory")
 	cache := flag.String("cache", "/data/dash/cache", "Disposable SQLite, preview and export cache")
 	params := flag.String("params", "/data/params/d", "Firmware params directory; unknown state disables compute")
@@ -36,6 +39,22 @@ func main() {
 	readyFile := flag.String("ready-file", "", "Internal supervisor readiness marker")
 	version := flag.Bool("version", false, "Print build identity as JSON and exit")
 	flag.Parse()
+	deviceMode = *device
+	if *resourceSettings {
+		_ = json.NewEncoder(os.Stdout).Encode(map[string]int{"cpuCores": DeviceCPUCores, "mediaThreads": MediaThreads, "probeThreads": ProbeThreads, "heavyJobs": HeavyJobLimit, "heapMiB": GoHeapTargetMiB, "memoryHighMiB": ServiceMemoryHighMiB, "memoryMaxMiB": ServiceMemoryMaxMiB})
+		return
+	}
+	state := paramsState(*params)
+	if *computeGate != "" {
+		state = combinedState(state, paramsState(*computeGate))
+	}
+	if *device && (*simulation || *requiredLimits || *containerLimits) {
+		log.Fatal("device mode cannot be combined with simulation or controller probing")
+	}
+	if *device && !*supervise && os.Getenv("DASH_SUPERVISED") != "1" && !*stopLive {
+		log.Fatal("device mode requires the managed Dash supervisor")
+	}
+
 	if *version {
 		_ = json.NewEncoder(os.Stdout).Encode(currentBuild())
 		return
@@ -58,12 +77,12 @@ func main() {
 				log.Fatal(err)
 			}
 		}
-		if !*requiredLimits && !*containerLimits {
+		if !*requiredLimits && !*containerLimits && !*device {
 			log.Fatal("supervisor requires verified systemd or container limits")
 		}
 		ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 		defer cancel()
-		if err := runSupervisor(ctx, *updateHome, paramsState(*params), supervisorArgs(os.Args[1:])); err != nil {
+		if err := runSupervisor(ctx, *updateHome, state, supervisorArgs(os.Args[1:])); err != nil {
 			log.Fatal(err)
 		}
 		return
@@ -84,8 +103,8 @@ func main() {
 		return
 	}
 	if *stopLive {
-		server := &Server{params: *params}
-		if _, err := os.Stat(filepath.Join(*params, ".dash-live-owned")); err == nil {
+		server := &Server{params: *params, index: &Index{cache: *cache}}
+		if _, err := os.Stat(filepath.Join(*cache, ".dash-live-owned")); err == nil {
 			if err := server.setLive(false); err != nil {
 				log.Fatal(err)
 			}
@@ -116,8 +135,15 @@ func main() {
 		}
 		log.Print("verified kernel controls: CPU <=50% of one core, memory <=384 MiB, high <=256 MiB, swap=0, tasks <=64")
 	}
-	runtime.GOMAXPROCS(1)
-	debug.SetMemoryLimit(128 << 20)
+	if *device {
+		for _, tool := range []string{"ffmpeg", "ffprobe"} {
+			if _, err := mediaTool(tool); err != nil {
+				log.Fatal(err)
+			}
+		}
+	}
+	runtime.GOMAXPROCS(DeviceCPUCores)
+	debug.SetMemoryLimit(GoHeapTargetMiB << 20)
 	debug.SetGCPercent(60)
 	rootPath, err := filepath.Abs(*root)
 	if err != nil {
@@ -138,7 +164,7 @@ func main() {
 	}
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
-	index, err := newIndex(rootPath, *cache, paramsState(*params))
+	index, err := newIndex(rootPath, *cache, state)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -158,7 +184,7 @@ func main() {
 	server.updates = updates
 	go updates.automaticChecks()
 	go func() {
-		ticker := time.NewTicker(15 * time.Second)
+		ticker := time.NewTicker(IndexInterval)
 		defer ticker.Stop()
 		for {
 			if index.state() == "parked" && !exports.busy() {
@@ -181,7 +207,7 @@ func main() {
 		defer stop()
 		_ = httpServer.Shutdown(shutdown)
 	}()
-	log.Printf("dash-backend on %s; state=%s; heavy jobs=1; Go heap target=128 MiB", *address, index.state())
+	log.Printf("dash-backend on %s; state=%s; heavy jobs=1; Go heap target=%d MiB; media threads=%d", *address, index.state(), GoHeapTargetMiB, MediaThreads)
 	listener, listenErr := net.Listen("tcp", *address)
 	if listenErr != nil {
 		log.Fatal(listenErr)

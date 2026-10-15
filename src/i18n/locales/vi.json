@@ -123,7 +123,19 @@
     "driveCount": "{{visible, number}} trên {{total, number}} chuyến đi",
     "indexProgress": "Đang lập chỉ mục {{completed, number}} / {{total, number}}",
     "originalFilesHint": "Tệp từ đoạn {{segment, number}}. Tải trực tiếp về thiết bị của bạn.",
-    "originalFileSize": "{{size}} · Tệp gốc"
+    "originalFileSize": "{{size}} · Tệp gốc",
+    "dateUnavailable": "Chưa rõ ngày",
+    "estimatedDate": "Thời gian bắt đầu ước tính",
+    "recordingNumber": "Bản ghi {{number}}",
+    "notIndexedYet": "Chưa lập chỉ mục · {{completed}} / {{total}}",
+    "preparingRecording": "Đang chuẩn bị · {{completed}} / {{total}}",
+    "indexingPaused": "Đã tạm dừng lập chỉ mục",
+    "noPlayableFootage": "Không có video phát được",
+    "prepareNext": "Chuẩn bị tiếp theo",
+    "queuedNext": "Đã ưu tiên tiếp theo",
+    "couldNotPrioritize": "Không thể ưu tiên bản ghi này. Hãy thử lại.",
+    "recordingsWillUnlock": "Bản ghi mở được khi dòng thời gian đã lập chỉ mục. Dùng Chuẩn bị tiếp theo để ưu tiên.",
+    "notifications": "Thông báo"
   },
   "chart": {
     "gpsDistance": "Quãng đường GPS",
@@ -215,7 +227,7 @@
     "recordThisFeed": "Ghi luồng này",
     "saveRecording": "Lưu bản ghi",
     "yourClipStaysAvailableWhenSwitchingDash": "Đoạn quay vẫn có khi đổi màn hình Dash. Quay mới sẽ thay thế; làm mới hoặc đóng thẻ sẽ mất đoạn quay.",
-    "keepThisTabOpenWhileRecordingCapture": "Giữ thẻ mở khi ghi. Quá trình dừng ở khoảng 128 MB. Chỉ hỗ trợ firmware quản lý luồng khi đỗ; từ chối dịch vụ cũ không quản lý được. Dash không gửi lệnh điều khiển lái.",
+    "keepThisTabOpenWhileRecordingCapture": "Giữ tab này hiển thị khi ghi. Dừng ở khoảng 128 MB. Chỉ phát trực tiếp khi có người xem và xác nhận đã đỗ; rời màn hình, mất kết nối, bật máy hoặc không rõ trạng thái lái sẽ dừng thu hình. Dash không gửi lệnh điều khiển xe.",
     "httpError": "Dịch vụ phát trả về {{status, number}}."
   },
   "dashboard": {
@@ -280,7 +292,6 @@
     "snapshotsAppearAfterParkedIndexing": "Ảnh chụp xuất hiện sau khi lập chỉ mục lúc đỗ.",
     "engaged": "Đang điều khiển",
     "recordedEngagementTimeline": "Dòng thời gian trạng thái điều khiển đã ghi",
-    "greenEngagedGrayEnabledButInactiveBlue": "Xanh lá: đang điều khiển. Xám: đã bật nhưng chưa hoạt động. Xanh dương: đã ngắt. Trống: không ghi trạng thái.",
     "recordingTimeline": "Dòng thời gian bản ghi",
     "playRecording": "Phát bản ghi",
     "pauseRecording": "Tạm dừng bản ghi",
@@ -302,7 +313,14 @@
     "hideSnapshots": "Ẩn ảnh chụp",
     "showSnapshots": "Hiện ảnh chụp",
     "hideEngagement": "Ẩn trạng thái điều khiển",
-    "showEngagement": "Hiện trạng thái điều khiển"
+    "showEngagement": "Hiện trạng thái điều khiển",
+    "preparingTimeline": "Đang chuẩn bị dòng thời gian · {{completed}} / {{total}}",
+    "timelineNeedsParked": "Sẽ tiếp tục chuẩn bị dòng thời gian khi đỗ xe.",
+    "preparingVideo": "Đang chuẩn bị video…",
+    "mute": "Tắt tiếng",
+    "unmute": "Bật tiếng",
+    "noRecordedAudio": "Không có âm thanh được ghi",
+    "engagementColors": "Đang điều khiển: màu nhấn khi không ghi độ tin cậy; xanh lá khi cao, cam khi trung bình, đỏ khi thấp. Nền mờ: ngắt; màu nhấn nhạt: bật nhưng không hoạt động."
   },
   "panels": {
     "resizeVideoAndMap": "Đổi kích thước video và bản đồ",
@@ -321,7 +339,8 @@
     "vehicle": "Xe",
     "notRecorded": "Không được ghi",
     "decoded_one": "Đã giải mã {{count, number}} / {{total, number}} đoạn",
-    "decoded_other": "Đã giải mã {{count, number}} / {{total, number}} đoạn"
+    "decoded_other": "Đã giải mã {{count, number}} / {{total, number}} đoạn",
+    "incompleteRecording": "Bản ghi đã kết thúc đột ngột. Dữ liệu có sẵn đã được khôi phục; phần cuối có thể chưa đầy đủ."
   },
   "settings": {
     "light": "Sáng",
@@ -341,7 +360,16 @@
     "language": "Ngôn ngữ",
     "followSystem": "Theo hệ thống",
     "indexErrors_one": "Không lập chỉ mục được {{count, number}} tệp. Tạo lại để thử lại.",
-    "indexErrors_other": "Không lập chỉ mục được {{count, number}} tệp. Tạo lại để thử lại."
+    "indexErrors_other": "Không lập chỉ mục được {{count, number}} tệp. Tạo lại để thử lại.",
+    "accent": "Màu nhấn",
+    "accentBlue": "Xanh dương",
+    "accentPurple": "Tím",
+    "accentPink": "Hồng",
+    "accentRed": "Đỏ",
+    "accentOrange": "Cam",
+    "accentYellow": "Vàng",
+    "accentGreen": "Xanh lá",
+    "accentGraphite": "Than chì"
   },
   "sidebar": {
     "resizeRecordingSidebar": "Đổi kích thước thanh bên bản ghi"
@@ -364,7 +392,8 @@
     "follow": "Theo dõi",
     "fullRoute": "Toàn bộ lộ trình",
     "interactiveMapUnavailableShowingTheRecordedRoute": "Bản đồ tương tác không khả dụng. Đang hiện lộ trình đã ghi.",
-    "mapBackgroundUnavailableRecordedGpsStillWorks": "Nền bản đồ không khả dụng. GPS đã ghi vẫn hoạt động."
+    "mapBackgroundUnavailableRecordedGpsStillWorks": "Nền bản đồ không khả dụng. GPS đã ghi vẫn hoạt động.",
+    "gpsGap": "Không có vị trí GPS tại thời điểm này"
   },
   "updates": {
     "updateInformationIsUnavailable": "Không có thông tin cập nhật.",
@@ -424,7 +453,8 @@
     "coveredParts": "{{covered, number}} / {{total, number}} đoạn",
     "coverage": "{{covered, number}}/{{total, number}} đoạn",
     "range": "{{start, number}}–{{end, number}} trên {{total, number}}",
-    "technicalDetails": "Chi tiết kỹ thuật"
+    "technicalDetails": "Chi tiết kỹ thuật",
+    "dismiss": "Đóng"
   },
   "units": {
     "km": "km",

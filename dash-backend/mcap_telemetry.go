@@ -72,6 +72,9 @@ func mcapTelemetrySchemas(writer *mcap.Writer) error {
 func resolveMCAPLogs(ctx context.Context, request ExportRequest, assets []ExportAsset, snapshot map[string]IndexedSegment) (map[int]string, map[int]mcapClock, error) {
 	paths := map[int][]string{}
 	for _, asset := range assets {
+		if asset.Size == 0 {
+			continue
+		}
 		paths[asset.Segment] = append(paths[asset.Segment], asset.Path)
 	}
 	logs := map[int]string{}
@@ -113,7 +116,7 @@ func resolveMCAPLogs(ctx context.Context, request ExportRequest, assets []Export
 			span.Observe(record)
 			return nil
 		})
-		if err != nil {
+		if err != nil && !telemetry.IsIncomplete(err) {
 			return nil, nil, fmt.Errorf("%d/%s: %w", segment, filepath.Base(path), err)
 		}
 		start, end, seen := span.Bounds()
@@ -186,7 +189,7 @@ func mcapLogTelemetry(ctx context.Context, writer *mcap.Writer, segment int, pat
 	if err := writer.WriteMetadata(&mcap.Metadata{Name: fmt.Sprintf("dash.telemetry.%d", segment), Metadata: map[string]string{"source": filepath.Base(path), "sampling": "recorded rate; no dashboard thinning; one log source per segment", "timeBasis": clock.Basis, "coverage": "GPS fixes, carState, core selfdriveState, stored-camera EncodeIdx, initData identity, carParams identity, sentinel; all other original events remain in log attachments"}}); err != nil {
 		return err
 	}
-	return telemetry.Stream(ctx, path, func(record telemetry.Record) error {
+	err := telemetry.Stream(ctx, path, func(record telemetry.Record) error {
 		timestamp := clock.timestampNS(record.MonotonicNS)
 		stamp := protobufTime(timestamp)
 		part := uint32(segment)
@@ -251,4 +254,8 @@ func mcapLogTelemetry(ctx context.Context, writer *mcap.Writer, segment int, pat
 		}
 		return nil
 	})
+	if telemetry.IsIncomplete(err) {
+		return writer.WriteMetadata(&mcap.Metadata{Name: fmt.Sprintf("dash.telemetry.%d.recovery", segment), Metadata: map[string]string{"partial": "true", "warning": err.Error(), "coverage": "complete events before the interrupted tail; original log attached unchanged"}})
+	}
+	return err
 }

@@ -3,7 +3,7 @@ import { useTranslation } from 'i18next-vue';
 import { locale, formatNumber } from '../i18n';
 import { computed, ref, watch } from 'vue';
 import type { Drive } from '../library';
-import type { IndexedSegment } from '../indexer';
+import { recordingReadiness, type IndexedSegment } from '../indexer';
 import {
   summarizeDrives,
   periodDrives,
@@ -307,6 +307,7 @@ function driveTime(drive: Drive) {
         :key="item.drive.id"
         type="button"
         class="dashboard-drive"
+        :disabled="!recordingReadiness(item.drive, entries, demo).ready"
         :aria-label="
           t('dashboard.reviewDrive', {
             date: driveDate(item.drive),
@@ -330,7 +331,18 @@ function driveTime(drive: Drive) {
                 covered: item.covered,
                 total: item.total,
               })
-            }}{{ item.drive.dated ? '' : t('dashboard.fileDate') }}</small
+            }}<span v-if="!recordingReadiness(item.drive, entries, demo).ready">
+              ·
+              {{
+                recordingReadiness(item.drive, entries, demo).empty
+                  ? t('app.noPlayableFootage')
+                  : t('app.notIndexedYet', {
+                      completed: recordingReadiness(item.drive, entries, demo)
+                        .complete,
+                      total: item.total,
+                    })
+              }}</span
+            ></small
           ></span
         ><span class="dashboard-drive-values"
           >{{ describeMetric([item], 'distance', unit)

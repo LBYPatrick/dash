@@ -3,7 +3,11 @@ import { t } from './index';
 // Older backends expose English diagnostics, not translated interface strings.
 // Keep their technical details intact; map known actionable conditions here.
 export function backendMessage(message: string): string {
-  if (/lacks managed local streaming/.test(message))
+  if (
+    /lacks managed local streaming|local streaming requires installed/.test(
+      message,
+    )
+  )
     return t('backend.unsupportedLive');
   if (
     /requires? confirmed parked|vehicle is not parked|not confirmed parked/.test(

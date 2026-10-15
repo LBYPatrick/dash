@@ -123,17 +123,22 @@ func (s *Server) downloadDiagnostics(w http.ResponseWriter, r *http.Request) {
 	s.index.mu.Lock()
 	status := s.index.status
 	s.index.mu.Unlock()
-	fmt.Fprintf(&result, "Index: running=%t completed=%d total=%d errors=%d\nManaged live API: %t\nProcess RSS KiB: %d\nSystem available RAM KiB: %d\n", status.Running, status.Completed, status.Total, status.Errors, s.managedLive(), procKB("/proc/self/status", "VmRSS:"), procKB("/proc/meminfo", "MemAvailable:"))
-	directory, err := currentCgroup()
-	if err == nil {
-		for _, name := range []string{"cpu.max", "memory.max", "memory.high", "memory.swap.max", "memory.current", "memory.events", "pids.max", "pids.current"} {
-			data, err := os.ReadFile(filepath.Join(directory, name))
-			if err == nil && len(data) < 4096 {
-				fmt.Fprintf(&result, "%s: %s\n", name, strings.TrimSpace(string(data)))
+	fmt.Fprintf(&result, "Index: running=%t completed=%d total=%d errors=%d\nManaged live API: %t\nFixed policy: cores=%d mediaThreads=%d heavyJobs=%d GoHeapMiB=%d\n", status.Running, status.Completed, status.Total, status.Errors, s.managedLive(), DeviceCPUCores, MediaThreads, HeavyJobLimit, GoHeapTargetMiB)
+	if !deviceMode {
+		fmt.Fprintf(&result, "Process RSS KiB: %d\nSystem available RAM KiB: %d\n", procKB("/proc/self/status", "VmRSS:"), procKB("/proc/meminfo", "MemAvailable:"))
+		directory, err := currentCgroup()
+		if err == nil {
+			for _, name := range []string{"cpu.max", "memory.max", "memory.high", "memory.swap.max", "memory.current", "memory.events", "pids.max", "pids.current"} {
+				data, err := os.ReadFile(filepath.Join(directory, name))
+				if err == nil && len(data) < 4096 {
+					fmt.Fprintf(&result, "%s: %s\n", name, strings.TrimSpace(string(data)))
+				}
 			}
+		} else {
+			fmt.Fprintf(&result, "Cgroup: unavailable (%s)\n", err)
 		}
 	} else {
-		fmt.Fprintf(&result, "Cgroup: unavailable (%s)\n", err)
+		fmt.Fprintln(&result, "Device mode: system resource probing disabled; budgets are configured in policy.go.")
 	}
 	fmt.Fprintln(&result, "\nLogs may contain recording names and error paths. Review before sharing. No video, GPS samples, request bodies, credentials, or environment-variable dump is included.")
 	result.WriteString(s.diagnostics.recent())

@@ -390,3 +390,35 @@ func TestSourceBuildNeverEnablesOTA(t *testing.T) {
 		t.Fatal("local build accepted as channel feed")
 	}
 }
+
+func TestReleaseBundledMediaValidation(t *testing.T) {
+	build := releaseFixture("dev", 42)
+	binary := fakeELF(build.Arch)
+	digest := sha256.Sum256(binary)
+	record := map[string]any{"bytes": len(binary), "sha256": hex.EncodeToString(digest[:])}
+	metadata, _ := json.Marshal(map[string]any{"protocol": 1, "arch": build.Arch, "binaries": map[string]any{"ffmpeg": record, "ffprobe": record}})
+	media := []archiveEntry{{"bin/manifest.json", tar.TypeReg, metadata}, {"bin/ffmpeg", tar.TypeReg, binary}, {"bin/ffprobe", tar.TypeReg, binary}, {"bin/sources/build.sh", tar.TypeReg, []byte("source recipe")}}
+	target := t.TempDir()
+	if err := unpackRelease(context.Background(), writeArchive(t, archiveFixture(t, build, media...)), target, build); err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range []string{"ffmpeg", "ffprobe"} {
+		info, err := os.Stat(filepath.Join(target, "bin", name))
+		if err != nil || info.Mode().Perm() != 0700 {
+			t.Fatal("media executable permission", name, err)
+		}
+	}
+	wrong := "amd64"
+	if build.Arch == wrong {
+		wrong = "arm64"
+	}
+	if err := verifyMediaBundle(target, wrong); err == nil {
+		t.Fatal("cross-architecture media accepted")
+	}
+	if err := os.WriteFile(filepath.Join(target, "bin/ffmpeg"), append(binary, byte(1)), 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := verifyMediaBundle(target, build.Arch); err == nil {
+		t.Fatal("changed media bytes accepted")
+	}
+}

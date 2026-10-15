@@ -34,11 +34,51 @@ describe('recording inventory', () => {
       segments: [{ index: 0, url: 'http://device/files/part0/' }],
     };
     const resolved = recordingDate(drive, {
-      'http://device/files/part0/': { metadata: { startUTC: 1791826928 } },
+      'http://device/files/part0/': {
+        metadata: {
+          startUTC: 1791826928,
+          timeSource: 'gps',
+          startMonotonic: 100,
+        },
+      },
     });
     expect(resolved.date).toBe(1791826928000);
     expect(resolved.dated).toBe(true);
-    expect(recordingDate(drive, {})).toBe(drive);
+    expect(recordingDate(drive, {}).date).toBe(0);
+  });
+  it('calibrates an unsynchronized first segment from later GPS and hides unproven dates', () => {
+    const drive = {
+      id: '00000055--test',
+      date: Date.UTC(2026, 2, 24),
+      dated: false,
+      segments: [
+        { index: 0, url: 'part0' },
+        { index: 3, url: 'part3' },
+      ],
+    };
+    const entries = {
+      part0: {
+        metadata: {
+          timeSource: 'device',
+          startUTC: 1774350000,
+          startMonotonic: 10,
+        },
+      },
+      part3: {
+        metadata: {
+          timeSource: 'gps',
+          startUTC: 1791826928,
+          startMonotonic: 190,
+        },
+      },
+    };
+    const corrected = recordingDate(drive, entries);
+    expect(corrected.date).toBe((1791826928 - 180) * 1000);
+    expect(corrected.dateEstimated).toBe(false);
+    expect(recordingDate(drive, { part0: entries.part0 }).date).toBe(0);
+    expect(recordingDate(drive, { part3: entries.part3 }).dateEstimated).toBe(
+      true,
+    );
   });
   it('rejects malformed listings and links escaping the root', () => {
     expect(() => parseListing('<html>', 'http://device/files/')).toThrow();

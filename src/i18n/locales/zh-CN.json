@@ -123,7 +123,19 @@
     "driveCount": "{{visible, number}} / {{total, number}} 个行程",
     "indexProgress": "正在索引 {{completed, number}} / {{total, number}}",
     "originalFilesHint": "片段 {{segment, number}} 的文件，可直接下载到你的设备。",
-    "originalFileSize": "{{size}} · 原始文件"
+    "originalFileSize": "{{size}} · 原始文件",
+    "dateUnavailable": "日期未知",
+    "estimatedDate": "估计开始时间",
+    "recordingNumber": "录像 {{number}}",
+    "notIndexedYet": "尚未索引 · {{completed}} / {{total}}",
+    "preparingRecording": "正在准备 · {{completed}} / {{total}}",
+    "indexingPaused": "索引已暂停",
+    "noPlayableFootage": "没有可播放的视频",
+    "prepareNext": "优先准备",
+    "queuedNext": "已优先排队",
+    "couldNotPrioritize": "无法优先处理此录像，请重试。",
+    "recordingsWillUnlock": "时间线索引完成后即可打开录像。使用“优先准备”可将其提前。",
+    "notifications": "通知"
   },
   "chart": {
     "gpsDistance": "GPS 距离",
@@ -215,7 +227,7 @@
     "recordThisFeed": "录制此画面",
     "saveRecording": "保存录像",
     "yourClipStaysAvailableWhenSwitchingDash": "切换 Dash 页面后片段仍可保存。新录制会替换旧片段；刷新或关闭标签页会丢弃片段。",
-    "keepThisTabOpenWhileRecordingCapture": "录制时请保持标签页打开，约 128 MB 时停止。仅支持具备受控停车串流的固件，不支持旧版非受控串流服务。Dash 不发送驾驶控制指令。",
+    "keepThisTabOpenWhileRecordingCapture": "录制时请保持此标签页可见。录制会在约 128 MB 时停止。实时采集仅在有人观看且确认停车时运行；离开实时视图、连接断开、点火或驾驶状态未知都会停止采集。Dash 不发送车辆控制指令。",
     "httpError": "流媒体服务返回 {{status, number}}。"
   },
   "dashboard": {
@@ -280,7 +292,6 @@
     "snapshotsAppearAfterParkedIndexing": "停车索引完成后显示快照。",
     "engaged": "已接管",
     "recordedEngagementTimeline": "已记录的接管状态时间轴",
-    "greenEngagedGrayEnabledButInactiveBlue": "绿色：已接管。灰色：已启用但未激活。蓝色：未接管。空白：未记录状态。",
     "recordingTimeline": "录像时间轴",
     "playRecording": "播放录像",
     "pauseRecording": "暂停录像",
@@ -302,7 +313,14 @@
     "hideSnapshots": "隐藏快照",
     "showSnapshots": "显示快照",
     "hideEngagement": "隐藏接管状态",
-    "showEngagement": "显示接管状态"
+    "showEngagement": "显示接管状态",
+    "preparingTimeline": "正在准备时间线 · {{completed}} / {{total}}",
+    "timelineNeedsParked": "停车后将继续准备时间线。",
+    "preparingVideo": "正在准备视频…",
+    "mute": "静音",
+    "unmute": "取消静音",
+    "noRecordedAudio": "未录制音频",
+    "engagementColors": "已接管：无置信度数据时使用强调色，高置信度为绿色，中等为橙色，低为红色。浅色表示未接管，淡强调色表示已启用但未激活。"
   },
   "panels": {
     "resizeVideoAndMap": "调整视频与地图宽度",
@@ -321,7 +339,8 @@
     "vehicle": "车辆",
     "notRecorded": "未记录",
     "decoded_one": "已解码 {{count, number}} / {{total, number}} 个片段",
-    "decoded_other": "已解码 {{count, number}} / {{total, number}} 个片段"
+    "decoded_other": "已解码 {{count, number}} / {{total, number}} 个片段",
+    "incompleteRecording": "录制意外结束。已恢复可用数据，最后一段可能不完整。"
   },
   "settings": {
     "light": "浅色",
@@ -341,7 +360,16 @@
     "language": "语言",
     "followSystem": "跟随系统",
     "indexErrors_one": "{{count, number}} 个文件无法索引，请重建后重试。",
-    "indexErrors_other": "{{count, number}} 个文件无法索引，请重建后重试。"
+    "indexErrors_other": "{{count, number}} 个文件无法索引，请重建后重试。",
+    "accent": "强调色",
+    "accentBlue": "蓝色",
+    "accentPurple": "紫色",
+    "accentPink": "粉色",
+    "accentRed": "红色",
+    "accentOrange": "橙色",
+    "accentYellow": "黄色",
+    "accentGreen": "绿色",
+    "accentGraphite": "石墨色"
   },
   "sidebar": {
     "resizeRecordingSidebar": "调整录像侧栏宽度"
@@ -364,7 +392,8 @@
     "follow": "跟随",
     "fullRoute": "完整路线",
     "interactiveMapUnavailableShowingTheRecordedRoute": "交互地图不可用，显示已记录路线。",
-    "mapBackgroundUnavailableRecordedGpsStillWorks": "地图背景不可用，已记录 GPS 仍可查看。"
+    "mapBackgroundUnavailableRecordedGpsStillWorks": "地图背景不可用，已记录 GPS 仍可查看。",
+    "gpsGap": "当前时间没有 GPS 定位"
   },
   "updates": {
     "updateInformationIsUnavailable": "更新信息不可用。",
@@ -424,7 +453,8 @@
     "coveredParts": "{{covered, number}} / {{total, number}} 个片段",
     "coverage": "{{covered, number}}/{{total, number}} 个片段",
     "range": "{{start, number}}–{{end, number}}，共 {{total, number}} 项",
-    "technicalDetails": "技术详情"
+    "technicalDetails": "技术详情",
+    "dismiss": "关闭"
   },
   "units": {
     "km": "公里",

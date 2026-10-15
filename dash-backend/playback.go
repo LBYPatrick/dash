@@ -20,7 +20,7 @@ func videoDuration(ctx context.Context, filename string) (float64, error) {
 	limited, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 	var output limitedBuffer
-	args := []string{"-max_alloc", "33554432", "-v", "error", "-threads", "1", "-select_streams", "v:0", "-count_packets", "-show_entries", "stream=nb_read_packets,r_frame_rate:format=duration", "-of", "json", filename}
+	args := []string{"-max_alloc", strconv.Itoa(MediaAllocationLimitMiB << 20), "-v", "error", "-threads", strconv.Itoa(ProbeThreads), "-select_streams", "v:0", "-count_packets", "-show_entries", "stream=nb_read_packets,r_frame_rate:format=duration", "-of", "json", filename}
 	if err := runMediaCommand(limited, "ffprobe", &output, args...); err != nil {
 		return 0, err
 	}
@@ -124,22 +124,44 @@ func (s *Server) playlist(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	sort.Slice(clips, func(a, b int) bool { return clips[a].index < clips[b].index })
+	chunked := strings.HasSuffix(camera, ".hevc")
 	target := float64(1)
 	for _, clip := range clips {
-		target = max(target, math.Ceil(clip.duration))
+		length := clip.duration
+		if chunked {
+			length = min(length, float64(PreviewChunkSeconds))
+		}
+		target = max(target, math.Ceil(length))
 	}
 	var result strings.Builder
 	fmt.Fprintf(&result, "#EXTM3U\n#EXT-X-VERSION:3\n#EXT-X-PLAYLIST-TYPE:VOD\n#EXT-X-TARGETDURATION:%.0f\n#EXT-X-MEDIA-SEQUENCE:0\n", target)
 	codec := "copy"
-	if strings.HasSuffix(camera, ".hevc") || r.URL.Query().Get("codec") == "h264" {
+	if chunked || r.URL.Query().Get("codec") == "h264" {
 		codec = "h264"
 	}
-	for n, clip := range clips {
-		if n > 0 {
-			result.WriteString("#EXT-X-DISCONTINUITY\n")
+	count := 0
+	for _, clip := range clips {
+		parts := 1
+		if chunked {
+			parts = int(math.Ceil(clip.duration / float64(PreviewChunkSeconds)))
 		}
-		query := url.Values{"file": {filepath.ToSlash(filepath.Join(clip.name, camera))}, "container": {"ts"}, "codec": {codec}}
-		fmt.Fprintf(&result, "#EXTINF:%.6f,\n/api/video?%s\n", clip.duration, query.Encode())
+		for part := 0; part < parts; part++ {
+			if count > 0 {
+				result.WriteString("#EXT-X-DISCONTINUITY\n")
+			}
+			count++
+			if count > 65536 {
+				fail(w, 400, errors.New("recording exceeds preview chunk limit"))
+				return
+			}
+			length := clip.duration
+			query := url.Values{"file": {filepath.ToSlash(filepath.Join(clip.name, camera))}, "container": {"ts"}, "codec": {codec}}
+			if chunked {
+				query.Set("chunk", strconv.Itoa(part))
+				length = min(float64(PreviewChunkSeconds), clip.duration-float64(part*PreviewChunkSeconds))
+			}
+			fmt.Fprintf(&result, "#EXTINF:%.6f,\n/api/video?%s\n", length, query.Encode())
+		}
 	}
 	result.WriteString("#EXT-X-ENDLIST\n")
 	w.Header().Set("Content-Type", "application/vnd.apple.mpegurl")
