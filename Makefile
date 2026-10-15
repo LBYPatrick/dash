@@ -11,26 +11,49 @@ export VP_HOME := $(CURDIR)/.artifacts/toolchains/vite-plus
 endif
 export VP_NO_UPDATE_CHECK := 1
 
-.PHONY: install dev build build-arm64 test check lint format serve fixture smoke design-smoke appearance-smoke shelf-smoke viewer-smoke statistics-smoke mobile-scroll-smoke map-smoke index-ui-smoke updates-smoke mobile-flow-smoke live-capture-smoke live-layout-smoke motion-smoke i18n-smoke playback-smoke frontend-polish-smoke
-install:
+##@ Setup
+.PHONY: setup-build-env build-env-check install
+setup-build-env: ## Set up project-local Vite+, Node and Go
+	bash scripts/setup-build-env.sh
+
+build-env-check: ## Check the host build toolchains
+	bash scripts/setup-build-env.sh --check
+
+install: ## Install locked frontend and Go dependencies
 	vp install --frozen-lockfile
 	cd backend && go mod download
-dev:
+
+##@ Development
+.PHONY: dev fixture serve build build-arm64
+dev: ## Start the Vite frontend dev server
 	vp -C frontend dev --host 0.0.0.0
-build:
+
+fixture: ## Prepare synthetic local recordings
+	node scripts/prepare-fixture.mjs
+
+serve: ## Serve the local app at 127.0.0.1:8088
+	.artifacts/dash-backend --root .artifacts/device/recordings --cache .artifacts/device/cache --params .artifacts/device/params --app frontend/dist --listen 127.0.0.1:8088
+
+build: ## Build the PWA and host backend
 	vp -C frontend run build
 	mkdir -p .artifacts
 	cd backend && CGO_ENABLED=0 go build -trimpath -o ../.artifacts/dash-backend .
-build-arm64:
+
+build-arm64: ## Build the PWA and Linux ARM64 backend
 	vp -C frontend run build
 	mkdir -p .artifacts
 	cd backend && CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -trimpath -ldflags='-s -w' -o ../.artifacts/dash-backend-linux-arm64 .
-lint:
-	vp lint --deny-warnings
-format:
-	vp fmt
-	cd backend && gofmt -w *.go internal/telemetry/*.go internal/mcaptypes/*/*.go
-test:
+
+##@ Quality
+.PHONY: check test lint format
+check: ## Run format, lint, types, tests and builds
+	vp check
+	cd backend && test -z "$$(gofmt -l .)"
+	cd backend && GOMAXPROCS=$(HOST_CHECK_PROCS) go vet -p 1 ./...
+	$(MAKE) test
+	$(MAKE) build
+
+test: ## Run unit, installer and Go race tests
 	python3 -c 'import ast; ast.parse(open("backend/live_adapter.py").read())'
 	python3 scripts/firmware-state.test.py
 	python3 scripts/setup-toolchains.test.py
@@ -41,99 +64,162 @@ test:
 	bash scripts/boot-state.test.sh
 	vp test run
 	cd backend && GOMAXPROCS=$(HOST_CHECK_PROCS) go test -race -p 1 -parallel 1 ./...
-check:
-	vp check
-	cd backend && test -z "$$(gofmt -l .)"
-	cd backend && GOMAXPROCS=$(HOST_CHECK_PROCS) go vet -p 1 ./...
-	$(MAKE) test
-	$(MAKE) build
-.PHONY: generate-mcap-schemas regenerate-telemetry-fixtures
-generate-mcap-schemas:
-	bash scripts/generate-mcap-schemas.sh
-regenerate-telemetry-fixtures:
-	$(or $(PYTHON),python3) scripts/fixtures/generate.py
-fixture:
-	node scripts/prepare-fixture.mjs
-serve:
-	.artifacts/dash-backend --root .artifacts/device/recordings --cache .artifacts/device/cache --params .artifacts/device/params --app frontend/dist --listen 127.0.0.1:8088
-smoke:
+
+lint: ## Run Oxlint; fail on warnings
+	vp lint --deny-warnings
+
+format: ## Format source and docs with Oxfmt and gofmt
+	vp fmt
+	cd backend && gofmt -w *.go internal/telemetry/*.go internal/mcaptypes/*/*.go
+
+##@ Browser checks
+.PHONY: smoke frontend-polish-smoke design-smoke appearance-smoke \
+  shelf-smoke playback-smoke viewer-smoke statistics-smoke \
+  mobile-scroll-smoke mobile-flow-smoke map-smoke index-ui-smoke \
+  updates-smoke live-capture-smoke live-layout-smoke motion-smoke i18n-smoke
+smoke: ## Check core app integration
 	node scripts/smoke.mjs
-design-smoke:
-	node scripts/design-smoke.mjs
-frontend-polish-smoke:
+
+frontend-polish-smoke: ## Check contrast, focus and localized layouts
 	node scripts/frontend-polish-smoke.mjs
-appearance-smoke:
+
+design-smoke: ## Check responsive interface behavior
+	node scripts/design-smoke.mjs
+
+appearance-smoke: ## Check themes and performance mode
 	node scripts/appearance-smoke.mjs
-shelf-smoke:
+
+shelf-smoke: ## Check Shelf components and keyboard flows
 	node scripts/shelf-smoke.mjs
-playback-smoke:
+
+playback-smoke: ## Check preparation, GPS gaps and notifications
 	node scripts/playback-smoke.mjs
-viewer-smoke:
+
+viewer-smoke: ## Check playback, seeking and map follow
 	node scripts/viewer-smoke.mjs
-statistics-smoke:
+
+statistics-smoke: ## Check dashboard graphs and interactions
 	node scripts/statistics-smoke.mjs
-mobile-scroll-smoke:
+
+mobile-scroll-smoke: ## Check touch scrolling and fixed viewer bounds
 	node scripts/mobile-scroll-smoke.mjs
-map-smoke:
-	node scripts/map-smoke.mjs
-index-ui-smoke:
-	node scripts/index-ui-smoke.mjs
-updates-smoke:
-	node scripts/updates-smoke.mjs
-mobile-flow-smoke:
+
+mobile-flow-smoke: ## Check mobile navigation and session workflows
 	node scripts/mobile-flow-smoke.mjs
-live-capture-smoke:
+
+map-smoke: ## Check maps and tile failure recovery
+	node scripts/map-smoke.mjs
+
+index-ui-smoke: ## Check indexing and recording readiness
+	node scripts/index-ui-smoke.mjs
+
+updates-smoke: ## Check update settings and recovery flows
+	node scripts/updates-smoke.mjs
+
+live-capture-smoke: ## Check live capture and saved browser clips
 	node scripts/live-capture-smoke.mjs
-live-layout-smoke:
+
+live-layout-smoke: ## Check live layouts and touch controls
 	node scripts/live-layout-smoke.mjs
-motion-smoke:
+
+motion-smoke: ## Check transitions and reduced motion
 	node scripts/motion-smoke.mjs
-i18n-smoke:
+
+i18n-smoke: ## Check all five languages and preferences
 	node scripts/i18n-smoke.mjs
 
-.PHONY: sandbox-up sandbox-down sandbox-test sandbox-smoke sandbox-logs device-check device-install release ota-smoke
-sandbox-up:
+##@ Docker sandbox
+.PHONY: sandbox-up sandbox-test sandbox-smoke sandbox-logs sandbox-down
+sandbox-up: ## Build and start the synthetic device sandbox
 	node scripts/sandbox-up.mjs
-sandbox-down:
-	docker compose down
-sandbox-test:
-	node scripts/sandbox-test.mjs
-sandbox-smoke:
-	DASH_TEST_URL="http://127.0.0.1:$${DASH_SANDBOX_PORT:-8089}" node scripts/smoke.mjs
-sandbox-logs:
-	docker compose logs --tail=200 -f dash
-device-check:
-	bash scripts/install-backend.sh $(if $(filter 1,$(RUNTIME)),--runtime) --check $(if $(DEVICE_KEY),--identity "$(DEVICE_KEY)") "$(DEVICE)"
-.PHONY: setup-build-env build-env-check device-install-source source-release source-install-smoke
-setup-build-env:
-	bash scripts/setup-build-env.sh
-build-env-check:
-	bash scripts/setup-build-env.sh --check
-device-install-source:
-	bash scripts/install-backend.sh $(if $(filter 1,$(RUNTIME)),--runtime) --source $(if $(DEVICE_KEY),--identity "$(DEVICE_KEY)") "$(DEVICE)"
-source-install-smoke:
-	node scripts/install-source-smoke.mjs
-source-release:
-	$(MAKE) check
-	node scripts/release.mjs --source
 
-device-install:
+sandbox-test: ## Check sandbox APIs and resource limits
+	node scripts/sandbox-test.mjs
+
+sandbox-smoke: ## Run browser integration against the sandbox
+	DASH_TEST_URL="http://127.0.0.1:$${DASH_SANDBOX_PORT:-8089}" node scripts/smoke.mjs
+
+sandbox-logs: ## Follow the latest backend logs
+	docker compose logs --tail=200 -f dash
+
+sandbox-down: ## Stop the sandbox
+	docker compose down
+
+##@ Device installation
+.PHONY: device-check device-install device-install-source device-uninstall
+device-check: ## Inspect a device over SSH without installing
+	bash scripts/install-backend.sh $(if $(filter 1,$(RUNTIME)),--runtime) --check $(if $(DEVICE_KEY),--identity "$(DEVICE_KEY)") "$(DEVICE)"
+
+device-install: ## Install a release over SSH; defaults to main
 	bash scripts/install-backend.sh $(if $(filter 1,$(RUNTIME)),--runtime) $(if $(DEVICE_KEY),--identity "$(DEVICE_KEY)") --channel "$(or $(CHANNEL),main)" $(if $(RELEASE),--release "$(RELEASE)") $(if $(REPOSITORY),--repo "$(REPOSITORY)") "$(DEVICE)"
 
-ota-smoke:
-	vp -C frontend run build
-	node scripts/ota-smoke.mjs
+device-install-source: ## Build locally and install over SSH
+	bash scripts/install-backend.sh $(if $(filter 1,$(RUNTIME)),--runtime) --source $(if $(DEVICE_KEY),--identity "$(DEVICE_KEY)") "$(DEVICE)"
 
-release:
+device-uninstall: ## Remove Dash and its systemd registration
+	bash scripts/uninstall-backend.sh $(if $(DEVICE_KEY),--identity "$(DEVICE_KEY)") "$(DEVICE)"
+
+##@ Packaging and delivery
+.PHONY: release source-release source-install-smoke ota-smoke build-media \
+  generate-mcap-schemas regenerate-telemetry-fixtures
+release: ## Package a channel build; set CHANNEL and BUILD
 	vp -C frontend run build
 	DASH_RELEASE_CHANNEL="$(CHANNEL)" DASH_RELEASE_SEQUENCE="$(BUILD)" node scripts/release.mjs
 
+source-release: ## Check and package a local source build
+	$(MAKE) check
+	node scripts/release.mjs --source
+
+source-install-smoke: ## Check source installation with mocked SSH
+	node scripts/install-source-smoke.mjs
+
+ota-smoke: ## Check activation and rollback in Linux/Docker
+	vp -C frontend run build
+	node scripts/ota-smoke.mjs
+
+build-media: ## Build bundled media tools; set MEDIA_ARCH
+	node scripts/build-media.mjs $(MEDIA_ARCH)
+
+generate-mcap-schemas: ## Regenerate typed MCAP schemas
+	bash scripts/generate-mcap-schemas.sh
+
+regenerate-telemetry-fixtures: ## Regenerate synthetic firmware telemetry
+	$(or $(PYTHON),python3) scripts/fixtures/generate.py
+
 .PHONY: help
 help:
-	@printf '%s\n' 'Dash workflows:' '  make install / dev / build / check / lint (Vite+, Oxlint, Oxfmt)' '  make generate-mcap-schemas / regenerate-telemetry-fixtures [PYTHON=path]' '  make fixture / serve / smoke / design-smoke / appearance-smoke / shelf-smoke / viewer-smoke / statistics-smoke / mobile-scroll-smoke / map-smoke / index-ui-smoke / updates-smoke / mobile-flow-smoke / live-capture-smoke / live-layout-smoke / motion-smoke / i18n-smoke / frontend-polish-smoke' '  make sandbox-up / sandbox-test / sandbox-smoke / sandbox-logs / sandbox-down' '  make setup-build-env / build-env-check / build-media [MEDIA_ARCH=arm64|amd64]' '  make device-uninstall DEVICE=comma@DEVICE_IP [DEVICE_KEY=/path/to/key]' '  make device-install-source DEVICE=comma@DEVICE_IP / source-release / source-install-smoke' '  make device-check DEVICE=comma@DEVICE_IP [RUNTIME=1]' '  make device-install DEVICE=comma@DEVICE_IP [CHANNEL=main|nightly|dev] [RELEASE=TAG] [DEVICE_KEY=/path/to/key] [RUNTIME=1]' '  make release CHANNEL=dev BUILD=1 / ota-smoke'
-
-.PHONY: build-media device-uninstall
-build-media:
-	node scripts/build-media.mjs $(MEDIA_ARCH)
-device-uninstall:
-	bash scripts/uninstall-backend.sh $(if $(DEVICE_KEY),--identity "$(DEVICE_KEY)") "$(DEVICE)"
+	@help_color=; \
+	if test -t 1 && test -z "$$NO_COLOR" && test "$$TERM" != dumb; then help_color=1; fi; \
+	awk -v color="$$help_color" '\
+		BEGIN { \
+			bold = color ? "\033[1m" : ""; \
+			accent = color ? "\033[36m" : ""; \
+			reset = color ? "\033[0m" : ""; \
+			printf "\n%sDash%s\n  Usage: make <command> [NAME=value ...]\n", bold, reset; \
+		} \
+		/^##@ / { printf "\n%s%s%s\n", bold, substr($$0, 5), reset; next } \
+		/^[a-z][a-z0-9-]*:.*## / { \
+			split($$0, entry, ":.*## "); \
+			printf "  %s%-30s%s %s\n", accent, entry[1], reset, entry[2]; \
+		} \
+		END { \
+			printf "\n%sOptions%s\n", bold, reset; \
+			printf "  %-30s %s\n", "DEVICE=comma@HOST", "Required for device commands"; \
+			printf "  %-30s %s\n", "DEVICE_KEY=/path/to/key", "Optional SSH identity"; \
+			printf "  %-30s %s\n", "CHANNEL=main|nightly|dev", "Device installs default to main"; \
+			printf "  %-30s %s\n", "RELEASE=TAG", "Install a specific release"; \
+			printf "  %-30s %s\n", "REPOSITORY=owner/repo", "Optional release repository"; \
+			printf "  %-30s %s\n", "RUNTIME=1", "Temporary install; no boot persistence"; \
+			printf "  %-30s %s\n", "BUILD=NUMBER", "Sequence number for release packaging"; \
+			printf "  %-30s %s\n", "MEDIA_ARCH=arm64|amd64", "Architecture for bundled media tools"; \
+			printf "  %-30s %s\n", "PYTHON=/path/to/python", "Interpreter for telemetry fixtures"; \
+			printf "  %-30s %s\n", "CHROME_PATH=/path/to/chrome", "Browser executable for browser checks"; \
+			printf "  %-30s %s\n", "DASH_TEST_URL=http://HOST:PORT", "Backend address for browser checks"; \
+			printf "\n%sExamples%s\n", bold, reset; \
+			print "  make setup-build-env install"; \
+			print "  make build fixture serve"; \
+			print "  make device-install DEVICE=comma@HOST CHANNEL=dev"; \
+			print "  make release CHANNEL=dev BUILD=1"; \
+			print "\n  Browser checks need a running synthetic backend and Chrome."; \
+			print "  Guides: README.md and docs/development.md\n"; \
+		}' $(MAKEFILE_LIST)
