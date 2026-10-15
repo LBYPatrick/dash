@@ -5,7 +5,16 @@ import SelectMenu from './SelectMenu.vue';
 import { LOCALES, language, languageSaved } from '../i18n';
 import Sheet from './Sheet.vue';
 import UpdatesPanel from './UpdatesPanel.vue';
-import { Settings, Sun, Moon, Monitor, CircleHelp, Check } from '../icons';
+import {
+  Settings,
+  Sun,
+  Moon,
+  Monitor,
+  CircleHelp,
+  Check,
+  Download,
+  ChevronRight,
+} from '../icons';
 import {
   theme,
   performanceMode,
@@ -22,6 +31,7 @@ import { vGlassTabs } from '../glassTabs';
 const { t } = useTranslation();
 const emit = defineEmits<{ rebuild: []; help: [] }>();
 const dialog = ref<InstanceType<typeof Sheet>>();
+const updatesDialog = ref<InstanceType<typeof Sheet>>();
 const themes = computed(
   () =>
     [
@@ -170,7 +180,17 @@ const themes = computed(
           {{ t('settings.indexErrors', { count: indexStatus.errors }) }}
         </p>
       </section>
-      <UpdatesPanel v-if="backendOrigin" />
+      <button
+        v-if="backendOrigin"
+        class="settings-updates button full-width"
+        type="button"
+        aria-haspopup="dialog"
+        @click="updatesDialog?.showModal()"
+      >
+        <Download :size="18" />
+        <span>{{ t('updates.dashUpdates') }}</span>
+        <ChevronRight :size="16" />
+      </button>
       <button
         class="settings-help button full-width"
         type="button"
@@ -183,9 +203,26 @@ const themes = computed(
       </p>
     </div>
   </Sheet>
+  <Sheet
+    ref="updatesDialog"
+    :title="t('updates.dashUpdates')"
+    :close-label="t('updates.closeUpdates')"
+    class="settings-popup"
+    over-sheets
+  >
+    <div class="modal-inner"><UpdatesPanel /></div>
+  </Sheet>
 </template>
 
 <style scoped>
+.settings-updates {
+  margin-top: 24px;
+  text-align: left;
+}
+.settings-updates span {
+  flex: 1;
+}
+
 .language-setting {
   display: grid;
   gap: 8px;

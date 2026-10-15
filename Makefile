@@ -6,7 +6,7 @@ HOST_CHECK_PROCS ?= 2
 # Project-local SDKs installed by setup-build-env; no shell profile edits.
 export PATH := $(CURDIR)/.artifacts/toolchains/node/bin:$(CURDIR)/.artifacts/toolchains/go/bin:$(PATH)
 
-.PHONY: install dev build build-arm64 test check format serve fixture smoke design-smoke appearance-smoke shelf-smoke viewer-smoke statistics-smoke mobile-scroll-smoke map-smoke index-ui-smoke updates-smoke mobile-flow-smoke live-capture-smoke motion-smoke i18n-smoke playback-smoke
+.PHONY: install dev build build-arm64 test check format serve fixture smoke design-smoke appearance-smoke shelf-smoke viewer-smoke statistics-smoke mobile-scroll-smoke map-smoke index-ui-smoke updates-smoke mobile-flow-smoke live-capture-smoke live-layout-smoke motion-smoke i18n-smoke playback-smoke
 install:
 	npm ci
 	cd dash-backend && go mod download
@@ -29,6 +29,7 @@ test:
 	python3 scripts/fetch-release.test.py
 	bash scripts/install-backend.test.sh
 	bash scripts/systemd-registration.test.sh
+	bash scripts/boot-state.test.sh
 	npm test
 	cd dash-backend && GOMAXPROCS=$(HOST_CHECK_PROCS) go test -race -p 1 -parallel 1 ./...
 check:
@@ -72,6 +73,8 @@ mobile-flow-smoke:
 	node scripts/mobile-flow-smoke.mjs
 live-capture-smoke:
 	node scripts/live-capture-smoke.mjs
+live-layout-smoke:
+	node scripts/live-layout-smoke.mjs
 motion-smoke:
 	node scripts/motion-smoke.mjs
 i18n-smoke:
@@ -116,7 +119,7 @@ release:
 
 .PHONY: help
 help:
-	@printf '%s\n' 'Dash workflows:' '  make install / dev / build / check' '  make generate-mcap-schemas / regenerate-telemetry-fixtures [PYTHON=path]' '  make fixture / serve / smoke / design-smoke / appearance-smoke / shelf-smoke / viewer-smoke / statistics-smoke / mobile-scroll-smoke / map-smoke / index-ui-smoke / updates-smoke / mobile-flow-smoke / live-capture-smoke / motion-smoke / i18n-smoke' '  make sandbox-up / sandbox-test / sandbox-smoke / sandbox-logs / sandbox-down' '  make setup-build-env / build-env-check / build-media [MEDIA_ARCH=arm64|amd64]' '  make device-uninstall DEVICE=comma@DEVICE_IP [DEVICE_KEY=/path/to/key]' '  make device-install-source DEVICE=comma@DEVICE_IP / source-release / source-install-smoke' '  make device-check DEVICE=comma@DEVICE_IP' '  make device-install DEVICE=comma@DEVICE_IP [CHANNEL=main|nightly|dev] [RELEASE=TAG]' '  make release CHANNEL=dev BUILD=1 / ota-smoke'
+	@printf '%s\n' 'Dash workflows:' '  make install / dev / build / check' '  make generate-mcap-schemas / regenerate-telemetry-fixtures [PYTHON=path]' '  make fixture / serve / smoke / design-smoke / appearance-smoke / shelf-smoke / viewer-smoke / statistics-smoke / mobile-scroll-smoke / map-smoke / index-ui-smoke / updates-smoke / mobile-flow-smoke / live-capture-smoke / live-layout-smoke / motion-smoke / i18n-smoke' '  make sandbox-up / sandbox-test / sandbox-smoke / sandbox-logs / sandbox-down' '  make setup-build-env / build-env-check / build-media [MEDIA_ARCH=arm64|amd64]' '  make device-uninstall DEVICE=comma@DEVICE_IP [DEVICE_KEY=/path/to/key]' '  make device-install-source DEVICE=comma@DEVICE_IP / source-release / source-install-smoke' '  make device-check DEVICE=comma@DEVICE_IP' '  make device-install DEVICE=comma@DEVICE_IP [CHANNEL=main|nightly|dev] [RELEASE=TAG]' '  make release CHANNEL=dev BUILD=1 / ota-smoke'
 
 .PHONY: build-media device-uninstall
 build-media:

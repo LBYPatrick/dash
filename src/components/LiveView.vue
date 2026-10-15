@@ -9,7 +9,15 @@ import {
   ref,
   watch,
 } from 'vue';
-import { Radio, Video, Square, Download } from '../icons';
+import {
+  Radio,
+  Video,
+  Square,
+  Download,
+  CircleHelp,
+  LoaderCircle,
+} from '../icons';
+import Sheet from './Sheet.vue';
 import SelectMenu from './SelectMenu.vue';
 import { indexStatus } from '../indexer';
 import { saveBlob } from '../media';
@@ -31,6 +39,13 @@ const busy = ref(false),
   connected = ref(false),
   recording = ref(false);
 const video = ref<HTMLVideoElement>();
+const details = ref<InstanceType<typeof Sheet>>();
+const recordingSeconds = ref(0);
+const recordingTime = computed(
+  () =>
+    `${Math.floor(recordingSeconds.value / 60)}:${String(recordingSeconds.value % 60).padStart(2, '0')}`,
+);
+let recordingTimer: ReturnType<typeof setInterval> | undefined;
 let peer: RTCPeerConnection | undefined;
 let recorder: MediaRecorder | undefined;
 let stream: MediaStream | undefined;
@@ -209,16 +224,25 @@ function toggleRecording() {
       }
     };
     recorder.onstop = () => {
+      clearInterval(recordingTimer);
+      recordingTimer = undefined;
       recording.value = false;
       finishLiveCapture(captureRun, new Blob(parts, { type: mime }));
     };
     recorder.onerror = () => {
+      clearInterval(recordingTimer);
+      recordingTimer = undefined;
       statusMessage.value = () => t('live.recordingFailedTryAnotherBrowser');
       recording.value = false;
     };
     recorder.start(1000);
     captureRun = beginLiveCapture();
     recording.value = true;
+    recordingSeconds.value = 0;
+    const began = Date.now();
+    recordingTimer = setInterval(() => {
+      recordingSeconds.value = Math.floor((Date.now() - began) / 1000);
+    }, 1000);
   } catch (error) {
     statusMessage.value = () => (error as Error).message;
   }
@@ -256,44 +280,42 @@ onBeforeUnmount(() => {
   document.removeEventListener('visibilitychange', backgrounded);
   window.removeEventListener('pagehide', pageLeft);
   void stop();
+  clearInterval(recordingTimer);
 });
 </script>
 <template>
-  <section class="live-view">
-    <div class="eyebrow">
-      <Radio :size="14" /> {{ t('live.localLiveView') }}
-    </div>
-    <h1>{{ t('app.liveCameras') }}</h1>
-    <p>
-      {{ t('live.receiveOnlyCameraStreamingOverYourLocal') }}
-    </p>
-    <div class="live-settings">
-      <label
-        >{{ t('app.camera')
-        }}<SelectMenu
-          v-model="camera"
-          :aria-label="t('live.liveCamera')"
-          :disabled="busy || connected"
-          :options="[
-            { value: 'road', label: t('live.road') },
-            { value: 'wideRoad', label: t('live.wideRoad') },
-            { value: 'driver', label: t('live.driver') },
-          ]" /></label
-      ><button
-        class="button primary"
-        :disabled="indexStatus.driving !== 'parked'"
-        @click="busy || connected ? stop() : start()"
+  <section
+    class="live-view"
+    :aria-label="t('app.liveCameras')"
+    :aria-busy="busy"
+  >
+    <header class="live-heading">
+      <h1>{{ t('app.live') }}</h1>
+      <span
+        class="live-state"
+        :class="{ 'is-connected': connected, 'is-recording': recording }"
       >
-        {{ busy || connected ? t('live.disconnect') : t('live.startLiveView') }}
+        <LoaderCircle v-if="busy" :size="14" class="spinning" />
+        <span v-else class="live-state-dot" aria-hidden="true"></span>
+        {{
+          recording
+            ? t('live.recording')
+            : busy
+              ? t('live.connecting')
+              : connected
+                ? t('live.connected')
+                : t('live.standby')
+        }}
+        <time v-if="recording">{{ recordingTime }}</time>
+      </span>
+      <button
+        class="icon-button live-info"
+        :aria-label="t('live.aboutLiveView')"
+        @click="details?.showModal()"
+      >
+        <CircleHelp :size="19" />
       </button>
-    </div>
-    <p
-      v-if="indexStatus.driving !== 'parked' && !connected"
-      class="settings-note"
-      role="status"
-    >
-      {{ t('live.liveViewIsAvailableWhenTheVehicle') }}
-    </p>
+    </header>
     <div class="live-player">
       <video
         ref="video"
@@ -303,34 +325,325 @@ onBeforeUnmount(() => {
         controls
         :aria-label="t('live.liveDeviceCamera')"
       />
-      <Transition name="task-feedback">
-        <div v-if="!connected" class="live-placeholder">
-          <Radio :size="35" />
-          <p>{{ status }}</p>
+      <Transition name="live-feedback">
+        <div
+          v-if="!connected"
+          class="live-placeholder"
+          role="status"
+          aria-live="polite"
+        >
+          <LoaderCircle v-if="busy" :size="28" class="spinning" />
+          <Radio v-else :size="28" />
+          <p>
+            {{
+              indexStatus.driving !== 'parked' && !busy
+                ? t('live.liveViewIsAvailableWhenTheVehicle')
+                : status
+            }}
+          </p>
         </div>
       </Transition>
+      <span
+        v-if="connected"
+        :class="
+          status === t('live.liveDirectLocalConnection')
+            ? 'sr-only'
+            : 'live-notice'
+        "
+        role="status"
+        >{{ status }}</span
+      >
     </div>
-    <div class="live-actions">
-      <span role="status">{{ status }}</span
-      ><button class="button" :disabled="!connected" @click="toggleRecording">
-        <Square v-if="recording" :size="15" /><Video v-else :size="16" />{{
+    <div class="live-controls">
+      <SelectMenu
+        v-model="camera"
+        :aria-label="t('live.liveCamera')"
+        :disabled="busy || connected"
+        :options="[
+          { value: 'road', label: t('live.road') },
+          { value: 'wideRoad', label: t('live.wideRoad') },
+          { value: 'driver', label: t('live.driver') },
+        ]"
+      />
+      <button
+        class="button primary live-connect"
+        :disabled="!busy && !connected && indexStatus.driving !== 'parked'"
+        @click="busy || connected ? stop() : start()"
+      >
+        {{ busy || connected ? t('live.disconnect') : t('live.startLiveView') }}
+      </button>
+      <button
+        class="button live-record"
+        :class="{ 'is-recording': recording }"
+        :disabled="!connected"
+        :aria-pressed="recording"
+        @click="toggleRecording"
+      >
+        <Square v-if="recording" :size="15" /><Video v-else :size="16" />
+        {{
           recording
             ? t('live.stopRecording')
             : recordingBlob
               ? t('live.recordNewClip')
               : t('live.recordThisFeed')
-        }}</button
-      ><button v-if="recordingBlob" class="button" @click="downloadRecording">
+        }}
+      </button>
+      <button
+        v-if="recordingBlob"
+        class="button live-save"
+        @click="downloadRecording"
+      >
         <Download :size="16" />{{ t('live.saveRecording') }}
       </button>
     </div>
-    <p v-if="recordingBlob && !recording" class="capture-note" role="status">
-      {{ t('live.yourClipStaysAvailableWhenSwitchingDash') }}
-    </p>
-    <div class="drive-note">
-      <p>
-        {{ t('live.keepThisTabOpenWhileRecordingCapture') }}
-      </p>
-    </div>
+    <Sheet
+      ref="details"
+      :title="t('live.aboutLiveView')"
+      :close-label="t('app.closeHelp')"
+    >
+      <div class="live-information">
+        <p>{{ t('live.receiveOnlyCameraStreamingOverYourLocal') }}</p>
+        <p>{{ t('live.keepThisTabOpenWhileRecordingCapture') }}</p>
+        <p>{{ t('live.yourClipStaysAvailableWhenSwitchingDash') }}</p>
+      </div>
+    </Sheet>
   </section>
 </template>
+
+<style scoped>
+/* The viewport belongs to the camera. Help lives in the same Shelf sheet used
+   elsewhere rather than competing with the picture and its controls. */
+:global(#app .workspace > .live-detail),
+:global(#app .workspace.show-detail > .live-detail) {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+  padding: 12px 20px max(12px, env(safe-area-inset-bottom));
+}
+:global(#app .live-detail > .offline-banner),
+:global(#app .live-detail > .demo-banner) {
+  flex-shrink: 0;
+}
+.live-view {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  gap: 12px;
+}
+.live-heading {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 14px;
+  min-height: 36px;
+}
+:global(#app .live-view .live-heading h1) {
+  margin: 0;
+  color: var(--ink);
+  font-size: 21px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+.live-state {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 500;
+  min-width: 0;
+}
+.live-state-dot {
+  width: 6px;
+  height: 6px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: currentColor;
+}
+.live-state.is-connected {
+  color: var(--color-primary-text);
+}
+.live-state.is-recording {
+  color: var(--danger-text);
+}
+.live-state time {
+  font-variant-numeric: tabular-nums;
+}
+:global(#app .live-view .live-info) {
+  margin-left: auto;
+  flex-shrink: 0;
+}
+:global(#app .live-view .live-player) {
+  flex: 1;
+  min-height: 72px;
+  aspect-ratio: auto;
+  border-radius: 0;
+  background: #0b1014;
+}
+.live-player video {
+  object-fit: contain;
+}
+.live-notice {
+  position: absolute;
+  bottom: 56px;
+  left: 12px;
+  right: 12px;
+  width: fit-content;
+  max-width: calc(100% - 24px);
+  margin: auto;
+  padding: 10px 14px;
+  color: #fff;
+  background: #24313d;
+  border-radius: var(--radius-control);
+  font-size: 13px;
+  line-height: 1.4;
+}
+:global(#app .live-view .live-placeholder) {
+  color: #ecf1f5;
+  gap: 12px;
+  padding: 16px 24px;
+  background: #0b1014;
+}
+:global(#app .live-view .live-placeholder p) {
+  margin: 0;
+  max-width: 480px;
+  font-size: 14px;
+  line-height: 1.5;
+  color: #ecf1f5;
+  overflow-wrap: anywhere;
+}
+.live-controls {
+  display: flex;
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+:global(#app .live-view .live-controls .selectmenu) {
+  width: min(200px, 25%);
+}
+:global(#app .live-view .live-controls .select-trigger) {
+  width: 100%;
+  min-height: 44px;
+}
+:global(#app .live-view .live-controls .button) {
+  min-height: 44px;
+  padding: 8px 14px;
+  font-size: 13px;
+  white-space: normal;
+  text-align: center;
+  line-height: 1.25;
+}
+.live-record {
+  margin-left: auto;
+}
+:global(#app .live-view .live-record.is-recording) {
+  background: var(--danger-fill);
+  color: var(--danger-text);
+}
+.live-information {
+  display: grid;
+  gap: 16px;
+}
+.live-information p {
+  margin: 0;
+  color: var(--ink);
+  font-size: 14px;
+  line-height: 1.6;
+}
+.live-feedback-enter-active {
+  transition: opacity 180ms var(--ease-out);
+}
+.live-feedback-leave-active {
+  transition: opacity 140ms var(--ease-out);
+}
+.live-feedback-enter-from,
+.live-feedback-leave-to {
+  opacity: 0;
+}
+@media (max-width: 900px) {
+  /* The phone's app bar already names this page. Keep its semantic heading
+     without drawing the same title twice. */
+  .live-heading h1 {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+}
+@media (max-width: 600px) and (min-height: 501px) {
+  :global(#app .workspace.show-detail > .live-detail) {
+    padding: 8px 12px max(12px, env(safe-area-inset-bottom));
+  }
+  .live-view {
+    gap: 8px;
+  }
+  .live-controls {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+  :global(#app .live-view .live-controls .selectmenu) {
+    width: 100%;
+  }
+  .live-record {
+    margin-left: 0;
+  }
+  .live-record:last-child {
+    grid-column: 1 / -1;
+  }
+}
+@media (max-height: 500px) {
+  :global(#app .workspace.show-detail > .live-detail) {
+    padding: 4px 12px max(6px, env(safe-area-inset-bottom));
+  }
+  .live-view {
+    gap: 4px;
+  }
+  .live-heading {
+    min-height: 28px;
+  }
+  .live-controls {
+    flex-wrap: nowrap;
+  }
+  :global(#app .live-view .live-controls .selectmenu) {
+    flex: 1;
+    width: 0;
+    min-width: 95px;
+  }
+  :global(#app .live-view .live-controls .button) {
+    padding-inline: 10px;
+  }
+  .live-record {
+    margin-left: 0;
+  }
+}
+/* Large text and unusually short windows keep every control reachable. Normal
+   phone/desktop dimensions fit without this fallback scrolling. */
+@media (max-height: 280px) {
+  :global(#app .workspace.show-detail > .live-detail) {
+    overflow-y: auto;
+  }
+  .live-view {
+    flex: 0 0 auto;
+  }
+  :global(#app .live-view .live-player) {
+    flex: none;
+    height: 120px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .live-feedback-enter-active,
+  .live-feedback-leave-active {
+    transition-duration: 80ms;
+  }
+  .spinning {
+    animation: none;
+  }
+}
+</style>

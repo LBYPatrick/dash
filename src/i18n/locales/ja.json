@@ -199,6 +199,11 @@
     "preparing": "ダウンロードを準備中… {{percent, number}}%"
   },
   "live": {
+    "connected": "接続済み",
+    "recording": "録画中",
+    "connecting": "接続中",
+    "standby": "待機中",
+    "aboutLiveView": "ライブ映像について",
     "readyWhenYourDeviceIs": "デバイスの準備ができたら開始できます。",
     "connectingToLiveCamera": "ライブカメラに接続中…",
     "useAnHttpOrHttpsSignalingAddress": "HTTP または HTTPS のシグナリングアドレスを使ってください。",
@@ -396,6 +401,7 @@
     "gpsGap": "この時刻に GPS 測位はありません"
   },
   "updates": {
+    "closeUpdates": "更新を閉じる",
     "updateInformationIsUnavailable": "更新情報を取得できません。",
     "couldNotUpdateDash": "Dash を更新できません。",
     "dashUpdates": "Dash の更新",

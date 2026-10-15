@@ -199,6 +199,11 @@
     "preparing": "다운로드 준비 중… {{percent, number}}%"
   },
   "live": {
+    "connected": "연결됨",
+    "recording": "녹화 중",
+    "connecting": "연결 중",
+    "standby": "대기 중",
+    "aboutLiveView": "실시간 보기 안내",
     "readyWhenYourDeviceIs": "기기가 준비되면 시작할 수 있습니다.",
     "connectingToLiveCamera": "실시간 카메라 연결 중…",
     "useAnHttpOrHttpsSignalingAddress": "HTTP 또는 HTTPS 시그널링 주소를 사용하세요.",
@@ -396,6 +401,7 @@
     "gpsGap": "현재 시점에 GPS 위치가 없습니다"
   },
   "updates": {
+    "closeUpdates": "업데이트 닫기",
     "updateInformationIsUnavailable": "업데이트 정보를 사용할 수 없습니다.",
     "couldNotUpdateDash": "Dash를 업데이트하지 못했습니다.",
     "dashUpdates": "Dash 업데이트",

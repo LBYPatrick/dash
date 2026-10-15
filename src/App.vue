@@ -1106,7 +1106,10 @@ onBeforeUnmount(() => {
       />
       <section
         class="detail"
-        :class="{ 'session-view': view === 'drives' && !!active }"
+        :class="{
+          'session-view': view === 'drives' && !!active,
+          'live-detail': view === 'live' && !demo,
+        }"
       >
         <div v-if="demo" class="demo-banner">
           <span
@@ -1120,7 +1123,7 @@ onBeforeUnmount(() => {
           {{ t('app.youreOfflineTheAppIsAvailableBut') }}
         </div>
         <button
-          v-if="view !== 'drives'"
+          v-if="view === 'overview'"
           class="mobile-back text-button"
           @click="navigate('drives')"
         >
@@ -1450,7 +1453,7 @@ onBeforeUnmount(() => {
             {{ t('app.refreshRecordings') }}
           </button>
         </div>
-        <footer v-if="view !== 'drives'" class="detail-footer">
+        <footer v-if="view === 'overview'" class="detail-footer">
           <span>{{ t('app.localRecordings') }}</span
           ><span
             >dash <span class="footer-dot">·</span>

@@ -199,6 +199,11 @@
     "preparing": "Preparing download… {{percent, number}}%"
   },
   "live": {
+    "connected": "Connected",
+    "recording": "Recording",
+    "connecting": "Connecting",
+    "standby": "Standby",
+    "aboutLiveView": "About live view",
     "readyWhenYourDeviceIs": "Ready when your device is.",
     "connectingToLiveCamera": "Connecting to live camera…",
     "useAnHttpOrHttpsSignalingAddress": "Use an HTTP or HTTPS signaling address.",
@@ -396,6 +401,7 @@
     "gpsGap": "GPS unavailable here"
   },
   "updates": {
+    "closeUpdates": "Close updates",
     "updateInformationIsUnavailable": "Update information is unavailable.",
     "couldNotUpdateDash": "Could not update Dash.",
     "dashUpdates": "Dash updates",

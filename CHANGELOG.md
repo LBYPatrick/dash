@@ -6,6 +6,10 @@ All notable changes to Dash are documented here using Keep a Changelog.
 
 ### Added
 
+- Fit Live camera and bottom controls to phone and desktop viewports, with recording elapsed time and secondary details in a Shelf popup.
+
+- Keep OTA in a dedicated popup under Settings; retain update health tracking after dismissal or tab reload, with explicit retry and stale-poll protection.
+
 - Port Shelf's eight accent presets and OKLCH palette derivation with blue defaults, live Settings swatches and persistent cross-tab preferences. Reuse its borderless notification widget for playback errors, with Retry and Dismiss.
 
 - Add recorded AAC playback with remembered mute controls and preserve session audio in MP4 and HEVC browser previews.
@@ -32,6 +36,8 @@ All notable changes to Dash are documented here using Keep a Changelog.
 - Remove the embedded browser map token from source and local Git history; use ignored `.env` configuration and credential-free OpenStreetMap defaults. Exclude env files from Docker build contexts.
 
 ### Fixed
+
+- Start reliably before `/data` is mounted by registering a small systemd unit copy instead of a dangling early-boot symlink; migrate existing registration and remove only Dash’s own files. Wait for fresh firmware flags at boot so stale parked state cannot launch early work.
 
 - Flush staged SSH installations and atomically replace the boot executable and lifecycle files; retain the selected release throughout installation and refuse conflicting same-tag contents.
 

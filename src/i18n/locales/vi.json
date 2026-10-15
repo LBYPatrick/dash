@@ -199,6 +199,11 @@
     "preparing": "Đang chuẩn bị tải… {{percent, number}}%"
   },
   "live": {
+    "connected": "Đã kết nối",
+    "recording": "Đang ghi",
+    "connecting": "Đang kết nối",
+    "standby": "Sẵn sàng",
+    "aboutLiveView": "Về chế độ xem trực tiếp",
     "readyWhenYourDeviceIs": "Sẵn sàng khi thiết bị của bạn sẵn sàng.",
     "connectingToLiveCamera": "Đang kết nối camera trực tiếp…",
     "useAnHttpOrHttpsSignalingAddress": "Dùng địa chỉ báo hiệu HTTP hoặc HTTPS.",
@@ -396,6 +401,7 @@
     "gpsGap": "Không có vị trí GPS tại thời điểm này"
   },
   "updates": {
+    "closeUpdates": "Đóng cập nhật",
     "updateInformationIsUnavailable": "Không có thông tin cập nhật.",
     "couldNotUpdateDash": "Không thể cập nhật Dash.",
     "dashUpdates": "Cập nhật Dash",

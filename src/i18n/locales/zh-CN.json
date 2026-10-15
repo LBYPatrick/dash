@@ -199,6 +199,11 @@
     "preparing": "正在准备下载… {{percent, number}}%"
   },
   "live": {
+    "connected": "已连接",
+    "recording": "正在录制",
+    "connecting": "正在连接",
+    "standby": "待机",
+    "aboutLiveView": "关于实时画面",
     "readyWhenYourDeviceIs": "设备就绪后即可开始。",
     "connectingToLiveCamera": "正在连接实时摄像头…",
     "useAnHttpOrHttpsSignalingAddress": "请使用 HTTP 或 HTTPS 信令地址。",
@@ -396,6 +401,7 @@
     "gpsGap": "当前时间没有 GPS 定位"
   },
   "updates": {
+    "closeUpdates": "关闭更新",
     "updateInformationIsUnavailable": "更新信息不可用。",
     "couldNotUpdateDash": "无法更新 Dash。",
     "dashUpdates": "Dash 更新",
