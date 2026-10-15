@@ -12,3 +12,7 @@ backend/cache/
 
 __pycache__/
 .vitest/
+
+# Audit reports stay local; use .artifacts/audits/.
+*audit*.md
+audit-reports/

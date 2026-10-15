@@ -158,12 +158,12 @@ make help         # Available workflows
 
 Vite+ supplies the frontend dev server, Rolldown production builds, Vitest runner, **Oxlint** (including Vue/TypeScript rules and type-aware checks), and **Oxfmt**. `vue-tsc` additionally checks Vue templates. Dependency operations go through `vp install` / `vp add`; the underlying pnpm version is pinned in `package.json`. No separate npm, ESLint, Prettier or Vitest installation is needed. See the [Vite+ workflow](docs/development.md).
 
-With `make serve` running against `make fixture`, run `make smoke` for browser integration tests. Chrome is required; set `CHROME_PATH` if needed. These tests change synthetic params and write artifacts under ignored `.artifacts/`. `make frontend-polish-smoke` checks accent/theme contrast, nested modal focus, and localized phone layouts. Specialized viewer, map, statistics, mobile, appearance, and motion checks are listed by `make help` and explained in the audit guides.
+With `make serve` running against `make fixture`, run `make smoke` for browser integration tests. Chrome is required; set `CHROME_PATH` if needed. These tests change synthetic params and write artifacts under ignored `.artifacts/`. `make frontend-polish-smoke` checks accent/theme contrast, nested modal focus, and localized phone layouts. Specialized viewer, map, statistics, mobile, appearance, and motion checks are listed by `make help`.
 
 ```text
 frontend/        Vue PWA: src/, public/, package.json, Vite and TypeScript config
 backend/         Go service, telemetry schemas, exports, OTA and systemd helpers
-docs/            Installation, delivery, sandbox and maintained design guides
+docs/            Installation, delivery, development and reference guides
 scripts/         Shared host setup, SSH installation, release and integration tests
 tools/, docker/  Static media builds and development sandbox
 Makefile         Shared development and delivery commands
@@ -174,7 +174,7 @@ pnpm-workspace.yaml, pnpm-lock.yaml  Workspace and locked dependencies
 
 Run Vite+ and Make commands from the repository root; `make build` writes the PWA to `frontend/dist` and the host binary to `.artifacts/dash-backend`. The installed release layout remains `dash-backend` plus `dist/`.
 
-Keep secrets in ignored `.env` files; never commit credentials, device keys, or private recordings. Run `make check` locally before proposing a merge. Browser tests and cross-builds do not certify device safety or physical Safari behavior.
+Keep audit reports under ignored `.artifacts/audits/`; never commit them. Keep secrets in ignored `.env` files; never commit credentials, device keys, or private recordings. Run `make check` locally before proposing a merge. Browser tests and cross-builds do not certify device safety or physical Safari behavior.
 
 ## Guides
 
@@ -184,6 +184,5 @@ Keep secrets in ignored `.env` files; never commit credentials, device keys, or 
 - [Maps and tile-service policy](docs/maps.md)
 - [Languages and translation customization](docs/i18n.md)
 - [Telemetry and MCAP format](backend/SCHEMA.md)
-- [UI component audit](docs/ui-audit.md) · [Mobile and motion audit](docs/mobile-motion-audit.md)
 
 Shelf-derived components retain their [upstream license notice](LICENSES/Shelf.txt).
