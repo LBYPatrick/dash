@@ -3,6 +3,7 @@
 set -euo pipefail
 DASH_PROJECT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$DASH_PROJECT"
+export VP_NO_UPDATE_CHECK=1
 DASH_CHECK=false
 case "${1:-}" in --check) DASH_CHECK=true ;; '') ;; *) echo 'Usage: bash scripts/setup-build-env.sh [--check]'; exit 2 ;; esac
 if [[ -d /data/params/d && -d /data/media/0/realdata ]]; then

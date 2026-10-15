@@ -29,6 +29,7 @@ async function openPage({ reduced = false, performance = false } = {}) {
       );
       window.motionEvents = [];
       window.exportHandoffs = [];
+      // oxlint-disable-next-line typescript/unbound-method -- Keep the native method to invoke with the anchor as this below.
       const click = HTMLAnchorElement.prototype.click;
       HTMLAnchorElement.prototype.click = function () {
         if (this.pathname.startsWith('/api/exports/')) {

@@ -39,6 +39,8 @@ All notable changes to Dash are documented here using Keep a Changelog.
 
 ### Changed
 
+- Use the full Vite+ toolchain for the frontend and shared JavaScript tooling: managed Node/pnpm, one frozen lockfile, Rolldown builds, Vitest, Oxlint and Oxfmt. Update host setup, Make commands, CI and the sandbox builder; retain Vue template type checks.
+
 - Separate the Vue PWA into `frontend/` and Go service into `backend/`; keep shared npm workspace tooling, Make commands and release packaging at the root.
 - Clarify persistent versus temporary systemd installation, boot verification, AGNOS recovery and clean removal in the installation guides.
 

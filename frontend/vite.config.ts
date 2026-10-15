@@ -1,4 +1,4 @@
-import { defineConfig } from 'vite';
+import { defineConfig, lazyPlugins } from 'vite-plus';
 import vue from '@vitejs/plugin-vue';
 import { VitePWA } from 'vite-plugin-pwa';
 
@@ -22,7 +22,7 @@ export default defineConfig({
       },
     },
   },
-  plugins: [
+  plugins: lazyPlugins(() => [
     vue(),
     VitePWA({
       registerType: 'autoUpdate',
@@ -50,5 +50,5 @@ export default defineConfig({
         navigateFallbackDenylist: [/^\/api\//, /^\/files\//],
       },
     }),
-  ],
+  ]),
 });

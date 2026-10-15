@@ -9,7 +9,7 @@ set -euo pipefail
 cat > "$DASH_PREFLIGHT_CAPTURE"
 MOCK
 chmod +x "$mock_dir/ssh"
-for tool in npm scp go; do
+for tool in vp pnpm scp go; do
   cat > "$mock_dir/$tool" <<'MOCK'
 #!/bin/bash
 exit 99

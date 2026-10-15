@@ -1,4 +1,11 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import {
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from 'vite-plus/test';
 
 vi.mock('./i18n', () => ({ t: (key: string) => key }));
 vi.mock('./i18n/backend', () => ({

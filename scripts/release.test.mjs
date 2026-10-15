@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect } from 'vite-plus/test';
 import { readFileSync } from 'node:fs';
 import { parse } from 'yaml';
 import { releaseIdentity, sourceIdentity } from './release.mjs';

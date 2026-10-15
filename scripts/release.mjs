@@ -1,14 +1,6 @@
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import {
-  mkdir,
-  readFile,
-  writeFile,
-  readdir,
-  cp,
-  rm,
-  stat,
-} from 'node:fs/promises';
+import { mkdir, readFile, writeFile, readdir, cp, rm } from 'node:fs/promises';
 import { resolve, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { buildMedia } from './build-media.mjs';

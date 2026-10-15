@@ -1,6 +1,0 @@
-node_modules
-dist
-.artifacts
-package-lock.json
-backend/go.sum
-backend/internal/telemetry/testdata

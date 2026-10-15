@@ -56,6 +56,7 @@ try {
   await page.screenshot({ path: '.artifacts/maplibre-unavailable.png' });
   // Unavailable WebGL still presents the recording's own GPS geometry.
   await page.addInitScript(() => {
+    // oxlint-disable-next-line typescript/unbound-method -- Keep the native method to invoke with the canvas as this below.
     const original = HTMLCanvasElement.prototype.getContext;
     HTMLCanvasElement.prototype.getContext = function (type, ...args) {
       return /webgl/.test(type) ? null : original.call(this, type, ...args);

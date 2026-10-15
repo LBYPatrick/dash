@@ -11,3 +11,4 @@ backend/cache/
 *.pem
 
 __pycache__/
+.vitest/

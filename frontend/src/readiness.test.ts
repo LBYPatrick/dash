@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect } from 'vite-plus/test';
 import { recordingReadiness, type IndexedSegment } from './indexer';
 import type { Drive } from './library';
 const drive: Drive = {

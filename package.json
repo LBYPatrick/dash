@@ -3,22 +3,21 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "workspaces": [
-    "frontend"
-  ],
   "scripts": {
-    "dev": "npm run dev --workspace @dash/frontend",
-    "build": "npm run build --workspace @dash/frontend",
-    "preview": "npm run preview --workspace @dash/frontend",
-    "test": "vitest run --config vitest.config.ts",
-    "format": "prettier --write .",
-    "format:check": "prettier --check ."
+    "dev": "vp -C frontend dev --host 0.0.0.0",
+    "build": "vp -C frontend run build",
+    "preview": "vp -C frontend preview --host 0.0.0.0",
+    "test": "vp test run",
+    "format": "vp fmt",
+    "format:check": "vp fmt --check",
+    "check": "vp check",
+    "lint": "vp lint --deny-warnings"
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.13.0",
     "@playwright/test": "^1.64.0",
-    "prettier": "^3.6.0",
-    "vitest": "^5.0.4",
-    "yaml": "^2.9.1"
-  }
+    "yaml": "^2.9.1",
+    "vite-plus": "1.2.0"
+  },
+  "packageManager": "pnpm@12.11.2"
 }

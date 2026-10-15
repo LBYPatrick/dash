@@ -85,7 +85,7 @@ export async function setupI18n(app: App) {
 }
 // Shared formatters outside components must participate in Vue dependency tracking.
 export function t(key: string, options?: TOptions): string {
-  locale.value;
+  void locale.value;
   return i18next.t(key, options) as string;
 }
 export function formatNumber(

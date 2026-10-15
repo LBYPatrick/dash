@@ -4,7 +4,7 @@ The Docker sandbox runs the actual Go backend, FFmpeg, SQLite index, and built V
 
 ## Start and test
 
-Install Docker Desktop or a compatible Linux Docker Engine with Compose 2.17+ and cgroup v2, plus Node on your development computer. If Go is installed, the helper seeds only this project’s checksum-verified module archives from the local cache to avoid redundant downloads. With no local Go toolchain, the container downloads them normally. Start the engine, then:
+Install Docker Desktop or a compatible Linux Docker Engine with Compose 2.17+ and cgroup v2, plus Vite+ on your development computer (or `make setup-build-env`). If Go is installed, the helper seeds only this project’s checksum-verified module archives from the local cache to avoid redundant downloads. With no local Go toolchain, the container downloads them normally. Start the engine, then:
 
 ```sh
 make sandbox-up
@@ -19,7 +19,7 @@ make sandbox-logs      # Follow recent container logs
 make sandbox-down      # Stop the sandbox; preserve cache volumes
 ```
 
-The test commands use Node on your development computer. `sandbox-smoke` also uses local Chrome (override `CHROME_PATH` if needed) and covers the actual interface, multi-camera playback, diagnostic download, mobile layouts, and offline shell. It exercises state lockout, rebuilding/indexing, thumbnails, continuous HLS playback, ZIP/MP4/MCAP exports, diagnostics, and actual Docker resource configuration. It also checks that unbounded container startup fails and that restarting returns to Unknown while retaining diagnostic logs. It leaves the sandbox in Unknown state. Backend tests during the image build additionally interrupt a running FFmpeg process on an ignition transition.
+The test commands use the Node version managed by Vite+ on your development computer. `sandbox-smoke` also uses local Chrome (override `CHROME_PATH` if needed) and covers the actual interface, multi-camera playback, diagnostic download, mobile layouts, and offline shell. It exercises state lockout, rebuilding/indexing, thumbnails, continuous HLS playback, ZIP/MP4/MCAP exports, diagnostics, and actual Docker resource configuration. It also checks that unbounded container startup fails and that restarting returns to Unknown while retaining diagnostic logs. It leaves the sandbox in Unknown state. Backend tests during the image build additionally interrupt a running FFmpeg process on an ignition transition.
 
 Change the host port with `DASH_SANDBOX_PORT=8090 make sandbox-up` and use the same variable for `sandbox-test`. To discard the sandbox's disposable cache and params volumes, run `docker compose down --volumes`. No host recordings, SSH keys, firmware directories, or driving params are mounted. The image contains only the generated test library. The simulator is bound to localhost; its state-changing API is enabled only by `--simulation`, which device units never use.
 

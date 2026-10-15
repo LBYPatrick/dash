@@ -3,12 +3,14 @@
 import argparse
 import hashlib
 import json
+import os
 from pathlib import Path, PurePosixPath
 import platform
 import posixpath
 import re
 import shlex
 import shutil
+import ssl
 import subprocess
 import tarfile
 import tempfile
@@ -17,7 +19,7 @@ import urllib.request
 
 ROOT = Path(__file__).resolve().parents[1]
 TOOLS = ROOT / '.artifacts/toolchains'
-TRUSTED = {'go.dev', 'dl.google.com', 'nodejs.org'}
+TRUSTED = {'go.dev', 'dl.google.com', 'github.com', 'release-assets.githubusercontent.com'}
 
 
 def trusted_url(url):
@@ -35,7 +37,13 @@ class Redirect(urllib.request.HTTPRedirectHandler):
 
 def fetch(url):
     trusted_url(url)
-    return urllib.request.build_opener(Redirect).open(url, timeout=60)
+    # Python.org macOS builds may have no CA file until their optional
+    # certificate installer runs. Use the OS CA bundle, still verifying TLS.
+    context = ssl.create_default_context()
+    if (platform.system() == 'Darwin' and not os.environ.get('SSL_CERT_FILE')
+            and not ssl.get_default_verify_paths().cafile and Path('/etc/ssl/cert.pem').is_file()):
+        context = ssl.create_default_context(cafile='/etc/ssl/cert.pem')
+    return urllib.request.build_opener(Redirect, urllib.request.HTTPSHandler(context=context)).open(url, timeout=60)
 
 
 def metadata(url):
@@ -46,23 +54,27 @@ def metadata(url):
     return data
 
 
-def install_sdk(url, digest, name, prefix):
+def download_archive(url, digest, archive):
     if not re.fullmatch('[a-f0-9]{64}', digest):
         raise ValueError('Invalid official checksum')
+    checksum, size = hashlib.sha256(), 0
+    with fetch(url) as source, archive.open('xb') as output:
+        while chunk := source.read(128 << 10):
+            size += len(chunk)
+            if size > 256 << 20:
+                raise ValueError('SDK download too large')
+            output.write(chunk)
+            checksum.update(chunk)
+    if checksum.hexdigest() != digest:
+        raise ValueError('Official SDK checksum mismatch')
+
+
+def install_sdk(url, digest, name, prefix):
     TOOLS.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(dir=TOOLS) as directory:
         temporary = Path(directory)
         archive = temporary / 'sdk.tar.gz'
-        checksum, size = hashlib.sha256(), 0
-        with fetch(url) as source, archive.open('xb') as output:
-            while chunk := source.read(128 << 10):
-                size += len(chunk)
-                if size > 256 << 20:
-                    raise ValueError('SDK download too large')
-                output.write(chunk)
-                checksum.update(chunk)
-        if checksum.hexdigest() != digest:
-            raise ValueError('Official SDK checksum mismatch')
+        download_archive(url, digest, archive)
         with tarfile.open(archive, 'r:gz') as bundle:
             entries = bundle.getmembers()
             links, seen, expanded = set(), set(), 0
@@ -98,50 +110,83 @@ def version(command):
         return ''
 
 
+def install_viteplus_cli(url, digest):
+    """Extract only the verified native CLI; never execute an installer script."""
+    TOOLS.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(dir=TOOLS) as directory:
+        temporary = Path(directory)
+        archive = temporary / 'vp.tar.gz'
+        download_archive(url, digest, archive)
+        with tarfile.open(archive, 'r:gz') as bundle:
+            entries = [entry for entry in bundle.getmembers() if entry.name == 'vp']
+            if len(entries) != 1 or not entries[0].isfile() or not 0 < entries[0].size <= 128 << 20:
+                raise ValueError('Invalid Vite+ CLI archive')
+            binary = temporary / 'vp'
+            with bundle.extractfile(entries[0]) as source, binary.open('xb') as output:
+                shutil.copyfileobj(source, output)
+        binary.chmod(0o755)
+        destination = TOOLS / 'vite-plus/bin/vp'
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        binary.replace(destination)
+        return destination
+
+
+def provision_viteplus(required_version, host_os, arch):
+    home = TOOLS / 'vite-plus'
+    cli = home / 'bin/vp'
+    env = {**os.environ, 'VP_HOME': str(home), 'VP_NO_UPDATE_CHECK': '1', 'VP_NODE_MANAGER': 'yes'}
+    installed = version([str(cli), '--version']) if cli.is_file() else ''
+    if not re.search(r'^vp v' + re.escape(required_version) + r'$', installed, re.M):
+        triple = ('aarch64' if arch == 'arm64' else 'x86_64') + ('-apple-darwin' if host_os == 'darwin' else '-unknown-linux-gnu')
+        base = f'https://github.com/voidzero-dev/vite-plus/releases/download/v{required_version}/'
+        filename = f'vp-{triple}.tar.gz'
+        checksums = metadata(base + 'vp-checksums.txt').decode()
+        digest = next(line.split()[0] for line in checksums.splitlines() if line.split()[-1].lstrip('*') == filename)
+        bootstrap = install_viteplus_cli(base + filename, digest)
+        subprocess.run([str(bootstrap), '--help'], env=env, cwd=ROOT, check=True, stdout=subprocess.DEVNULL)
+    # All configuration and downloads stay inside this project's ignored SDK
+    # directory. No user defaults or shell profiles are changed.
+    subprocess.run([str(cli), 'env', 'setup', '--refresh'], env=env, cwd=ROOT, check=True)
+    subprocess.run([str(cli), 'env', 'on'], env=env, cwd=ROOT, check=True)
+    subprocess.run([str(cli), 'env', 'install'], env=env, cwd=ROOT, check=True)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--check', action='store_true')
     args = parser.parse_args()
     required_go = re.search(r'^go (\d+\.\d+\.\d+)$', (ROOT / 'backend/go.mod').read_text(), re.M)[1]
-    node_version = version(['node', '--version'])
+    required_vp = json.loads((ROOT / 'package.json').read_text())['devDependencies']['vite-plus']
+    required_node = (ROOT / '.node-version').read_text().strip()
+    if not re.fullmatch(r'\d+\.\d+\.\d+', required_vp) or not re.fullmatch(r'\d+\.\d+\.\d+', required_node):
+        raise SystemExit('Pin exact Vite+ and Node versions before host setup')
+    node_version = version(['node', '--version']) if args.check else ''
     go_version = version(['go', 'version'])
-    node_match = re.fullmatch(r'v(\d+)\.(\d+)\.(\d+)', node_version)
+    vp_version = version(['vp', '--version']) if args.check else ''
     go_match = re.search(r'go(\d+)\.(\d+)\.(\d+)', go_version)
-    node_ok = node_match and tuple(map(int, node_match.groups())) >= (22, 12, 0) and bool(shutil.which('npm'))
     go_ok = go_match and tuple(map(int, go_match.groups())) >= tuple(map(int, required_go.split('.')))
     if args.check:
-        if not node_ok or not go_ok:
-            raise SystemExit(f'Require Node >=22.12 with npm and Go >={required_go}; run make setup-build-env')
-        print(f'Host SDKs verified: {node_version}, {go_version}')
+        if node_version != 'v' + required_node or not go_ok or not re.search(r'^vp v' + re.escape(required_vp) + r'$', vp_version, re.M):
+            raise SystemExit(f'Require Node {required_node}, Vite+ {required_vp} and Go >={required_go}; run make setup-build-env')
+        print(f'Host SDKs verified: {node_version}, Vite+ {required_vp}, {go_version}')
         return
     host_os = {'Darwin': 'darwin', 'Linux': 'linux'}.get(platform.system())
     arch = {'aarch64': 'arm64', 'arm64': 'arm64', 'x86_64': 'amd64'}.get(platform.machine())
     if not host_os or not arch:
         raise SystemExit('Supported build hosts: Linux/macOS ARM64 or AMD64')
-    paths = []
     if not go_ok:
         releases = json.loads(metadata('https://go.dev/dl/?mode=json&include=all'))
         release = next(item for item in releases if item['version'] == 'go' + required_go)
         asset = next(item for item in release['files'] if item['os'] == host_os and item['arch'] == arch and item['kind'] == 'archive')
-        paths.append(install_sdk('https://go.dev/dl/' + asset['filename'], asset['sha256'], 'go', 'go'))
-    if not node_ok:
-        releases = json.loads(metadata('https://nodejs.org/dist/index.json'))
-        release = next(item for item in releases if re.fullmatch(r'v22\.\d+\.\d+', item['version']))
-        node_arch = 'x64' if arch == 'amd64' else arch
-        prefix = f"node-{release['version']}-{host_os}-{node_arch}"
-        filename = prefix + '.tar.gz'
-        base = f"https://nodejs.org/dist/{release['version']}/"
-        checksums = metadata(base + 'SHASUMS256.txt').decode()
-        digest = next(line.split()[0] for line in checksums.splitlines() if line.split()[-1] == filename)
-        paths.append(install_sdk(base + filename, digest, 'node', prefix))
-    # Include previous project SDKs as well when this setup is rerun.
-    paths = [path for path in [TOOLS / 'node/bin', TOOLS / 'go/bin'] if path.is_dir()]
-    TOOLS.mkdir(parents=True, exist_ok=True)
+        install_sdk('https://go.dev/dl/' + asset['filename'], asset['sha256'], 'go', 'go')
+    provision_viteplus(required_vp, host_os, arch)
+    paths = [path for path in [TOOLS / 'vite-plus/bin', TOOLS / 'go/bin'] if path.is_dir()]
     env = '# Generated by Dash host setup; no shell profile changes.\n'
-    if paths:
-        env += 'export PATH=' + shlex.quote(':'.join(str(path) for path in paths)) + ':"$PATH"\n'
+    env += 'export VP_HOME=' + shlex.quote(str(TOOLS / 'vite-plus')) + '\n'
+    env += 'export VP_NO_UPDATE_CHECK=1\n'
+    env += 'export PATH=' + shlex.quote(':'.join(str(path) for path in paths)) + ':"$PATH"\n'
     (TOOLS / 'env.sh').write_text(env)
-    print('SDK setup complete (existing compatible SDKs reused).')
+    print('SDK setup complete: Vite+ manages the pinned Node and pnpm; compatible Go reused.')
 
 
 if __name__ == '__main__':

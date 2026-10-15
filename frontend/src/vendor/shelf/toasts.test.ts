@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect } from 'vite-plus/test';
 import { useToasts } from './toasts';
 describe('Shelf notifications', () => {
   it('stacks notices and replaces a matching ID without losing actions', () => {

@@ -210,7 +210,7 @@ try {
   ]);
   await writeFile(join(broken, 'dash-backend'), falseBinary);
   await chmod(join(broken, 'dash-backend'), 0o700);
-  const { assets, ...build } = bad;
+  const { assets: _assets, ...build } = bad;
   await writeFile(
     join(broken, 'release.json'),
     JSON.stringify({ ...build, arch }),

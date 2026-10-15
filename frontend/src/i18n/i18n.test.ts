@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vite-plus/test';
 import { computed } from 'vue';
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';

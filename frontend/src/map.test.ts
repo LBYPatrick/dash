@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'vite-plus/test';
 import { validateStyleMin } from '@maplibre/maplibre-gl-style-spec';
 import defaults from '../public/map-config.json';
 import { mapStyleForTheme, parseMapConfig } from './map';

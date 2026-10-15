@@ -42,7 +42,7 @@ Start with synthetic recordings on your computer. This does not access your car.
 
 | Tool             | Requirement                                                              |
 | ---------------- | ------------------------------------------------------------------------ |
-| Node.js + npm    | Node 22.12+ or a compatible newer release                                |
+| Vite+            | 1.2.0; manages Node 24.19.0 and pnpm for this workspace                  |
 | Go               | 1.27.1+; see [go.mod](backend/go.mod)                                    |
 | FFmpeg + ffprobe | 5+, including libx264 and libx265 for fixtures/tests                     |
 | System tools     | Git, Make, C compiler for race tests, and bzip2 for legacy fixture tests |
@@ -53,7 +53,7 @@ On Linux/macOS, `bash scripts/setup-build-env.sh` installs or prepares host depe
 ```sh
 git clone git@github.com:LBYPatrick/dash.git
 cd dash
-make install
+make setup-build-env
 make build
 make fixture
 make serve
@@ -150,11 +150,13 @@ Managed builds use Settings to check, download, and restart into an update while
 ## Development
 
 ```sh
-make format       # Prettier and gofmt
-make check        # Formatting, vet, installer tests, frontend/Go race tests, build
+make format       # Oxfmt and gofmt
+make check        # Oxfmt, Oxlint/types, Go vet/race tests, installer tests, build
 make build-arm64  # Production PWA and Linux ARM64 binary
 make help         # Available workflows
 ```
+
+Vite+ supplies the frontend dev server, Rolldown production builds, Vitest runner, **Oxlint** (including Vue/TypeScript rules and type-aware checks), and **Oxfmt**. `vue-tsc` additionally checks Vue templates. Dependency operations go through `vp install` / `vp add`; the underlying pnpm version is pinned in `package.json`. No separate npm, ESLint, Prettier or Vitest installation is needed. See the [Vite+ workflow](docs/development.md).
 
 With `make serve` running against `make fixture`, run `make smoke` for browser integration tests. Chrome is required; set `CHROME_PATH` if needed. These tests change synthetic params and write artifacts under ignored `.artifacts/`. Specialized viewer, map, statistics, mobile, appearance, and motion checks are listed by `make help` and explained in the audit guides.
 
@@ -165,11 +167,12 @@ docs/            Installation, delivery, sandbox and maintained design guides
 scripts/         Shared host setup, SSH installation, release and integration tests
 tools/, docker/  Static media builds and development sandbox
 Makefile         Shared development and delivery commands
-package.json     npm workspace, shared test/format/browser tools and release version
-package-lock.json  One lockfile for the workspace
+vite.config.ts   Shared Oxlint, Oxfmt and test configuration
+package.json     Vite+ commands, browser tooling and release version
+pnpm-workspace.yaml, pnpm-lock.yaml  Workspace and locked dependencies
 ```
 
-Run npm and Make commands from the repository root; `make build` writes the PWA to `frontend/dist` and the host binary to `.artifacts/dash-backend`. The installed release layout remains `dash-backend` plus `dist/`.
+Run Vite+ and Make commands from the repository root; `make build` writes the PWA to `frontend/dist` and the host binary to `.artifacts/dash-backend`. The installed release layout remains `dash-backend` plus `dist/`.
 
 Keep secrets in ignored `.env` files; never commit credentials, device keys, or private recordings. Run `make check` locally before proposing a merge. Browser tests and cross-builds do not certify device safety or physical Safari behavior.
 

@@ -1,19 +1,24 @@
 # Development sandbox only. Comma installations use systemd and native binaries.
-FROM node:22-bookworm-slim AS media
+FROM debian:bookworm-slim AS media
 COPY --from=golang:1.27.1-bookworm /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
 RUN sed -i 's|http://deb.debian.org|https://deb.debian.org|g' /etc/apt/sources.list.d/debian.sources && apt-get update && apt-get install -y --no-install-recommends ffmpeg bzip2 && rm -rf /var/lib/apt/lists/*
 
-FROM media AS web
+# Use the official Vite+ builder; its media libraries stay in this stage.
+# The Go/runtime stages continue sharing the separate Debian media libraries.
+FROM ghcr.io/voidzero-dev/vite-plus:1.2.0 AS web
+USER root
+RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg bzip2 && rm -rf /var/lib/apt/lists/* && mkdir -p /work && chown vp:vp /work
+USER vp
 WORKDIR /work
-COPY package.json package-lock.json ./
-COPY frontend/package.json ./frontend/
-RUN npm ci
-COPY vitest.config.ts ./
-COPY frontend ./frontend
-COPY .github/workflows/channels.yml ./.github/workflows/channels.yml
-COPY scripts ./scripts
-COPY backend/internal/telemetry/testdata ./backend/internal/telemetry/testdata
-RUN npm test && npm run build && node scripts/prepare-fixture.mjs
+COPY --chown=vp:vp package.json pnpm-lock.yaml pnpm-workspace.yaml .node-version ./
+COPY --chown=vp:vp frontend/package.json ./frontend/
+RUN vp install --frozen-lockfile
+COPY --chown=vp:vp vite.config.ts ./
+COPY --chown=vp:vp frontend ./frontend
+COPY --chown=vp:vp .github/workflows/channels.yml ./.github/workflows/channels.yml
+COPY --chown=vp:vp scripts ./scripts
+COPY --chown=vp:vp backend/internal/telemetry/testdata ./backend/internal/telemetry/testdata
+RUN vp test run && vp -C frontend run build && node scripts/prepare-fixture.mjs
 
 FROM golang:1.27.1-bookworm AS backend
 # All stages use Debian bookworm. Reuse the exact FFmpeg binaries and shared

@@ -4,24 +4,31 @@
 HOST_CHECK_PROCS ?= 2
 
 # Project-local SDKs installed by setup-build-env; no shell profile edits.
-export PATH := $(CURDIR)/.artifacts/toolchains/node/bin:$(CURDIR)/.artifacts/toolchains/go/bin:$(PATH)
+export PATH := $(CURDIR)/.artifacts/toolchains/vite-plus/bin:$(CURDIR)/.artifacts/toolchains/go/bin:$(PATH)
+# Keep host-managed Node/pnpm and caches local after setup-build-env.
+ifneq ($(wildcard .artifacts/toolchains/vite-plus/bin/vp),)
+export VP_HOME := $(CURDIR)/.artifacts/toolchains/vite-plus
+endif
+export VP_NO_UPDATE_CHECK := 1
 
-.PHONY: install dev build build-arm64 test check format serve fixture smoke design-smoke appearance-smoke shelf-smoke viewer-smoke statistics-smoke mobile-scroll-smoke map-smoke index-ui-smoke updates-smoke mobile-flow-smoke live-capture-smoke live-layout-smoke motion-smoke i18n-smoke playback-smoke
+.PHONY: install dev build build-arm64 test check lint format serve fixture smoke design-smoke appearance-smoke shelf-smoke viewer-smoke statistics-smoke mobile-scroll-smoke map-smoke index-ui-smoke updates-smoke mobile-flow-smoke live-capture-smoke live-layout-smoke motion-smoke i18n-smoke playback-smoke
 install:
-	npm ci
+	vp install --frozen-lockfile
 	cd backend && go mod download
 dev:
-	npm run dev
+	vp -C frontend dev --host 0.0.0.0
 build:
-	npm run build
+	vp -C frontend run build
 	mkdir -p .artifacts
 	cd backend && CGO_ENABLED=0 go build -trimpath -o ../.artifacts/dash-backend .
 build-arm64:
-	npm run build
+	vp -C frontend run build
 	mkdir -p .artifacts
 	cd backend && CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -trimpath -ldflags='-s -w' -o ../.artifacts/dash-backend-linux-arm64 .
+lint:
+	vp lint --deny-warnings
 format:
-	npm run format
+	vp fmt
 	cd backend && gofmt -w *.go internal/telemetry/*.go internal/mcaptypes/*/*.go
 test:
 	python3 -c 'import ast; ast.parse(open("backend/live_adapter.py").read())'
@@ -32,10 +39,10 @@ test:
 	bash scripts/systemd-registration.test.sh
 	bash scripts/verify-service.test.sh
 	bash scripts/boot-state.test.sh
-	npm test
+	vp test run
 	cd backend && GOMAXPROCS=$(HOST_CHECK_PROCS) go test -race -p 1 -parallel 1 ./...
 check:
-	npm run format:check
+	vp check
 	cd backend && test -z "$$(gofmt -l .)"
 	cd backend && GOMAXPROCS=$(HOST_CHECK_PROCS) go vet -p 1 ./...
 	$(MAKE) test
@@ -112,16 +119,16 @@ device-install:
 	bash scripts/install-backend.sh $(if $(filter 1,$(RUNTIME)),--runtime) $(if $(DEVICE_KEY),--identity "$(DEVICE_KEY)") --channel "$(or $(CHANNEL),main)" $(if $(RELEASE),--release "$(RELEASE)") $(if $(REPOSITORY),--repo "$(REPOSITORY)") "$(DEVICE)"
 
 ota-smoke:
-	npm run build
+	vp -C frontend run build
 	node scripts/ota-smoke.mjs
 
 release:
-	npm run build
+	vp -C frontend run build
 	DASH_RELEASE_CHANNEL="$(CHANNEL)" DASH_RELEASE_SEQUENCE="$(BUILD)" node scripts/release.mjs
 
 .PHONY: help
 help:
-	@printf '%s\n' 'Dash workflows:' '  make install / dev / build / check' '  make generate-mcap-schemas / regenerate-telemetry-fixtures [PYTHON=path]' '  make fixture / serve / smoke / design-smoke / appearance-smoke / shelf-smoke / viewer-smoke / statistics-smoke / mobile-scroll-smoke / map-smoke / index-ui-smoke / updates-smoke / mobile-flow-smoke / live-capture-smoke / live-layout-smoke / motion-smoke / i18n-smoke' '  make sandbox-up / sandbox-test / sandbox-smoke / sandbox-logs / sandbox-down' '  make setup-build-env / build-env-check / build-media [MEDIA_ARCH=arm64|amd64]' '  make device-uninstall DEVICE=comma@DEVICE_IP [DEVICE_KEY=/path/to/key]' '  make device-install-source DEVICE=comma@DEVICE_IP / source-release / source-install-smoke' '  make device-check DEVICE=comma@DEVICE_IP [RUNTIME=1]' '  make device-install DEVICE=comma@DEVICE_IP [CHANNEL=main|nightly|dev] [RELEASE=TAG] [DEVICE_KEY=/path/to/key] [RUNTIME=1]' '  make release CHANNEL=dev BUILD=1 / ota-smoke'
+	@printf '%s\n' 'Dash workflows:' '  make install / dev / build / check / lint (Vite+, Oxlint, Oxfmt)' '  make generate-mcap-schemas / regenerate-telemetry-fixtures [PYTHON=path]' '  make fixture / serve / smoke / design-smoke / appearance-smoke / shelf-smoke / viewer-smoke / statistics-smoke / mobile-scroll-smoke / map-smoke / index-ui-smoke / updates-smoke / mobile-flow-smoke / live-capture-smoke / live-layout-smoke / motion-smoke / i18n-smoke' '  make sandbox-up / sandbox-test / sandbox-smoke / sandbox-logs / sandbox-down' '  make setup-build-env / build-env-check / build-media [MEDIA_ARCH=arm64|amd64]' '  make device-uninstall DEVICE=comma@DEVICE_IP [DEVICE_KEY=/path/to/key]' '  make device-install-source DEVICE=comma@DEVICE_IP / source-release / source-install-smoke' '  make device-check DEVICE=comma@DEVICE_IP [RUNTIME=1]' '  make device-install DEVICE=comma@DEVICE_IP [CHANNEL=main|nightly|dev] [RELEASE=TAG] [DEVICE_KEY=/path/to/key] [RUNTIME=1]' '  make release CHANNEL=dev BUILD=1 / ota-smoke'
 
 .PHONY: build-media device-uninstall
 build-media:
