@@ -118,6 +118,14 @@ uses parent-death signals and process-group cleanup to prevent orphan capture.
 ICE advertises only the local address that accepted the browser request, without enumerating interfaces. No vehicle-control channels are exposed. Live audio capture is not enabled.
 Browser recording saves the incoming video locally.
 
+## Power cycles and interrupted work
+
+A persistent installation starts `dash.service` automatically when `/data` is mounted after a normal power cycle. Runtime installations (`--runtime`) do not survive reboot. The service waits for confirmed parked state before indexing, conversion, or live capture; unknown state keeps heavy workers stopped.
+
+Completed recording parts are committed individually to SQLite WAL with full synchronization. An interrupted scan reuses those entries and retries unfinished parts. Thumbnails are flushed and renamed atomically. This recovery is tested with a killed writer; it does not simulate a device storage controller losing power.
+
+The SSH installer flushes staged release contents before switching `current`, and replaces the bootstrap and lifecycle files using flushed temporary files and atomic renames. It never removes a release still referenced by the boot pointer. Reinstalling an identical tag reuses its files; if that release is damaged, install another tag or a fresh `--source` build. A first installation must finish systemd registration before automatic startup is available.
+
 ## AGNOS updates and removal
 
 AGNOS documents `/data` as persisting across OS updates, unlike the other system partitions. Keep the bootstrap, versioned releases, update configuration/journal, PWA, cache, certificates, and unit source there. `/etc/systemd/system/dash.service` and its enablement symlink may be lost during an update. The bundled media tools remain with Dash under `/data`. This persistence distinction is documented in the [AGNOS 8 release notes](https://blog.comma.ai/094release/).

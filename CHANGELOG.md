@@ -33,6 +33,8 @@ All notable changes to Dash are documented here using Keep a Changelog.
 
 ### Fixed
 
+- Flush staged SSH installations and atomically replace the boot executable and lifecycle files; retain the selected release throughout installation and refuse conflicting same-tag contents.
+
 - Resume indexing after abrupt shutdown with durable per-part WAL commits and atomic synced thumbnails; preserve recoverable journals and quarantine only confirmed corruption.
 
 - Cache unchanged corrupt-log failures instead of retrying them every scan, keep idle index progress stable during inventory checks, and guard camera switches and HEVC preparation against starting indexing.

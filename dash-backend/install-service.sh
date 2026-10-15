@@ -19,6 +19,7 @@ high="$(sed -n 's/.*"memoryHighMiB":\([0-9][0-9]*\).*/\1/p' <<< "$settings")"
 max="$(sed -n 's/.*"memoryMaxMiB":\([0-9][0-9]*\).*/\1/p' <<< "$settings")"
 [[ "$high" =~ ^[1-9][0-9]*$ && "$max" =~ ^[1-9][0-9]*$ && "$max" -ge "$high" ]]
 sed -i "s/^MemoryHigh=.*/MemoryHigh=${high}M/; s/^MemoryMax=.*/MemoryMax=${max}M/" /data/dash/systemd/dash.service
+sync -- /data/dash/systemd/dash.service /data/dash/systemd
 install -d -o comma -g comma -m 700 /data/dash/cache
 source /data/dash/systemd-registration.sh
 runtime=false
@@ -46,10 +47,13 @@ if ! "$healthy" || ! bash /data/dash/verify-service.sh; then
   exit 1
 fi
 if [[ ${#options[@]} == 0 ]]; then
-  echo persistent > /data/dash/startup-mode
+  printf persistent > /data/dash/.startup-mode.next
   echo 'Dash enabled at boot.'
 else
-  echo runtime > /data/dash/startup-mode
+  printf runtime > /data/dash/.startup-mode.next
   echo 'Dash registered for this boot only; runtime links disappear after reboot.'
 fi
+sync -- /data/dash/.startup-mode.next
+mv -Tf /data/dash/.startup-mode.next /data/dash/startup-mode
+sync -- /data/dash
 echo 'Logs: journalctl -u dash.service -f'
