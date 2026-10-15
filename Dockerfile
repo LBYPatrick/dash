@@ -18,7 +18,7 @@ COPY --chown=vp:vp frontend ./frontend
 COPY --chown=vp:vp .github/workflows/channels.yml ./.github/workflows/channels.yml
 COPY --chown=vp:vp scripts ./scripts
 COPY --chown=vp:vp backend/internal/telemetry/testdata ./backend/internal/telemetry/testdata
-RUN vp test run && vp -C frontend run build && node scripts/prepare-fixture.mjs
+RUN vp test run && vp -C frontend run build
 
 FROM golang:1.27.1-bookworm AS backend
 # All stages use Debian bookworm. Reuse the exact FFmpeg binaries and shared
@@ -32,8 +32,11 @@ COPY --from=gomodcache / /go/pkg/mod/cache/download/
 RUN go mod download
 COPY backend ./
 COPY frontend/public /work/frontend/public
-COPY scripts/fixtures /work/scripts/fixtures
+COPY scripts /work/scripts
+COPY Makefile package.json /work/
+COPY .github /work/.github
 RUN go vet ./... && go test -race ./... && CGO_ENABLED=0 go build -trimpath -o /dash-backend .
+RUN go run ./cmd/dash-tool fixture
 
 FROM debian:bookworm-slim AS sandbox
 COPY --from=media /usr/bin/ffmpeg /usr/bin/ffprobe /usr/bin/
@@ -45,7 +48,7 @@ RUN useradd --uid 1000 --create-home dash \
     && chown -R dash:dash /data
 COPY --from=backend /dash-backend /usr/local/bin/dash-backend
 COPY --from=web /work/frontend/dist /app
-COPY --from=web /work/.artifacts/device/recordings /recordings
+COPY --from=backend /work/.artifacts/device/recordings /recordings
 COPY docker/entrypoint.sh /usr/local/bin/dash-sandbox
 USER dash
 EXPOSE 8088

@@ -5,7 +5,7 @@ HOST_CHECK_PROCS ?= 2
 
 # Project-local SDKs installed by setup-build-env; no shell profile edits.
 export PATH := $(CURDIR)/.artifacts/toolchains/vite-plus/bin:$(CURDIR)/.artifacts/toolchains/go/bin:$(PATH)
-# Keep host-managed Node/pnpm and caches local after setup-build-env.
+# Keep the Vite+-managed frontend environment local after setup-build-env.
 ifneq ($(wildcard .artifacts/toolchains/vite-plus/bin/vp),)
 export VP_HOME := $(CURDIR)/.artifacts/toolchains/vite-plus
 endif
@@ -13,7 +13,7 @@ export VP_NO_UPDATE_CHECK := 1
 
 ##@ Setup
 .PHONY: setup-build-env build-env-check install
-setup-build-env: ## Set up project-local Vite+, Node and Go
+setup-build-env: ## Set up Vite+ using the installed Go SDK
 	bash scripts/setup-build-env.sh
 
 build-env-check: ## Check the host build toolchains
@@ -29,7 +29,7 @@ dev: ## Start the Vite frontend dev server
 	vp -C frontend dev --host 0.0.0.0
 
 fixture: ## Prepare synthetic local recordings
-	node scripts/prepare-fixture.mjs
+	go -C backend run ./cmd/dash-tool fixture
 
 serve: ## Serve the local app at 127.0.0.1:8088
 	.artifacts/dash-backend --root .artifacts/device/recordings --cache .artifacts/device/cache --params .artifacts/device/params --app frontend/dist --listen 127.0.0.1:8088
@@ -54,14 +54,6 @@ check: ## Run format, lint, types, tests and builds
 	$(MAKE) build
 
 test: ## Run unit, installer and Go race tests
-	python3 -c 'import ast; ast.parse(open("backend/live_adapter.py").read())'
-	python3 scripts/firmware-state.test.py
-	python3 scripts/setup-toolchains.test.py
-	python3 scripts/fetch-release.test.py
-	bash scripts/install-backend.test.sh
-	bash scripts/systemd-registration.test.sh
-	bash scripts/verify-service.test.sh
-	bash scripts/boot-state.test.sh
 	vp test run
 	cd backend && GOMAXPROCS=$(HOST_CHECK_PROCS) go test -race -p 1 -parallel 1 ./...
 
@@ -70,7 +62,7 @@ lint: ## Run Oxlint; fail on warnings
 
 format: ## Format source and docs with Oxfmt and gofmt
 	vp fmt
-	cd backend && gofmt -w *.go internal/telemetry/*.go internal/mcaptypes/*/*.go
+	cd backend && gofmt -w .
 
 ##@ Browser checks
 .PHONY: smoke frontend-polish-smoke design-smoke appearance-smoke \
@@ -78,66 +70,66 @@ format: ## Format source and docs with Oxfmt and gofmt
   mobile-scroll-smoke mobile-flow-smoke map-smoke index-ui-smoke \
   updates-smoke live-capture-smoke live-layout-smoke motion-smoke i18n-smoke
 smoke: ## Check core app integration
-	node scripts/smoke.mjs
+	vp test run --config frontend/browser.config.ts frontend/tests/browser/smoke.test.js
 
 frontend-polish-smoke: ## Check contrast, focus and localized layouts
-	node scripts/frontend-polish-smoke.mjs
+	vp test run --config frontend/browser.config.ts frontend/tests/browser/frontend-polish-smoke.test.js
 
 design-smoke: ## Check responsive interface behavior
-	node scripts/design-smoke.mjs
+	vp test run --config frontend/browser.config.ts frontend/tests/browser/design-smoke.test.js
 
 appearance-smoke: ## Check themes and performance mode
-	node scripts/appearance-smoke.mjs
+	vp test run --config frontend/browser.config.ts frontend/tests/browser/appearance-smoke.test.js
 
 shelf-smoke: ## Check Shelf components and keyboard flows
-	node scripts/shelf-smoke.mjs
+	vp test run --config frontend/browser.config.ts frontend/tests/browser/shelf-smoke.test.js
 
 playback-smoke: ## Check preparation, GPS gaps and notifications
-	node scripts/playback-smoke.mjs
+	vp test run --config frontend/browser.config.ts frontend/tests/browser/playback-smoke.test.js
 
 viewer-smoke: ## Check playback, seeking and map follow
-	node scripts/viewer-smoke.mjs
+	vp test run --config frontend/browser.config.ts frontend/tests/browser/viewer-smoke.test.js
 
 statistics-smoke: ## Check dashboard graphs and interactions
-	node scripts/statistics-smoke.mjs
+	vp test run --config frontend/browser.config.ts frontend/tests/browser/statistics-smoke.test.js
 
 mobile-scroll-smoke: ## Check touch scrolling and fixed viewer bounds
-	node scripts/mobile-scroll-smoke.mjs
+	vp test run --config frontend/browser.config.ts frontend/tests/browser/mobile-scroll-smoke.test.js
 
 mobile-flow-smoke: ## Check mobile navigation and session workflows
-	node scripts/mobile-flow-smoke.mjs
+	vp test run --config frontend/browser.config.ts frontend/tests/browser/mobile-flow-smoke.test.js
 
 map-smoke: ## Check maps and tile failure recovery
-	node scripts/map-smoke.mjs
+	vp test run --config frontend/browser.config.ts frontend/tests/browser/map-smoke.test.js
 
 index-ui-smoke: ## Check indexing and recording readiness
-	node scripts/index-ui-smoke.mjs
+	vp test run --config frontend/browser.config.ts frontend/tests/browser/index-ui-smoke.test.js
 
 updates-smoke: ## Check update settings and recovery flows
-	node scripts/updates-smoke.mjs
+	vp test run --config frontend/browser.config.ts frontend/tests/browser/updates-smoke.test.js
 
 live-capture-smoke: ## Check live capture and saved browser clips
-	node scripts/live-capture-smoke.mjs
+	vp test run --config frontend/browser.config.ts frontend/tests/browser/live-capture-smoke.test.js
 
 live-layout-smoke: ## Check live layouts and touch controls
-	node scripts/live-layout-smoke.mjs
+	vp test run --config frontend/browser.config.ts frontend/tests/browser/live-layout-smoke.test.js
 
 motion-smoke: ## Check transitions and reduced motion
-	node scripts/motion-smoke.mjs
+	vp test run --config frontend/browser.config.ts frontend/tests/browser/motion-smoke.test.js
 
 i18n-smoke: ## Check all five languages and preferences
-	node scripts/i18n-smoke.mjs
+	vp test run --config frontend/browser.config.ts frontend/tests/browser/i18n-smoke.test.js
 
 ##@ Docker sandbox
 .PHONY: sandbox-up sandbox-test sandbox-smoke sandbox-logs sandbox-down
 sandbox-up: ## Build and start the synthetic device sandbox
-	node scripts/sandbox-up.mjs
+	go -C backend run ./cmd/dash-tool sandbox-up
 
 sandbox-test: ## Check sandbox APIs and resource limits
-	node scripts/sandbox-test.mjs
+	DASH_INTEGRATION=sandbox GOMAXPROCS=$(HOST_CHECK_PROCS) go -C backend test -p 1 -parallel 1 -count=1 -timeout=20m ./internal/hosttools -run TestSandboxIntegration
 
 sandbox-smoke: ## Run browser integration against the sandbox
-	DASH_TEST_URL="http://127.0.0.1:$${DASH_SANDBOX_PORT:-8089}" node scripts/smoke.mjs
+	DASH_TEST_URL="http://127.0.0.1:$${DASH_SANDBOX_PORT:-8089}" vp test run --config frontend/browser.config.ts frontend/tests/browser/smoke.test.js
 
 sandbox-logs: ## Follow the latest backend logs
 	docker compose logs --tail=200 -f dash
@@ -161,24 +153,27 @@ device-uninstall: ## Remove Dash and its systemd registration
 
 ##@ Packaging and delivery
 .PHONY: release source-release source-install-smoke ota-smoke build-media \
-  generate-mcap-schemas regenerate-telemetry-fixtures
+  media-smoke generate-mcap-schemas regenerate-telemetry-fixtures
 release: ## Package a channel build; set CHANNEL and BUILD
 	vp -C frontend run build
-	DASH_RELEASE_CHANNEL="$(CHANNEL)" DASH_RELEASE_SEQUENCE="$(BUILD)" node scripts/release.mjs
+	DASH_RELEASE_CHANNEL="$(CHANNEL)" DASH_RELEASE_SEQUENCE="$(BUILD)" go -C backend run ./cmd/dash-tool release
 
 source-release: ## Check and package a local source build
 	$(MAKE) check
-	node scripts/release.mjs --source
+	go -C backend run ./cmd/dash-tool release --source
 
 source-install-smoke: ## Check source installation with mocked SSH
-	node scripts/install-source-smoke.mjs
+	DASH_INTEGRATION=source-install GOMAXPROCS=$(HOST_CHECK_PROCS) go -C backend test -p 1 -parallel 1 -count=1 -timeout=20m ./internal/hosttools -run TestSourceInstallIntegration
 
 ota-smoke: ## Check activation and rollback in Linux/Docker
 	vp -C frontend run build
-	node scripts/ota-smoke.mjs
+	DASH_INTEGRATION=ota GOMAXPROCS=$(HOST_CHECK_PROCS) go -C backend test -p 1 -parallel 1 -count=1 -timeout=20m ./internal/hosttools -run TestOTAIntegration
 
 build-media: ## Build bundled media tools; set MEDIA_ARCH
-	node scripts/build-media.mjs $(MEDIA_ARCH)
+	go -C backend run ./cmd/dash-tool build-media $(MEDIA_ARCH)
+
+media-smoke: ## Exercise bundled tools in Linux containers
+	DASH_INTEGRATION=media GOMAXPROCS=$(HOST_CHECK_PROCS) go -C backend test -p 1 -parallel 1 -count=1 -timeout=20m ./internal/hosttools -run TestMediaIntegration
 
 generate-mcap-schemas: ## Regenerate typed MCAP schemas
 	bash scripts/generate-mcap-schemas.sh

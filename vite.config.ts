@@ -2,7 +2,9 @@ import { defineConfig } from 'vite-plus';
 
 export default defineConfig({
   defaultPackage: './frontend',
-  test: { include: ['frontend/src/**/*.test.ts', 'scripts/**/*.test.mjs'] },
+  test: {
+    include: ['frontend/src/**/*.test.ts', 'frontend/tests/unit/**/*.test.js'],
+  },
   lint: {
     plugins: ['typescript', 'vue'],
     categories: { correctness: 'error' },

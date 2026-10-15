@@ -9,87 +9,8 @@ export DASH_REGISTRATION_LOG="$fixture/commands.log"
 mkdir -p "$fixture/bin"
 # Run the real helper against an isolated filesystem. Absolute device paths are
 # rewritten in its text, including ownership checks, rather than touching /etc.
-python3 - "$project/backend/systemd-registration.sh" "$fixture/registration.sh" "$DASH_TEST_ROOT" <<'PY'
-from pathlib import Path
-import sys
-source, target, root = sys.argv[1:]
-text = Path(source).read_text()
-for prefix in ('/etc/systemd/system', '/run/systemd/system', '/data/dash'):
-    text = text.replace(prefix, root + prefix)
-Path(target).write_text(text)
-PY
-cat > "$fixture/bin/mock-tool" <<'PY'
-#!/usr/bin/env python3
-from pathlib import Path
-import os
-import shutil
-import sys
-
-name = Path(sys.argv[0]).name
-args = sys.argv[1:]
-root = Path(os.environ['DASH_TEST_ROOT'])
-with open(os.environ['DASH_REGISTRATION_LOG'], 'a') as log:
-    log.write(name + ' ' + ' '.join(args) + '\n')
-if name == 'findmnt':
-    key = args[args.index('-o') + 1]
-    print({'TARGET': '/', 'FSTYPE': 'ext4', 'OPTIONS': 'ro,relatime'}[key])
-elif name == 'mount':
-    if args != ['-o', 'remount,rw', '/'] and args != ['-o', 'remount,ro', '/']:
-        raise SystemExit('Unexpected mount invocation')
-elif name == 'install':
-    directory = False
-    mode = 0o755
-    paths = []
-    cursor = iter(args)
-    for arg in cursor:
-        if arg in ('-o', '-g'):
-            next(cursor)
-        elif arg == '-m':
-            mode = int(next(cursor), 8)
-        elif arg == '-d':
-            directory = True
-        else:
-            paths.append(Path(arg))
-    if directory:
-        for path in paths:
-            path.mkdir(parents=True, exist_ok=True)
-            path.chmod(mode)
-    else:
-        shutil.copyfile(*paths)
-        paths[-1].chmod(mode)
-elif name == 'sync':
-    if os.environ.get('DASH_TEST_FAIL_SYNC') == '1' and args[-1].endswith('.next'):
-        raise SystemExit(19)
-    for arg in args:
-        if arg == '--':
-            continue
-        descriptor = os.open(arg, os.O_RDONLY)
-        try:
-            os.fsync(descriptor)
-        finally:
-            os.close(descriptor)
-elif name == 'mv':
-    if args[0] != '-Tf':
-        raise SystemExit('Unexpected mv invocation')
-    os.replace(args[1], args[2])
-elif name == 'readlink':
-    if args[:2] == ['-f', '--']:
-        print(os.path.realpath(args[-1]))
-    else:
-        print(os.readlink(args[-1]))
-elif name == 'systemctl':
-    runtime = '--runtime' in args
-    action = next(arg for arg in args if not arg.startswith('-'))
-    if action == 'enable' and os.environ.get('DASH_TEST_FAIL_ENABLE') == '1':
-        raise SystemExit(17)
-    if action == 'disable':
-        directory = root / ('run' if runtime else 'etc') / 'systemd/system'
-        if not (directory / 'dash.service').exists():
-            raise SystemExit('Unit missing: disable cannot repair orphan enablement')
-        (directory / 'multi-user.target.wants/dash.service').unlink(missing_ok=True)
-else:
-    raise SystemExit('Unexpected mock tool ' + name)
-PY
+"$DASH_TEST_HELPER" rewrite "$project/backend/systemd-registration.sh" "$fixture/registration.sh" "$DASH_TEST_ROOT"
+ln -s "$DASH_TEST_HELPER" "$fixture/bin/mock-tool"
 chmod +x "$fixture/bin/mock-tool"
 for command in findmnt mount install sync mv readlink systemctl; do
   ln -s mock-tool "$fixture/bin/$command"
@@ -115,11 +36,11 @@ expect_failure() {
   if register "$@" 2>/dev/null; then fail "Expected $* to be refused"; fi
 }
 assert_remounted_read_only() {
-  [[ "$(rg '^mount ' "$DASH_REGISTRATION_LOG" | tail -n 1)" == 'mount -o remount,ro /' ]] || fail 'Root was not restored read-only'
-  [[ "$(rg -c '^mount -o remount,rw /$' "$DASH_REGISTRATION_LOG")" == 1 ]] || fail 'Expected one writable remount'
+  [[ "$(grep -E '^mount ' "$DASH_REGISTRATION_LOG" | tail -n 1)" == 'mount -o remount,ro /' ]] || fail 'Root was not restored read-only'
+  [[ "$(grep -E -c '^mount -o remount,rw /$' "$DASH_REGISTRATION_LOG")" == 1 ]] || fail 'Expected one writable remount'
 }
 assert_not_called() {
-  if rg -q "$1" "$DASH_REGISTRATION_LOG"; then fail "Unexpected command matching $1"; fi
+  if grep -E -q "$1" "$DASH_REGISTRATION_LOG"; then fail "Unexpected command matching $1"; fi
 }
 
 # Migrate both historical links, then model the early boot phase before /data
@@ -134,7 +55,7 @@ cmp "$source_unit" "$unit" || fail 'Boot copy differs from installed source'
 assert_remounted_read_only
 mv -Tf "$DASH_TEST_ROOT/data" "$DASH_TEST_ROOT/data-unmounted"
 [[ -r "$unit" && -r "$wants" ]] || fail 'Boot registration depends on mounted /data'
-rg -q '^RequiresMountsFor=/data$' "$wants" || fail 'Boot unit lost mount dependency'
+grep -E -q '^RequiresMountsFor=/data$' "$wants" || fail 'Boot unit lost mount dependency'
 
 # A managed physical copy can be refreshed, and publication is ordered after
 # fsync. Failure before the atomic rename must preserve the prior boot unit.
@@ -149,13 +70,7 @@ assert_remounted_read_only
 unset DASH_TEST_FAIL_SYNC
 register register
 cmp "$unit" "$source_unit" || fail 'Managed unit refresh failed'
-python3 - "$DASH_REGISTRATION_LOG" "$unit" <<'PY'
-import sys
-from pathlib import Path
-lines = Path(sys.argv[1]).read_text().splitlines()
-unit = sys.argv[2]
-assert lines.index('sync -- ' + unit + '.next') < lines.index('mv -Tf ' + unit + '.next ' + unit)
-PY
+"$DASH_TEST_HELPER" assert-before "$DASH_REGISTRATION_LOG" "sync -- $unit.next" "mv -Tf $unit.next $unit"
 
 reset_fixture
 export DASH_TEST_FAIL_ENABLE=1
@@ -221,7 +136,7 @@ register register true
 [[ -r "$(dirname "$runtime_unit")/multi-user.target.wants/dash.service" ]] || fail 'Runtime enablement is unreadable'
 assert_not_called '^mount '
 assert_not_called '^findmnt '
-rg -q '^systemctl --runtime enable dash.service$' "$DASH_REGISTRATION_LOG" || fail 'Missing runtime enablement'
+grep -E -q '^systemctl --runtime enable dash.service$' "$DASH_REGISTRATION_LOG" || fail 'Missing runtime enablement'
 register remove true
 [[ ! -e "$runtime_unit" ]] || fail 'Runtime uninstall left its unit'
 assert_not_called '^mount '
@@ -244,12 +159,7 @@ register register true
 : > "$DASH_REGISTRATION_LOG"
 register register
 [[ -f "$unit" && -r "$wants" && ! -e "$runtime_unit" ]] || fail 'Persistent promotion retained runtime registration'
-python3 - "$DASH_REGISTRATION_LOG" <<'PYORDER'
-from pathlib import Path
-import sys
-lines = Path(sys.argv[1]).read_text().splitlines()
-assert lines.index('systemctl enable dash.service') < lines.index('systemctl --runtime disable dash.service')
-PYORDER
+"$DASH_TEST_HELPER" assert-before "$DASH_REGISTRATION_LOG" 'systemctl enable dash.service' 'systemctl --runtime disable dash.service'
 assert_remounted_read_only
 
 # Remove both layers irrespective of startup-mode or loaded FragmentPath.

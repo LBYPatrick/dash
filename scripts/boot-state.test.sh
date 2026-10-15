@@ -9,16 +9,7 @@ cleanup() {
 }
 trap cleanup EXIT
 mkdir -p "$fixture/bin"
-cat > "$fixture/bin/stat" <<'PY'
-#!/usr/bin/env python3
-import os
-import sys
-try:
-    value = os.lstat(sys.argv[-1])
-except OSError:
-    sys.exit(1)
-print(f'{value.st_dev}:{value.st_ino}:{value.st_size}:{value.st_mtime_ns}:{value.st_ctime_ns}')
-PY
+ln -s "$DASH_TEST_HELPER" "$fixture/bin/stat"
 cat > "$fixture/bin/systemctl" <<'MOCK'
 #!/bin/bash
 [[ "$*" == 'is-active --quiet comma.service' ]] || exit 2

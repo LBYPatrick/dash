@@ -67,25 +67,20 @@ fi
 echo 'Preflight passed: confirmed parked, recording permissions, app folder and systemd. No CPU, memory, controller or topology probes.'
 PREFLIGHT
 if [[ "$DASH_MODE" == check ]]; then exit 0; fi
-command -v python3 >/dev/null || { echo 'The SSH client requires Python 3.9+ to verify the prebuilt release'; exit 1; }
+command -v go >/dev/null || { echo 'The SSH client requires Go matching backend/go.mod'; exit 1; }
 DASH_STAGING="$(mktemp -d)"
 trap 'rm -rf "$DASH_STAGING"' EXIT
 if "$DASH_SOURCE"; then
   if [[ -f .artifacts/toolchains/env.sh ]]; then source .artifacts/toolchains/env.sh; fi
   bash scripts/setup-build-env.sh --check
   make check
-  DASH_RELEASE_ARCH="$DASH_GOARCH" node scripts/release.mjs --source
-  python3 scripts/fetch-release.py --local-manifest .artifacts/release/manifest.json --arch "$DASH_GOARCH" --destination "$DASH_STAGING/payload"
+  DASH_RELEASE_ARCH="$DASH_GOARCH" go -C backend run ./cmd/dash-tool release --source
+  DASH_TAG="$(go -C backend run ./cmd/dash-tool fetch-release --local-manifest "$DASH_PROJECT/.artifacts/release/manifest.json" --arch "$DASH_GOARCH" --destination "$DASH_STAGING/payload")"
 else
-  python3 scripts/fetch-release.py --channel "$DASH_CHANNEL" --release "$DASH_RELEASE" --repo "$DASH_REPOSITORY" --arch "$DASH_GOARCH" --destination "$DASH_STAGING/payload"
+  DASH_TAG="$(go -C backend run ./cmd/dash-tool fetch-release --channel "$DASH_CHANNEL" --release "$DASH_RELEASE" --repo "$DASH_REPOSITORY" --arch "$DASH_GOARCH" --destination "$DASH_STAGING/payload")"
 fi
-DASH_TAG="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["tag"])' "$DASH_STAGING/payload/release.json")"
 if "$DASH_RUNTIME"; then printf runtime > "$DASH_STAGING/startup-mode"; else printf persistent > "$DASH_STAGING/startup-mode"; fi
-python3 - "$DASH_STAGING/update.json" "$DASH_REPOSITORY" "$DASH_CHANNEL" "$DASH_SOURCE" <<'CONFIG'
-import json, sys
-with open(sys.argv[1], 'w') as output:
-    json.dump({'repository': sys.argv[2], 'channel': sys.argv[3], 'automatic': sys.argv[4] != 'true'}, output)
-CONFIG
+go -C backend run ./cmd/dash-tool update-config "$DASH_STAGING/update.json" "$DASH_REPOSITORY" "$DASH_CHANNEL" "$DASH_SOURCE"
 ssh "${DASH_SSH_OPTIONS[@]}" "$DASH_TARGET" 'set -e; [[ "$(cat /data/params/d/IsOffroad)" == 1 && ( ( ! -e /data/params/d/IsOnroad && ! -L /data/params/d/IsOnroad ) || "$(cat /data/params/d/IsOnroad)" == 0 ) ]] || exit 1; sudo -n install -d -o root -g comma -m 1770 /data/dash; mkdir -p /data/dash/releases; rm -rf -- /data/dash/.install.new; mkdir -p /data/dash/.install.new'
 scp "${DASH_SSH_OPTIONS[@]}" -r "$DASH_STAGING/payload/." "$DASH_TARGET:/data/dash/.install.new/"
 scp "${DASH_SSH_OPTIONS[@]}" backend/install-service.sh "$DASH_TARGET:/data/dash/.install-service.new"

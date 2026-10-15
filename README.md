@@ -46,9 +46,8 @@ Start with synthetic recordings on your computer. This does not access your car.
 | Go               | 1.27.1+; see [go.mod](backend/go.mod)                                    |
 | FFmpeg + ffprobe | 5+, including libx264 and libx265 for fixtures/tests                     |
 | System tools     | Git, Make, C compiler for race tests, and bzip2 for legacy fixture tests |
-| Python           | 3.9+ for installer/toolchain tests                                       |
 
-On Linux/macOS, `bash scripts/setup-build-env.sh` installs or prepares host dependencies. See the [build-host guide](docs/delivery.md#build-yourself-and-debug-installation) for supported distributions and macOS prerequisites.
+Install Go first. On Linux/macOS, `bash scripts/setup-build-env.sh` prepares Vite+ and the system/media dependencies. No separate Node or Python installation is needed for normal development. See the [build-host guide](docs/delivery.md#build-yourself-and-debug-installation) for supported distributions and macOS prerequisites.
 
 ```sh
 git clone git@github.com:LBYPatrick/dash.git
@@ -82,7 +81,7 @@ The target needs systemd, SSH access and noninteractive sudo for Dash’s servic
 
 ### From a release
 
-Your computer needs this checkout, Make, SSH/SCP, and Python 3.9+. No local Node/Go build is needed.
+Your computer needs this checkout, Go matching `backend/go.mod`, Make, and SSH/SCP. The Go host tool verifies the prebuilt payload; no local frontend or device-backend build is needed.
 
 ```sh
 make device-check DEVICE=comma@DEVICE_IP    # Read-only compatibility check
@@ -156,7 +155,7 @@ make build-arm64  # Production PWA and Linux ARM64 binary
 make help         # Available workflows
 ```
 
-Vite+ supplies the frontend dev server, Rolldown production builds, Vitest runner, **Oxlint** (including Vue/TypeScript rules and type-aware checks), and **Oxfmt**. `vue-tsc` additionally checks Vue templates. Dependency operations go through `vp install` / `vp add`; the underlying pnpm version is pinned in `package.json`. No separate npm, ESLint, Prettier or Vitest installation is needed. See the [Vite+ workflow](docs/development.md).
+Go owns release, fixture, media, installation and sandbox tooling. Browser acceptance runs as tests through `vp test`; there are no standalone `.mjs` scripts or `node` commands. Vite+ supplies the frontend dev server, Rolldown production builds, Vitest runner, **Oxlint** (including Vue/TypeScript rules and type-aware checks), and **Oxfmt**. `vue-tsc` additionally checks Vue templates. Dependency operations go through `vp install` / `vp add`; the underlying pnpm version is pinned in `package.json`. No separate npm, ESLint, Prettier or Vitest installation is needed. See the [Vite+ workflow](docs/development.md).
 
 With `make serve` running against `make fixture`, run `make smoke` for browser integration tests. Chrome is required; set `CHROME_PATH` if needed. These tests change synthetic params and write artifacts under ignored `.artifacts/`. `make frontend-polish-smoke` checks accent/theme contrast, nested modal focus, and localized phone layouts. Specialized viewer, map, statistics, mobile, appearance, and motion checks are listed by `make help`.
 
@@ -164,7 +163,7 @@ With `make serve` running against `make fixture`, run `make smoke` for browser i
 frontend/        Vue PWA: src/, public/, package.json, Vite and TypeScript config
 backend/         Go service, telemetry schemas, exports, OTA and systemd helpers
 docs/            Installation, delivery, development and reference guides
-scripts/         Shared host setup, SSH installation, release and integration tests
+scripts/         Shell installers, firmware fixtures and maintenance tools
 tools/, docker/  Static media builds and development sandbox
 Makefile         Shared development and delivery commands
 vite.config.ts   Shared Oxlint, Oxfmt and test configuration

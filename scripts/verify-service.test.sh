@@ -9,16 +9,9 @@ export DASH_VERIFY_ROOT="$fixture/root"
 export DASH_VERIFY_ENABLED=true
 export DASH_VERIFY_CHILD="$$"
 mkdir -p "$fixture/bin" "$DASH_VERIFY_ROOT/data/dash/systemd" "$DASH_VERIFY_ROOT/data/dash/cache" "$DASH_VERIFY_ROOT/data/dash/releases/test" "$DASH_VERIFY_ROOT/run/dash" "$DASH_VERIFY_ROOT/etc/systemd/system/multi-user.target.wants"
-python3 - "$project/backend" "$fixture" "$DASH_VERIFY_ROOT" <<'PY'
-from pathlib import Path
-import sys
-source, fixture, root = sys.argv[1:]
-for name in ('verify-service.sh', 'systemd-registration.sh'):
-    text = (Path(source) / name).read_text()
-    for prefix in ('/etc/systemd/system', '/run/systemd/system', '/data/dash', '/run/dash'):
-        text = text.replace(prefix, root + prefix)
-    (Path(fixture) / name).write_text(text)
-PY
+for helper in verify-service.sh systemd-registration.sh; do
+  "$DASH_TEST_HELPER" rewrite "$project/backend/$helper" "$fixture/$helper" "$DASH_VERIFY_ROOT"
+done
 cp "$fixture/systemd-registration.sh" "$DASH_VERIFY_ROOT/data/dash/"
 cat > "$fixture/bin/systemctl" <<'MOCK'
 #!/bin/bash
