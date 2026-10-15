@@ -7,6 +7,8 @@ import "time"
 const (
 	DeviceCPUCores          = 8
 	MediaThreads            = DeviceCPUCores
+	AudioProbeBytes         = 16 << 20
+	AudioAnalyzeMicros      = 600 * 1000000 // Native parts are <= 60s; tolerate imported parts up to 10 min.
 	ProbeThreads            = 1
 	HeavyJobLimit           = 1
 	GoHeapTargetMiB         = 96

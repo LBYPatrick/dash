@@ -12,6 +12,12 @@ import (
 	"strings"
 )
 
+// A microphone can begin well after the video (for example after ignition).
+// The default five-second analysis window mistakes those tracks for empty ones.
+func audioProbeArgs() []string {
+	return []string{"-probesize", strconv.Itoa(AudioProbeBytes), "-analyzeduration", strconv.Itoa(AudioAnalyzeMicros)}
+}
+
 // A TS program can advertise AAC without ever recording a single audio sample.
 // Only mux usable codec parameters; an empty declared track breaks FFmpeg's muxer.
 func recordedAudio(ctx context.Context, file, cache string) (bool, error) {
@@ -19,7 +25,7 @@ func recordedAudio(ctx context.Context, file, cache string) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	hash := sha256.Sum256([]byte(fmt.Sprintf("%s:%d:%d:audio-v1", file, info.Size(), info.ModTime().UnixNano())))
+	hash := sha256.Sum256([]byte(fmt.Sprintf("%s:%d:%d:audio-v2-full-part", file, info.Size(), info.ModTime().UnixNano())))
 	target := filepath.Join(cache, fmt.Sprintf("%x.audio.json", hash))
 	var found struct {
 		Present bool `json:"present"`
@@ -28,7 +34,7 @@ func recordedAudio(ctx context.Context, file, cache string) (bool, error) {
 		return found.Present, nil
 	}
 	var output limitedBuffer
-	args := []string{"-v", "error", "-threads", strconv.Itoa(ProbeThreads), "-select_streams", "a:0", "-show_entries", "stream=codec_name,sample_rate,channels", "-of", "json", file}
+	args := append(audioProbeArgs(), "-v", "error", "-threads", strconv.Itoa(ProbeThreads), "-select_streams", "a:0", "-show_entries", "stream=codec_name,sample_rate,channels", "-of", "json", file)
 	if err := runMediaCommand(ctx, "ffprobe", &output, args...); err != nil {
 		return false, err
 	}
@@ -118,7 +124,7 @@ func (e *ExportManager) audioManifest(ctx context.Context, camera string, assets
 		if n+1 < len(parts) {
 			end = parts[n+1].start
 		}
-		fmt.Fprintf(&lines, "file '%s'\nduration %.6f\n", strings.ReplaceAll(part.path, "'", "'\\''"), end-part.start)
+		fmt.Fprintf(&lines, "file '%s'\noption probesize %d\noption analyzeduration %d\nduration %.6f\n", strings.ReplaceAll(part.path, "'", "'\\''"), AudioProbeBytes, AudioAnalyzeMicros, end-part.start)
 	}
 	return lines.String(), parts[0].start, nil
 }

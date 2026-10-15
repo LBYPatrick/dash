@@ -33,6 +33,8 @@ All notable changes to Dash are documented here using Keep a Changelog.
 
 ### Fixed
 
+- Probe a full bounded recording part for late-starting AAC, preserve it in MP4 and HEVC previews, and invalidate earlier false-negative audio caches.
+
 - Match interrupted streams to decoded packet positions so corrupt interior frames leave timestamp gaps and do not break MCAP conversion or shift surviving video frames.
 
 - Ignore Chromium's stale audio decode counters after HLS camera/session changes so silent footage keeps its audio control disabled.

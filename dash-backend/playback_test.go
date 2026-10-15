@@ -309,3 +309,47 @@ func TestDeclaredEmptyAACDoesNotBreakVideo(t *testing.T) {
 	}
 
 }
+
+func TestLateStartingAACIsFoundAndExported(t *testing.T) {
+	if _, err := exec.LookPath("ffmpeg"); err != nil {
+		t.Skip("ffmpeg unavailable")
+	}
+	index, _ := fixtureIndex(t)
+	folder := filepath.Join(index.root, fixtureDrive+"--0")
+	video := filepath.Join(folder, "qcamera.ts")
+	args := []string{"-v", "error", "-f", "lavfi", "-i", "color=s=160x96:r=20", "-itsoffset", "6", "-f", "lavfi", "-i", "sine=sample_rate=16000", "-t", "8", "-c:v", "libx264", "-threads", "1", "-c:a", "aac", "-ac", "1", "-f", "mpegts", video}
+	if out, err := exec.Command("ffmpeg", args...).CombinedOutput(); err != nil {
+		t.Fatal(err, string(out))
+	}
+	if present, err := recordedAudio(context.Background(), video, index.cache); err != nil || !present {
+		t.Fatal("late microphone data missed", present, err)
+	}
+	if err := index.scan(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	exports, _ := newExports(ctx, index)
+	request := ExportRequest{Drive: fixtureDrive, Camera: "qcamera.ts", Format: "mp4", Segments: []int{0}}
+	assets, err := exports.collect(request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	job := &ExportJob{ID: "late-audio-test", output: filepath.Join(t.TempDir(), "export.mp4")}
+	exports.jobs[job.ID] = job
+	if err := exports.mp4(ctx, job, request, assets); err != nil {
+		t.Fatal(err)
+	}
+	output, err := exec.Command("ffprobe", "-v", "error", "-select_streams", "a:0", "-show_entries", "packet=pts_time", "-of", "csv=p=0", job.output).Output()
+	if err != nil {
+		t.Fatal(err)
+	}
+	lines := strings.Fields(string(output))
+	if len(lines) == 0 {
+		t.Fatal("late audio discarded")
+	}
+	first, err := strconv.ParseFloat(strings.TrimSuffix(lines[0], ","), 64)
+	if err != nil || first < 5.5 || first > 6.2 {
+		t.Fatal("late audio shifted earlier", first, err)
+	}
+}

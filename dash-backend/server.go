@@ -289,7 +289,7 @@ func (s *Server) video(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}
-	hash := sha256.Sum256([]byte(fmt.Sprintf("%s:%d:%d:%s:%t:chunk-v3-seek-audio:%d:%d%s", file, info.Size(), info.ModTime().UnixNano(), codec, transport, chunk, PreviewChunkSeconds, companionStamp)))
+	hash := sha256.Sum256([]byte(fmt.Sprintf("%s:%d:%d:%s:%t:chunk-v4-late-audio:%d:%d%s", file, info.Size(), info.ModTime().UnixNano(), codec, transport, chunk, PreviewChunkSeconds, companionStamp)))
 	folder := filepath.Join(s.index.cache, "previews")
 	_ = os.MkdirAll(folder, 0700)
 	extension := ".mp4"
@@ -347,6 +347,7 @@ func (s *Server) video(w http.ResponseWriter, r *http.Request) {
 				}
 				defer cleanup()
 			}
+			args = append(args, audioProbeArgs()...)
 			args = append(args, "-i", input)
 			audioInput := 0
 			if strings.HasSuffix(file, ".hevc") {
@@ -357,6 +358,7 @@ func (s *Server) video(w http.ResponseWriter, r *http.Request) {
 					if audioStart > 0 {
 						args = append(args, "-ss", strconv.FormatFloat(audioStart, 'f', 6, 64))
 					}
+					args = append(args, audioProbeArgs()...)
 					args = append(args, "-i", companion)
 					audioInput = 1
 				}

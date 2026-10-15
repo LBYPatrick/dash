@@ -376,7 +376,7 @@ func (e *ExportManager) mp4(ctx context.Context, job *ExportJob, request ExportR
 		if err != nil {
 			return err
 		}
-		fmt.Fprintf(&lines, "file '%s'\nduration %.6f\n", strings.ReplaceAll(asset.Path, "'", "'\\''"), duration)
+		fmt.Fprintf(&lines, "file '%s'\noption probesize %d\noption analyzeduration %d\nduration %.6f\n", strings.ReplaceAll(asset.Path, "'", "'\\''"), AudioProbeBytes, AudioAnalyzeMicros, duration)
 	}
 	if lines.Len() == 0 {
 		return errors.New("session has no non-empty video recordings")
@@ -384,7 +384,7 @@ func (e *ExportManager) mp4(ctx context.Context, job *ExportJob, request ExportR
 	if err := os.WriteFile(listing, []byte(lines.String()), 0600); err != nil {
 		return err
 	}
-	args := []string{"-fflags", "+genpts", "-f", "concat", "-safe", "0", "-i", listing}
+	args := append(audioProbeArgs(), "-fflags", "+genpts", "-f", "concat", "-safe", "0", "-i", listing)
 	if strings.HasSuffix(request.Camera, ".hevc") {
 		args = append([]string{"-r", "20"}, args...)
 	}
@@ -398,6 +398,7 @@ func (e *ExportManager) mp4(ctx context.Context, job *ExportJob, request ExportR
 		if err := os.WriteFile(audioListing, []byte(audioLines), 0600); err != nil {
 			return err
 		}
+		args = append(args, audioProbeArgs()...)
 		args = append(args, "-itsoffset", strconv.FormatFloat(audioOffset, 'f', 6, 64), "-f", "concat", "-safe", "0", "-i", audioListing, "-map", "1:a:0", "-c:a", "copy")
 	} else {
 		args = append(args, "-an")
