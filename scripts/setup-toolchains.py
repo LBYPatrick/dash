@@ -102,7 +102,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--check', action='store_true')
     args = parser.parse_args()
-    required_go = re.search(r'^go (\d+\.\d+\.\d+)$', (ROOT / 'dash-backend/go.mod').read_text(), re.M)[1]
+    required_go = re.search(r'^go (\d+\.\d+\.\d+)$', (ROOT / 'backend/go.mod').read_text(), re.M)[1]
     node_version = version(['node', '--version'])
     go_version = version(['go', 'version'])
     node_match = re.fullmatch(r'v(\d+)\.(\d+)\.(\d+)', node_version)

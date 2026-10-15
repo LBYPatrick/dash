@@ -7,7 +7,7 @@ import unittest
 from unittest.mock import patch
 
 PROJECT = Path(__file__).resolve().parent.parent
-spec = importlib.util.spec_from_file_location('live_adapter', PROJECT / 'dash-backend/live_adapter.py')
+spec = importlib.util.spec_from_file_location('live_adapter', PROJECT / 'backend/live_adapter.py')
 adapter = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(adapter)
 
@@ -15,7 +15,7 @@ spec.loader.exec_module(adapter)
 class FirmwareStateTests(unittest.TestCase):
     def test_installer_conditions_use_published_offroad_and_optional_legacy_veto(self):
         guards = []
-        for file in ('scripts/install-backend.sh', 'dash-backend/install-service.sh', 'dash-backend/uninstall-service.sh'):
+        for file in ('scripts/install-backend.sh', 'backend/install-service.sh', 'backend/uninstall-service.sh'):
             text = (PROJECT / file).read_text()
             cursor = 0
             while True:

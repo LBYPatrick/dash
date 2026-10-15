@@ -1,6 +1,6 @@
 # Mobile experience and motion audit
 
-Audited from `1fde25d` using emil-design-eng, find-animation-opportunities and improve-animations. The read-only motion assessment and exact implementation plans live in [plans](../plans/README.md); execution followed that assessment. The product remains a crisp, local recording tool with Shelf surfaces. No animation dependency was needed.
+Audited from `1fde25d` using emil-design-eng, find-animation-opportunities and improve-animations. Completed changes and validation are recorded below. The product remains a crisp, local recording tool with Shelf surfaces. No animation dependency was needed.
 
 ## Mobile findings and implemented flows
 

@@ -102,12 +102,12 @@ async function main() {
         '.',
       ],
       {
-        cwd: 'dash-backend',
+        cwd: 'backend',
         stdio: 'inherit',
         env: { ...process.env, CGO_ENABLED: '0', GOOS: 'linux', GOARCH: arch },
       },
     );
-    await cp('dist', join(stage, 'dist'), { recursive: true });
+    await cp('frontend/dist', join(stage, 'dist'), { recursive: true });
     await cp(await buildMedia(arch), join(stage, 'bin'), { recursive: true });
     await writeFile(
       join(stage, 'release.json'),

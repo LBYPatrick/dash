@@ -161,7 +161,7 @@ func main() {
 		log.Fatal("recording root is not a directory")
 	}
 	if _, err := os.Stat(filepath.Join(appPath, "index.html")); err != nil {
-		log.Fatal("PWA build missing; run npm run build and supply --app dist")
+		log.Fatal("PWA build missing; run make build and supply --app frontend/dist from the repository root")
 	}
 	if (*cert == "") != (*key == "") {
 		log.Fatal("--cert and --key are required together")

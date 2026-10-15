@@ -3,6 +3,8 @@ import vue from '@vitejs/plugin-vue';
 import { VitePWA } from 'vite-plugin-pwa';
 
 export default defineConfig({
+  // Shared, ignored local configuration remains at the repository root.
+  envDir: '..',
   server: {
     proxy: {
       '/api': {

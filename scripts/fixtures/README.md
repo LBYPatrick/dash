@@ -1,6 +1,6 @@
 # Native recording simulator
 
-These are synthetic recordings, never logs captured from a car. They exercise Dash's native decoder and export path using the actual upstream Cap'n Proto definitions. The older, small `dash-backend/internal/telemetry/testdata/qlog.bz2` remains a legacy-format regression fixture.
+These are synthetic recordings, never logs captured from a car. They exercise Dash's native decoder and export path using the actual upstream Cap'n Proto definitions. The older, small `backend/internal/telemetry/testdata/qlog.bz2` remains a legacy-format regression fixture.
 
 ## Source audit
 

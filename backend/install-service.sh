@@ -7,6 +7,8 @@ case "${1:-}" in --runtime) options=(--runtime) ;; '') ;; *) echo 'Usage: instal
 [[ -d /data/dash && ! -L /data/dash ]]
 [[ "$(cat /data/params/d/IsOffroad)" == 1 && ( ( ! -e /data/params/d/IsOnroad && ! -L /data/params/d/IsOnroad ) || "$(cat /data/params/d/IsOnroad)" == 0 ) ]] || { echo 'Installation requires confirmed parked state'; exit 1; }
 source /data/dash/systemd-registration.sh
+dash_validate_registrations
+if [[ ${#options[@]} != 0 ]]; then dash_runtime_install_allowed; fi
 fragment="$(systemctl show dash.service --property=FragmentPath --value 2>/dev/null || true)"
 [[ -z "$fragment" ]] || dash_unit_owned "$fragment" || { echo 'Refusing to replace another dash.service'; exit 1; }
 release="$(readlink /data/dash/current)"

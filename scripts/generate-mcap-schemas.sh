@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
-cd "$(dirname "$0")/../dash-backend"
+cd "$(dirname "$0")/../backend"
 # Checked-in generated Go is used by ordinary builds, including on-device builds.
 # Install the generator matching go.mod; protoc is a development-only tool.
 mkdir -p ../.artifacts/bin

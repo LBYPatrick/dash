@@ -14,7 +14,7 @@ The frontend fetches `/map-config.json` when a visible map initializes. The ship
 }
 ```
 
-Edit `public/map-config.json` for the next build, or the installed app directory's `map-config.json` to change the source without rebuilding. Reload the page after changing it. On a device, the default path is `/data/dash/current/dist/map-config.json`. Each update supplies a fresh `dist`; retain operator overrides when updating. An alternative source must implement the Shortbread schema and permit your usage. Addresses may be HTTPS or same-origin paths; an HTTPS app rejects HTTP sources. No configuration is exposed as an end-user setting.
+Edit `frontend/public/map-config.json` for the next build, or the installed app directory's `map-config.json` to change the source without rebuilding. Reload the page after changing it. On a device, the default path is `/data/dash/current/dist/map-config.json`. Each update supplies a fresh `dist`; retain operator overrides when updating. An alternative source must implement the Shortbread schema and permit your usage. Addresses may be HTTPS or same-origin paths; an HTTPS app rejects HTTP sources. No configuration is exposed as an end-user setting.
 
 The runtime config is not precached by the PWA. Missing or invalid config produces a GPS-only map with a background-unavailable notice, rather than contacting an unexpected provider. Tiles load directly from the configured source, with the browser's normal Referer and HTTP caching. Keep a valid Referer policy when placing Dash behind a reverse proxy.
 

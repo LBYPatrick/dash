@@ -31,7 +31,7 @@ MOCK
 chmod +x "$fixture/bin/stat" "$fixture/bin/systemctl" "$fixture/child"
 export PATH="$fixture/bin:$PATH"
 export DASH_TEST_CHILD_RESULT="$fixture/child-result"
-run_guard() { bash "$project/dash-backend/boot-state.sh" --runtime "$fixture/run" --params "$fixture/params" "$@"; }
+run_guard() { bash "$project/backend/boot-state.sh" --runtime "$fixture/run" --params "$fixture/params" "$@"; }
 reset_fixture() {
   if [[ -n "$child_pid" ]]; then kill "$child_pid" 2>/dev/null || true; wait "$child_pid" 2>/dev/null || true; child_pid=; fi
   rm -rf "$fixture/run" "$fixture/params" "$DASH_TEST_CHILD_RESULT"
@@ -46,7 +46,7 @@ flags() {
   mv -f "$fixture/params/IsOffroad.next" "$fixture/params/IsOffroad"
 }
 start_child() {
-  bash "$project/dash-backend/boot-state.sh" --runtime "$fixture/run" --params "$fixture/params" run "$fixture/child" 'one two' '' 'literal $HOME' $'line\nbreak' > "$fixture/guard.log" 2>&1 &
+  bash "$project/backend/boot-state.sh" --runtime "$fixture/run" --params "$fixture/params" run "$fixture/child" 'one two' '' 'literal $HOME' $'line\nbreak' > "$fixture/guard.log" 2>&1 &
   child_pid=$!
 }
 fail() { echo "FAIL: $*" >&2; cat "$fixture/guard.log" >&2 2>/dev/null || true; exit 1; }

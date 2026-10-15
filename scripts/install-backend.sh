@@ -56,6 +56,11 @@ fragment="$(systemctl show dash.service --property=FragmentPath --value 2>/dev/n
 if [[ -n "$fragment" && "$(readlink -f -- "$fragment")" != /data/dash/systemd/dash.service ]]; then
   [[ ( "$fragment" == /etc/systemd/system/dash.service || "$fragment" == /run/systemd/system/dash.service ) && -f "$fragment" && ! -L "$fragment" && "$(head -n 1 "$fragment")" == '# Dash managed service. Source: /data/dash/systemd/dash.service' ]] || { echo 'dash.service belongs to another installation'; exit 1; }
 fi
+# Reject this mode mismatch before downloads, uploads or stopping the service.
+if [[ "$1" == true ]] && [[ -e /etc/systemd/system/dash.service || -L /etc/systemd/system/dash.service || -e /etc/systemd/system/multi-user.target.wants/dash.service || -L /etc/systemd/system/multi-user.target.wants/dash.service ]]; then
+  echo 'Persistent Dash registration exists; use persistent mode or uninstall before a runtime-only installation.' >&2
+  exit 1
+fi
 [[ -d /data/media/0/realdata && -d /data/params/d ]]
 [[ "$(cat /data/params/d/IsOffroad)" == 1 && ( ( ! -e /data/params/d/IsOnroad && ! -L /data/params/d/IsOnroad ) || "$(cat /data/params/d/IsOnroad)" == 0 ) ]] || { echo 'Install only with confirmed parked state'; exit 1; }
 [[ -r /data/media/0/realdata && -w /data ]]
@@ -83,12 +88,12 @@ with open(sys.argv[1], 'w') as output:
 CONFIG
 ssh "${DASH_SSH_OPTIONS[@]}" "$DASH_TARGET" 'set -e; [[ "$(cat /data/params/d/IsOffroad)" == 1 && ( ( ! -e /data/params/d/IsOnroad && ! -L /data/params/d/IsOnroad ) || "$(cat /data/params/d/IsOnroad)" == 0 ) ]] || exit 1; sudo -n install -d -o root -g comma -m 1770 /data/dash; mkdir -p /data/dash/releases; rm -rf -- /data/dash/.install.new; mkdir -p /data/dash/.install.new'
 scp "${DASH_SSH_OPTIONS[@]}" -r "$DASH_STAGING/payload/." "$DASH_TARGET:/data/dash/.install.new/"
-scp "${DASH_SSH_OPTIONS[@]}" dash-backend/install-service.sh "$DASH_TARGET:/data/dash/.install-service.new"
-scp "${DASH_SSH_OPTIONS[@]}" dash-backend/systemd-registration.sh "$DASH_TARGET:/data/dash/.registration.new"
-scp "${DASH_SSH_OPTIONS[@]}" dash-backend/uninstall-service.sh "$DASH_TARGET:/data/dash/.uninstall-service.new"
-scp "${DASH_SSH_OPTIONS[@]}" dash-backend/boot-state.sh "$DASH_TARGET:/data/dash/.boot-state.new"
-scp "${DASH_SSH_OPTIONS[@]}" dash-backend/verify-service.sh "$DASH_TARGET:/data/dash/.verify-service.new"
-scp "${DASH_SSH_OPTIONS[@]}" dash-backend/systemd/dash.service "$DASH_TARGET:/data/dash/.service.new"
+scp "${DASH_SSH_OPTIONS[@]}" backend/install-service.sh "$DASH_TARGET:/data/dash/.install-service.new"
+scp "${DASH_SSH_OPTIONS[@]}" backend/systemd-registration.sh "$DASH_TARGET:/data/dash/.registration.new"
+scp "${DASH_SSH_OPTIONS[@]}" backend/uninstall-service.sh "$DASH_TARGET:/data/dash/.uninstall-service.new"
+scp "${DASH_SSH_OPTIONS[@]}" backend/boot-state.sh "$DASH_TARGET:/data/dash/.boot-state.new"
+scp "${DASH_SSH_OPTIONS[@]}" backend/verify-service.sh "$DASH_TARGET:/data/dash/.verify-service.new"
+scp "${DASH_SSH_OPTIONS[@]}" backend/systemd/dash.service "$DASH_TARGET:/data/dash/.service.new"
 scp "${DASH_SSH_OPTIONS[@]}" "$DASH_STAGING/startup-mode" "$DASH_TARGET:/data/dash/.startup.new"
 scp "${DASH_SSH_OPTIONS[@]}" "$DASH_STAGING/update.json" "$DASH_TARGET:/data/dash/.update.new"
 ssh "${DASH_SSH_OPTIONS[@]}" "$DASH_TARGET" bash -s <<'ACTIVATE'

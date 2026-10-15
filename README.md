@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="public/icon.svg" alt="Dash" width="80" />
+  <img src="frontend/public/icon.svg" alt="Dash" width="80" />
 </p>
 
 <h1 align="center">Dash</h1>
@@ -43,7 +43,7 @@ Start with synthetic recordings on your computer. This does not access your car.
 | Tool             | Requirement                                                              |
 | ---------------- | ------------------------------------------------------------------------ |
 | Node.js + npm    | Node 22.12+ or a compatible newer release                                |
-| Go               | 1.27.1+; see [go.mod](dash-backend/go.mod)                               |
+| Go               | 1.27.1+; see [go.mod](backend/go.mod)                                    |
 | FFmpeg + ffprobe | 5+, including libx264 and libx265 for fixtures/tests                     |
 | System tools     | Git, Make, C compiler for race tests, and bzip2 for legacy fixture tests |
 | Python           | 3.9+ for installer/toolchain tests                                       |
@@ -96,7 +96,21 @@ make device-install DEVICE=comma@DEVICE_IP CHANNEL=nightly
 make device-install DEVICE=comma@DEVICE_IP CHANNEL=dev RELEASE=TAG
 ```
 
-The installer verifies the downloaded release, transfers the Go binary, prebuilt site and static media tools, installs under `/data/dash`, enables `dash.service`, and verifies fresh supervised startup. A channel must have a published release before this route can work. AGNOS boot setup briefly remounts root to install Dash’s small unit file and enablement link, then restores read-only mode. The unit must be readable before `/data` mounts; the app stays under `/data/dash`. Use `RUNTIME=1` for temporary testing with no system-partition writes.
+The installer verifies the release, transfers the Go binary, prebuilt site and static media tools into `/data/dash`, then verifies systemd enablement and fresh supervised startup. A channel must have a published release before this route can work. Add `DEVICE_KEY=/path/to/key` when using a specific SSH key.
+
+| Startup mode | Registration                                                | Survives a normal power cycle? |
+| ------------ | ----------------------------------------------------------- | ------------------------------ |
+| Default      | Physical unit in `/etc/systemd/system` with boot enablement | Yes                            |
+| `RUNTIME=1`  | Temporary unit and enablement in `/run/systemd/system`      | No                             |
+
+On AGNOS, persistent installation briefly remounts root to copy Dash’s small unit and enablement link, then restores read-only mode. The unit is readable before `/data` mounts; all app assets stay under `/data/dash`. A temporary install makes no system-partition writes and refuses an existing persistent registration. Reinstall without `RUNTIME=1` to promote a temporary install to boot startup.
+
+On the device, while parked:
+
+```sh
+sudo bash /data/dash/verify-service.sh  # Unit, enablement and running backend
+journalctl -u dash.service -f          # Startup and application logs
+```
 
 Open **`http://DEVICE_IP:8088`** from the same network. Trusted HTTPS is required to install the PWA on a LAN address; ordinary HTTP still serves the interface. See [HTTPS setup](docs/installation.md#local-https-and-pwa-installation).
 
@@ -115,7 +129,7 @@ This route runs local checks, cross-compiles for the target, and uses the same s
 
 Heavy workers run only when firmware publishes **`IsOffroad=1`**. Older firmware’s `IsOnroad` flag also vetoes work whenever present and nonzero. Missing/invalid offroad state, unreadable flags and contradictory state block heavy work; a 100 ms watchdog cancels active work when state changes. Cached information and existing original downloads remain available. This is software cancellation, not a hard real-time guarantee.
 
-One heavy operation runs at a time, only with confirmed parked state. Onroad or unknown state cancels processing. Fixed tunable constants in [`policy.go`](dash-backend/policy.go) assume eight cores, allow up to eight media threads and set bounded Go/media allocations. CPU is neither pinned nor throttled, and device mode does not probe system resources.
+One heavy operation runs at a time, only with confirmed parked state. Onroad or unknown state cancels processing. Fixed tunable constants in [`policy.go`](backend/policy.go) assume eight cores, allow up to eight media threads and set bounded Go/media allocations. Confirmed offroad uses the full fixed budget; onroad or unknown state reduces Go scheduling to one processor and blocks heavy work. There is no CPU quota or pinning, and device mode does not probe system resources.
 
 Systemd requests 256 MiB memory high / 384 MiB maximum, zero swap and 128 tasks, and provides restart limits, journal logging and process-group cleanup. Available kernel enforcement varies by AGNOS; the app also uses soft memory targets and bounded buffers. See [resource policy and lifecycle](docs/installation.md#resource-policy). Indexing uses two bounded workers while parked, stops heavy work onroad/unknown, and resumes committed parts after interrupted power; see the [measured indexing improvements](docs/benchmarks/indexing.md). All installed assets and helpers live under `/data/dash`; `make device-uninstall DEVICE=comma@DEVICE_IP` removes them cleanly.
 
@@ -131,7 +145,7 @@ Only commits to these three branches trigger CI and publish release artifacts. F
 
 Managed builds use Settings to check, download, and restart into an update while parked. OTA requires internet, verifies checksums, and uses a systemd-supervised bootstrap with startup rollback. Local source builds update through SSH instead. [Artifacts, tags, trust, and OTA details →](docs/delivery.md)
 
-**After AGNOS updates:** `/data/dash` persists, but the systemd unit, enablement, and OS-installed FFmpeg may need restoration. Dash OTA does not restore OS dependencies. Follow [AGNOS recovery](docs/installation.md#agnos-updates-and-removal) before restarting Dash.
+**After AGNOS updates:** `/data/dash` normally persists, including the bundled media tools; the systemd unit and enablement on the OS partition may be replaced. While parked, run `sudo bash /data/dash/install.sh`, then `sudo bash /data/dash/verify-service.sh`. Dash does not patch firmware boot scripts to reinstall itself. A factory reset or data wipe can remove Dash. See [AGNOS recovery and removal](docs/installation.md#agnos-updates-and-removal).
 
 ## Development
 
@@ -145,12 +159,17 @@ make help         # Available workflows
 With `make serve` running against `make fixture`, run `make smoke` for browser integration tests. Chrome is required; set `CHROME_PATH` if needed. These tests change synthetic params and write artifacts under ignored `.artifacts/`. Specialized viewer, map, statistics, mobile, appearance, and motion checks are listed by `make help` and explained in the audit guides.
 
 ```text
-src/             Vue interface, playback, maps, and dashboard
-public/          PWA icons, map configuration, and sample media
-dash-backend/    Go service, index, telemetry, exports, OTA, and systemd helpers
-scripts/         Host setup, SSH installation, packaging, and browser checks
-docs/            Installation, delivery, sandbox, and UI guides
+frontend/        Vue PWA: src/, public/, package.json, Vite and TypeScript config
+backend/         Go service, telemetry schemas, exports, OTA and systemd helpers
+docs/            Installation, delivery, sandbox and maintained design guides
+scripts/         Shared host setup, SSH installation, release and integration tests
+tools/, docker/  Static media builds and development sandbox
+Makefile         Shared development and delivery commands
+package.json     npm workspace, shared test/format/browser tools and release version
+package-lock.json  One lockfile for the workspace
 ```
+
+Run npm and Make commands from the repository root; `make build` writes the PWA to `frontend/dist` and the host binary to `.artifacts/dash-backend`. The installed release layout remains `dash-backend` plus `dist/`.
 
 Keep secrets in ignored `.env` files; never commit credentials, device keys, or private recordings. Run `make check` locally before proposing a merge. Browser tests and cross-builds do not certify device safety or physical Safari behavior.
 
@@ -161,7 +180,7 @@ Keep secrets in ignored `.env` files; never commit credentials, device keys, or 
 - [Docker sandbox and diagnostics](docs/sandbox.md)
 - [Maps and tile-service policy](docs/maps.md)
 - [Languages and translation customization](docs/i18n.md)
-- [Telemetry and MCAP format](dash-backend/SCHEMA.md)
+- [Telemetry and MCAP format](backend/SCHEMA.md)
 - [UI component audit](docs/ui-audit.md) · [Mobile and motion audit](docs/mobile-motion-audit.md)
 
 Shelf-derived components retain their [upstream license notice](LICENSES/Shelf.txt).

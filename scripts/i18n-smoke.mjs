@@ -13,7 +13,7 @@ const languages = [
 const bundles = Object.fromEntries(
   languages.map(([id]) => [
     id,
-    JSON.parse(readFileSync(`src/i18n/locales/${id}.json`, 'utf8')),
+    JSON.parse(readFileSync(`frontend/src/i18n/locales/${id}.json`, 'utf8')),
   ]),
 );
 const browser = await chromium.launch({

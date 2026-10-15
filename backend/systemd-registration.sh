@@ -16,6 +16,45 @@ dash_unit_owned() {
   fi
 }
 
+# Validate both layers before mutating either; /etc takes precedence over /run.
+# A runtime install must never silently retain an existing boot registration.
+dash_registration_present() {
+  local directory="$1"
+  [[ -e "$directory/dash.service" || -L "$directory/dash.service" ||
+     -e "$directory/multi-user.target.wants/dash.service" || -L "$directory/multi-user.target.wants/dash.service" ]]
+}
+
+dash_validate_registration() {
+  local directory="$1" wants target
+  if [[ -e "$directory/dash.service" || -L "$directory/dash.service" ]]; then
+    dash_unit_owned "$directory/dash.service" || { echo 'Refusing foreign Dash registration' >&2; return 1; }
+  fi
+  wants="$directory/multi-user.target.wants"
+  if [[ -e "$wants/dash.service" || -L "$wants/dash.service" ]]; then
+    [[ -L "$wants/dash.service" ]] || { echo 'Refusing foreign Dash enablement' >&2; return 1; }
+    target="$(readlink "$wants/dash.service")"
+    [[ "$target" == /data/dash/systemd/dash.service || "$target" == ../dash.service || "$target" == "$directory/dash.service" ]] || { echo 'Refusing foreign Dash enablement' >&2; return 1; }
+  fi
+}
+
+dash_validate_registrations() {
+  dash_validate_registration /etc/systemd/system || return 1
+  dash_validate_registration /run/systemd/system
+}
+
+dash_runtime_install_allowed() {
+  if dash_registration_present /etc/systemd/system; then
+    echo 'A persistent Dash registration already exists. Keep persistent mode, or uninstall Dash before a runtime-only installation.' >&2
+    return 1
+  fi
+}
+
+dash_remove_registrations() {
+  dash_validate_registrations || return 1
+  dash_systemd_registration remove true || return 1
+  dash_systemd_registration remove false
+}
+
 dash_systemd_registration() (
   set -euo pipefail
   action="$1"
@@ -41,15 +80,10 @@ dash_systemd_registration() (
   trap 'exit 129' HUP
   directory=/etc/systemd/system
   if [[ "$runtime" == true ]]; then directory=/run/systemd/system; fi
-  if [[ -e "$directory/dash.service" || -L "$directory/dash.service" ]]; then
-    dash_unit_owned "$directory/dash.service" || { echo 'Refusing foreign Dash registration'; exit 1; }
-  fi
+  dash_validate_registrations
+  if [[ "$action" == register && "$runtime" == true ]]; then dash_runtime_install_allowed; fi
+  if [[ "$action" == remove ]] && ! dash_registration_present "$directory"; then exit 0; fi
   wants="$directory/multi-user.target.wants"
-  if [[ -e "$wants/dash.service" || -L "$wants/dash.service" ]]; then
-    [[ -L "$wants/dash.service" ]] || { echo 'Refusing foreign Dash enablement'; exit 1; }
-    target="$(readlink "$wants/dash.service")"
-    [[ "$target" == /data/dash/systemd/dash.service || "$target" == ../dash.service || "$target" == "$directory/dash.service" ]] || { echo 'Refusing foreign Dash enablement'; exit 1; }
-  fi
   if [[ "$runtime" == true ]]; then
     options=(--runtime)
   elif ! dash_registration_writable; then
@@ -75,12 +109,17 @@ dash_systemd_registration() (
     mv -Tf "$wants/dash.service.next" "$wants/dash.service"
     sync -- "$wants" "$directory"
     systemctl ${options[@]+"${options[@]}"} enable dash.service
+    # A durable install supersedes a previous temporary installation.
+    if [[ "$runtime" != true ]]; then dash_systemd_registration remove true; fi
   else
-    systemctl ${options[@]+"${options[@]}"} disable dash.service
-    # Remove only our copied unit (or its legacy symlink) after disablement.
+    # systemctl disable may fail when the unit is gone but a dangling wants
+    # link survived a crash. Its ownership was validated before any mutation.
     if [[ -e "$directory/dash.service" || -L "$directory/dash.service" ]]; then
+      systemctl ${options[@]+"${options[@]}"} disable dash.service
       dash_unit_owned "$directory/dash.service" && rm "$directory/dash.service"
     fi
+    if [[ -L "$wants/dash.service" ]]; then rm "$wants/dash.service"; fi
+    if [[ -d "$wants" ]]; then sync -- "$wants"; fi
     sync -- "$directory"
   fi
 )

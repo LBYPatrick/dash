@@ -37,7 +37,18 @@ All notable changes to Dash are documented here using Keep a Changelog.
 
 - Remove the embedded browser map token from source and local Git history; use ignored `.env` configuration and credential-free OpenStreetMap defaults. Exclude env files from Docker build contexts.
 
+### Changed
+
+- Separate the Vue PWA into `frontend/` and Go service into `backend/`; keep shared npm workspace tooling, Make commands and release packaging at the root.
+- Clarify persistent versus temporary systemd installation, boot verification, AGNOS recovery and clean removal in the installation guides.
+
+### Removed
+
+- Remove completed animation handoff plans and an unused screenshot generator; retain maintained design/validation documentation under `docs/`.
+
 ### Fixed
+
+- Refuse temporary installation over persistent boot registration, clean both registration layers during uninstall, and verify physical unit enablement alongside backend readiness.
 
 - Use sunnypilot’s published `IsOffroad` state across backend workers, live capture, boot and installation, supporting firmware without the legacy `IsOnroad` key. Keep present legacy flags as a veto and recheck parked observations across parameter changes.
 

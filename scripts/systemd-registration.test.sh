@@ -9,7 +9,7 @@ export DASH_REGISTRATION_LOG="$fixture/commands.log"
 mkdir -p "$fixture/bin"
 # Run the real helper against an isolated filesystem. Absolute device paths are
 # rewritten in its text, including ownership checks, rather than touching /etc.
-python3 - "$project/dash-backend/systemd-registration.sh" "$fixture/registration.sh" "$DASH_TEST_ROOT" <<'PY'
+python3 - "$project/backend/systemd-registration.sh" "$fixture/registration.sh" "$DASH_TEST_ROOT" <<'PY'
 from pathlib import Path
 import sys
 source, target, root = sys.argv[1:]
@@ -84,6 +84,8 @@ elif name == 'systemctl':
         raise SystemExit(17)
     if action == 'disable':
         directory = root / ('run' if runtime else 'etc') / 'systemd/system'
+        if not (directory / 'dash.service').exists():
+            raise SystemExit('Unit missing: disable cannot repair orphan enablement')
         (directory / 'multi-user.target.wants/dash.service').unlink(missing_ok=True)
 else:
     raise SystemExit('Unexpected mock tool ' + name)
@@ -106,7 +108,7 @@ reset_fixture() {
   unset DASH_TEST_FAIL_ENABLE DASH_TEST_FAIL_SYNC
 }
 register() {
-  bash -c 'set -euo pipefail; source "$1"; dash_registration_writable() { return 1; }; dash_systemd_registration "$2" "$3"' bash "$fixture/registration.sh" "$1" "${2:-false}" > "$fixture/result.log" 2>&1 || { code=$?; cat "$fixture/result.log" >&2; return "$code"; }
+  bash -c 'set -euo pipefail; source "$1"; dash_registration_writable() { return 1; }; if [[ "$2" == remove-all ]]; then dash_remove_registrations; else dash_systemd_registration "$2" "$3"; fi' bash "$fixture/registration.sh" "$1" "${2:-false}" > "$fixture/result.log" 2>&1 || { code=$?; cat "$fixture/result.log" >&2; return "$code"; }
 }
 fail() { echo "FAIL: $*" >&2; cat "$fixture/result.log" >&2; exit 1; }
 expect_failure() {
@@ -223,5 +225,62 @@ rg -q '^systemctl --runtime enable dash.service$' "$DASH_REGISTRATION_LOG" || fa
 register remove true
 [[ ! -e "$runtime_unit" ]] || fail 'Runtime uninstall left its unit'
 assert_not_called '^mount '
+
+# Runtime requests must fail without touching an existing persistent unit,
+# including an orphan enablement left after interrupted installation.
+for kind in unit wants; do
+  reset_fixture
+  if [[ "$kind" == unit ]]; then cp "$source_unit" "$unit"; else ln -s ../dash.service "$wants"; fi
+  expect_failure register true
+  assert_not_called '^mount '
+  assert_not_called '^systemctl '
+  assert_not_called '^install '
+done
+
+# Promoting a temporary install publishes the durable copy before removing
+# /run, so an interruption cannot erase the only available registration.
+reset_fixture
+register register true
+: > "$DASH_REGISTRATION_LOG"
+register register
+[[ -f "$unit" && -r "$wants" && ! -e "$runtime_unit" ]] || fail 'Persistent promotion retained runtime registration'
+python3 - "$DASH_REGISTRATION_LOG" <<'PYORDER'
+from pathlib import Path
+import sys
+lines = Path(sys.argv[1]).read_text().splitlines()
+assert lines.index('systemctl enable dash.service') < lines.index('systemctl --runtime disable dash.service')
+PYORDER
+assert_remounted_read_only
+
+# Remove both layers irrespective of startup-mode or loaded FragmentPath.
+# Even a dangling wants link is cleaned, while an empty install needs no remount.
+reset_fixture
+for directory in "$(dirname "$unit")" "$(dirname "$runtime_unit")"; do
+  cp "$source_unit" "$directory/dash.service"
+  ln -s ../dash.service "$directory/multi-user.target.wants/dash.service"
+done
+register remove-all
+[[ ! -e "$unit" && ! -e "$wants" && ! -e "$runtime_unit" ]] || fail 'Removal missed a registration layer'
+assert_remounted_read_only
+reset_fixture
+ln -s ../dash.service "$wants"
+register remove-all
+[[ ! -L "$wants" ]] || fail 'Removal missed dangling enablement'
+reset_fixture
+register remove-all
+assert_not_called '^mount '
+assert_not_called '^systemctl '
+
+# A hidden foreign layer must be detected before any other layer is touched.
+reset_fixture
+cp "$source_unit" "$unit"
+printf 'Foreign service\n' > "$runtime_unit"
+cp "$unit" "$fixture/prior-unit"
+for action in register remove-all; do
+  expect_failure "$action"
+  cmp "$unit" "$fixture/prior-unit" || fail 'Refusal changed persistent unit'
+  assert_not_called '^mount '
+  assert_not_called '^systemctl '
+done
 
 echo 'Systemd registration passed: boot-readable physical unit, atomic migration, foreign registration protection, scoped removal, read-only restoration, and remount-free runtime mode.'

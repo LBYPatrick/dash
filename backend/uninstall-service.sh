@@ -7,14 +7,11 @@ set -euo pipefail
 source /data/dash/systemd-registration.sh
 fragment="$(systemctl show dash.service --property=FragmentPath --value 2>/dev/null || true)"
 [[ -z "$fragment" ]] || dash_unit_owned "$fragment" || { echo 'Refusing to touch another dash.service'; exit 1; }
-options=()
-if [[ -f /data/dash/startup-mode && "$(cat /data/dash/startup-mode)" == runtime ]]; then options=(--runtime); fi
-runtime=false
-if [[ ${#options[@]} != 0 ]]; then runtime=true; fi
-if [[ -n "$fragment" ]]; then
-  systemctl stop dash.service
-  dash_systemd_registration remove "$runtime"
-fi
+# Inspect both layers before stopping anything, including dangling enablement
+# left by interrupted registration. startup-mode is informational, not authority.
+dash_validate_registrations
+if [[ -n "$fragment" ]]; then systemctl stop dash.service; fi
+dash_remove_registrations
 systemctl daemon-reload
 systemctl reset-failed dash.service 2>/dev/null || true
 # No firmware, parameters, recordings or system packages are removed. Running

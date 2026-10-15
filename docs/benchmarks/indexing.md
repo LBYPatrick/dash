@@ -31,7 +31,7 @@ These are repeated warm-filesystem-cache measurements of a small real sample, no
 Provide disposable cache storage and recording copies. Driving-state files must explicitly confirm parked state; omit device mode on a host.
 
 ```sh
-cd dash-backend
+cd backend
 DASH_INDEX_BENCH_ROOT=/absolute/path/to/recording-copies \
 DASH_INDEX_BENCH_HOME=/absolute/path/to/disposable-benchmark-cache \
 DASH_INDEX_BENCH_PARAMS=/absolute/path/to/test-params \

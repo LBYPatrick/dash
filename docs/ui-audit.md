@@ -1,6 +1,6 @@
 # Shelf interface audit
 
-Dash uses Shelf's neutral palette, tonal fills, compact typography, control radii, blue accent, icon grid and motion vocabulary. The browser uses solid panel surfaces in place of Shelf's operating-system window material. Sheets and menus are opaque in both themes. Adapted source is credited in [LICENSES/Shelf.txt](../LICENSES/Shelf.txt). Shelf’s sheet widget and dismissal stack are vendored directly with a small Dash API adapter; see [source provenance](../src/vendor/shelf/README.md). Its Electron and translation runtime are not needed. Its icons were adapted directly, removing the Lucide runtime dependency.
+Dash uses Shelf's neutral palette, tonal fills, compact typography, control radii, blue accent, icon grid and motion vocabulary. The browser uses solid panel surfaces in place of Shelf's operating-system window material. Sheets and menus are opaque in both themes. Adapted source is credited in [LICENSES/Shelf.txt](../LICENSES/Shelf.txt). Shelf’s sheet widget and dismissal stack are vendored directly with a small Dash API adapter; see [source provenance](../frontend/src/vendor/shelf/README.md). Its Electron and translation runtime are not needed. Its icons were adapted directly, removing the Lucide runtime dependency.
 
 ## Component review
 
@@ -121,4 +121,4 @@ Settings uses the shared Shelf popup and select menu for channel selection, auto
 
 ## Mobile flows and motion follow-up
 
-See [the mobile/motion audit](mobile-motion-audit.md) for shared transport across mobile panels, compact Trip details, contextual browser history, retained Overview/live capture state, restored fullscreen, safe areas/touch targets, and verified interruptible popovers/divider resets. Read-only findings and execution records are in [plans](../plans/README.md).
+See [the mobile/motion audit](mobile-motion-audit.md) for shared transport across mobile panels, compact Trip details, contextual browser history, retained Overview/live capture state, restored fullscreen, safe areas/touch targets, and verified interruptible popovers/divider resets.

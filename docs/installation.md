@@ -15,9 +15,9 @@ make device-check DEVICE=comma@DEVICE_IP
 make device-install DEVICE=comma@DEVICE_IP
 ```
 
-The check is read-only: it verifies parked state, recording permissions and that any existing `dash.service` belongs to Dash. Installation downloads and checksum-verifies the latest published `main` release on your computer, including the Go backend, PWA and matching static media tools. It transfers the payload, rechecks parked state, links/enables systemd and verifies fresh supervisor/backend readiness. A failed activation restores the previous release when available and leaves Dash stopped. Python 3.9+ is needed on the SSH client only.
+The check is read-only: it verifies parked state, recording permissions and that any existing `dash.service` belongs to Dash. Installation downloads and checksum-verifies the latest published `main` release on your computer, including the Go backend, PWA and matching static media tools. It transfers the payload, rechecks parked state, copies the boot-readable systemd unit, enables it and verifies fresh supervisor/backend readiness. A failed activation restores the previous release when available and leaves Dash stopped. Python 3.9+ is needed on the SSH client only.
 
-For a temporary test without any system-partition writes, add `RUNTIME=1` (`--runtime` in the script). Registration then lives in `/run`, disappears at reboot and does **not** provide boot startup. Persistent registration is the default.
+For a temporary test without any system-partition writes, add `RUNTIME=1` (`--runtime` in the script). Registration then lives in `/run`, disappears at reboot and does **not** provide boot startup. Persistent registration is the default. A runtime request is refused if persistent registration already exists, before downloads or service changes. To promote a temporary install, reinstall without `RUNTIME=1`; the helper publishes the persistent unit before removing its temporary registration. To return to temporary-only operation, uninstall first, then install with `RUNTIME=1`.
 
 Add `CHANNEL=nightly|dev`, `RELEASE=TAG`, or `DEVICE_KEY=/path/to/key`. ARM64 is the default; the script accepts `--arch amd64` for a compatible Linux test host. SSH keys stay on your computer.
 
@@ -36,6 +36,8 @@ journalctl -u dash.service -f
 sudo bash /data/dash/verify-service.sh
 ```
 
+The verification helper checks that the loaded unit is a physical copy matching `/data/dash/systemd/dash.service`, its enablement link resolves to that copy, the boot guard validated fresh state, and the running supervisor/backend match the current release. A responsive HTTP port alone is insufficient.
+
 Boot uses `WantedBy=multi-user.target`; `/data` must be mounted first. There is no `nohup`, tmux daemon launcher, or Docker requirement. `Restart=on-failure`, a 10-second delay, and a limit of three starts per five minutes prevent tight restart loops. After fixing a persistent failure:
 
 ```sh
@@ -49,7 +51,7 @@ Logs go to the journal; journal retention/persistence follows the device's journ
 
 ## Resource policy
 
-Tune the named constants in [`policy.go`](../dash-backend/policy.go): eight assumed cores, up to eight media threads, one heavy job, 96 MiB backend Go heap target, 24 MiB supervisor target, and a 32 MiB maximum individual FFmpeg allocation. There is **no CPU quota, CPU pinning or device topology detection**. These are concurrency and soft memory budgets, not a promise that a process can never OOM.
+Tune the named constants in [`policy.go`](../backend/policy.go): eight assumed cores, up to eight media threads, one heavy job, 96 MiB backend Go heap target, 24 MiB supervisor target, and a 32 MiB maximum individual FFmpeg allocation. There is **no CPU quota, CPU pinning or device topology detection**. These are concurrency and soft memory budgets, not a promise that a process can never OOM.
 
 Systemd requests aggregate `MemoryHigh=256M`, `MemoryMax=384M`, zero swap, 128 tasks and 1024 open files. The installer reads memory values from the app binary's `--resource-settings`, so tuning the constants also updates the unit. Kernel support differs by AGNOS version; device mode deliberately does not probe controllers or claim every requested control is enforced. The Docker sandbox separately exercises enforced hard limits on the build host. `OOMPolicy=stop`, restart limits and process-group cleanup contain a Dash failure.
 
@@ -140,7 +142,7 @@ The SSH installer flushes staged release contents before switching `current`, an
 
 AGNOS documents `/data` as persisting across OS updates, unlike the other system partitions. Keep the bootstrap, versioned releases, update configuration/journal, PWA, cache, certificates, and unit source there. `/etc/systemd/system/dash.service` and its enablement symlink may be lost during an update. The bundled media tools remain with Dash under `/data`. This persistence distinction is documented in the [AGNOS 8 release notes](https://blog.comma.ai/094release/).
 
-After an AGNOS update, while parked, restore Dash’s systemd links and verify startup:
+After an AGNOS update, while parked, restore Dash’s systemd unit copy and enablement, then verify startup:
 
 ```sh
 sudo bash /data/dash/install.sh
@@ -149,7 +151,7 @@ sudo bash /data/dash/verify-service.sh
 
 The script restores the copied unit and enablement link and checks fresh supervised startup again. Dash does not patch sunnypilot's manager or install an extra boot hook to resurrect itself. A firmware-only update normally leaves `/data/dash` alone, but can change log schemas or streaming APIs. A factory reset/reflash or explicit data wipe can remove `/data`; keep exported recordings elsewhere.
 
-To remove Dash, its cached exports, static tools and systemd links:
+To remove Dash, its cached exports, static tools and both persistent/temporary systemd registrations:
 
 ```sh
 make device-uninstall DEVICE=comma@DEVICE_IP [DEVICE_KEY=/path/to/key]
@@ -157,7 +159,7 @@ make device-uninstall DEVICE=comma@DEVICE_IP [DEVICE_KEY=/path/to/key]
 sudo bash /data/dash/uninstall.sh
 ```
 
-The script stops only Dash, refuses a foreign service or symlinked install directory, removes `/data/dash`, and leaves recordings, firmware and system packages untouched.
+The script validates both registration locations before stopping Dash, cleans up orphan enablement even when no unit is loaded, refuses a foreign service or symlinked install directory, removes `/data/dash`, and leaves recordings, firmware and system packages untouched.
 
 ## Device acceptance check
 

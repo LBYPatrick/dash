@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { computed } from 'vue';
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { baseParse } from '@vue/compiler-dom';
 import { parse } from '@vue/compiler-sfc';
 import {
@@ -133,7 +134,7 @@ function walk(folder: string) {
       files.push(path);
   }
 }
-walk('src');
+walk(fileURLToPath(new URL('../', import.meta.url)));
 describe('interface translation coverage', () => {
   it('has every literal key requested by a component or formatter', () => {
     const known = new Set(

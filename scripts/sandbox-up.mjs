@@ -11,7 +11,7 @@ try {
     'cache/download',
   );
   const output = execFileSync('go', ['mod', 'download', '-json', 'all'], {
-    cwd: 'dash-backend',
+    cwd: 'backend',
     encoding: 'utf8',
     maxBuffer: 8 * 1024 * 1024,
   });

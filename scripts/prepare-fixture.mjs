@@ -24,7 +24,7 @@ for (const duration of manifest.segmentDurationsSeconds) {
     '-threads',
     '1',
     '-i',
-    'public/sample-road.mp4',
+    'frontend/public/sample-road.mp4',
     '-t',
     String(duration),
     '-r',
