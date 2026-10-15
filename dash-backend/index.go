@@ -166,12 +166,16 @@ func (i *Index) scan(parent context.Context) error {
 		return nil
 	}
 	i.scanning = true
-	i.status = IndexStatus{}
 	generation := i.generation
 	i.cancel = cancel
 	i.mu.Unlock()
+	var progress IndexStatus
+	finished := false
 	defer func() {
 		i.mu.Lock()
+		if finished {
+			i.status = progress
+		}
 		i.scanning = false
 		i.status.Running = false
 		i.status.Current = ""
@@ -188,9 +192,7 @@ func (i *Index) scan(parent context.Context) error {
 			names[folder.Name()] = true
 		}
 	}
-	i.mu.Lock()
-	i.status.Total = len(names)
-	i.mu.Unlock()
+	progress.Total = len(names)
 	pending := []string{}
 	for _, folder := range folders {
 		if names[folder.Name()] {
@@ -218,20 +220,20 @@ func (i *Index) scan(parent context.Context) error {
 			}
 		}
 		name := pending[next]
-		i.mu.Lock()
-		i.status.Current = name
-		i.mu.Unlock()
+		progress.Current = name
 		pending = append(pending[:next], pending[next+1:]...)
-		if err := i.scanSegment(ctx, name, generation); err != nil {
+		if err := i.scanSegment(ctx, name, generation, progress); err != nil {
 			if ctx.Err() != nil {
 				return ctx.Err()
 			}
-			i.mu.Lock()
-			i.status.Errors++
-			i.mu.Unlock()
+			progress.Errors++
 		}
+		progress.Completed++
 		i.mu.Lock()
-		i.status.Completed++
+		if i.status.Running {
+			i.status = progress
+			i.status.Running = true
+		}
 		i.mu.Unlock()
 	}
 
@@ -299,9 +301,10 @@ func (i *Index) scan(parent context.Context) error {
 			_ = os.Remove(file)
 		}
 	}
+	finished = true
 	return nil
 }
-func (i *Index) scanSegment(ctx context.Context, name string, generation uint64) error {
+func (i *Index) scanSegment(ctx context.Context, name string, generation uint64, progress IndexStatus) error {
 	folder, err := safePath(i.root, name)
 	if err != nil {
 		return err
@@ -332,7 +335,7 @@ func (i *Index) scanSegment(ctx context.Context, name string, generation uint64)
 	var oldHash, oldRaw string
 	_ = i.db.QueryRow("SELECT fingerprint,entry FROM segments WHERE name=?", name).Scan(&oldHash, &oldRaw)
 	var old IndexedSegment
-	if oldHash == fingerprint && json.Unmarshal([]byte(oldRaw), &old) == nil && old.Metadata.Status != "error" && old.MediaVersion == 1 && old.TelemetryVersion == 7 {
+	if oldHash == fingerprint && json.Unmarshal([]byte(oldRaw), &old) == nil && old.MediaVersion == 1 && old.TelemetryVersion == 7 {
 		if old.Thumbnail == "" {
 			return nil
 		}
@@ -346,6 +349,7 @@ func (i *Index) scanSegment(ctx context.Context, name string, generation uint64)
 	}
 	defer release()
 	i.mu.Lock()
+	i.status = progress
 	i.status.Running = true
 	i.mu.Unlock()
 	entry.MediaVersion = 1

@@ -33,6 +33,8 @@ All notable changes to Dash are documented here using Keep a Changelog.
 
 ### Fixed
 
+- Cache unchanged corrupt-log failures instead of retrying them every scan, keep idle index progress stable during inventory checks, and guard camera switches and HEVC preparation against starting indexing.
+
 - Probe a full bounded recording part for late-starting AAC, preserve it in MP4 and HEVC previews, and invalidate earlier false-negative audio caches.
 
 - Match interrupted streams to decoded packet positions so corrupt interior frames leave timestamp gaps and do not break MCAP conversion or shift surviving video frames.

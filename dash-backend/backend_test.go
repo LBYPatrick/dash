@@ -577,3 +577,73 @@ func TestLiveViewerLeaseOwnership(t *testing.T) {
 		t.Fatal("worker released twice")
 	}
 }
+
+func TestUnchangedCorruptLogKeepsIdleIndexStable(t *testing.T) {
+	index, _ := fixtureIndex(t)
+	path := filepath.Join(index.root, fixtureDrive+"--0", "qlog.bz2")
+	if err := os.WriteFile(path, []byte("broken log"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := index.scan(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	before, _ := index.snapshot()
+	if before.Segments[fixtureDrive+"--0"].Metadata.Status != "error" {
+		t.Fatal("fixture should record a parse failure")
+	}
+	var writesBefore int
+	if err := index.db.QueryRow("SELECT total_changes()").Scan(&writesBefore); err != nil {
+		t.Fatal(err)
+	}
+	// Block the cached lookup so the public state can be observed during an
+	// ordinary inventory refresh, rather than only after it has completed.
+	conn, err := index.db.Conn(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer conn.Close()
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	done := make(chan error, 1)
+	go func() { done <- index.scan(ctx) }()
+	for {
+		index.mu.Lock()
+		scanning, status := index.scanning, index.status
+		index.mu.Unlock()
+		if scanning {
+			if status.Running || status.Completed != before.Status.Completed || status.Total != before.Status.Total || status.Current != "" {
+				t.Errorf("cached refresh changed idle UI status: %+v", status)
+			}
+			break
+		}
+		select {
+		case err := <-done:
+			t.Fatal("refresh finished before blocked lookup", err)
+		case <-ctx.Done():
+			t.Fatal("refresh did not start")
+		default:
+			time.Sleep(time.Millisecond)
+		}
+	}
+	conn.Close()
+	if err := <-done; err != nil {
+		t.Fatal(err)
+	}
+	var writesAfter int
+	if err := index.db.QueryRow("SELECT total_changes()").Scan(&writesAfter); err != nil {
+		t.Fatal(err)
+	}
+	if writesAfter != writesBefore {
+		t.Fatal("unchanged corrupt log was processed again", writesBefore, writesAfter)
+	}
+	if err := os.WriteFile(path, []byte("changed broken log"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := index.scan(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	index.db.QueryRow("SELECT total_changes()").Scan(&writesAfter)
+	if writesAfter <= writesBefore {
+		t.Fatal("changed source was not reindexed")
+	}
+}

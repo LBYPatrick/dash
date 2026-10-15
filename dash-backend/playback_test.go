@@ -96,6 +96,20 @@ func TestHEVCPreviewChunksAndCachedOnroadPlayback(t *testing.T) {
 	if err := index.scan(context.Background()); err != nil {
 		t.Fatal(err)
 	}
+	before, _ := index.snapshot()
+	beforeJSON, _ := json.Marshal(before.Segments)
+	defer func() {
+		after, _ := index.snapshot()
+		afterJSON, _ := json.Marshal(after.Segments)
+		if !bytes.Equal(beforeJSON, afterJSON) {
+			t.Error("preview preparation modified the recording index")
+		}
+		index.mu.Lock()
+		defer index.mu.Unlock()
+		if index.priorityDrive != "" || index.scanning || index.status.Running {
+			t.Error("preview preparation started indexing")
+		}
+	}()
 	server := &Server{ctx: context.Background(), index: index}
 	request := func(path string) *httptest.ResponseRecorder {
 		response := httptest.NewRecorder()
@@ -134,7 +148,10 @@ func TestHEVCPreviewChunksAndCachedOnroadPlayback(t *testing.T) {
 
 func TestReadyPlaybackDoesNotStartOrPrioritizeIndex(t *testing.T) {
 	index, _ := fixtureIndex(t)
-	entry := IndexedSegment{MediaVersion: 1, Files: []FileInfo{{Name: "qcamera.ts", Size: 100, Duration: 1}}}
+	entry := IndexedSegment{MediaVersion: 1}
+	for camera := range cameras {
+		entry.Files = append(entry.Files, FileInfo{Name: camera, Size: 100, Duration: 1})
+	}
 	data, _ := json.Marshal(entry)
 	_, err := index.db.Exec("INSERT INTO segments(name,fingerprint,entry,summary) VALUES(?,?,?,?)", fixtureDrive+"--0", "ready", string(data), string(data))
 	if err != nil {
@@ -143,10 +160,19 @@ func TestReadyPlaybackDoesNotStartOrPrioritizeIndex(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	server := &Server{ctx: ctx, index: index}
-	response := httptest.NewRecorder()
-	server.ServeHTTP(response, httptest.NewRequest("POST", "/api/playback/prepare?drive="+fixtureDrive+"&camera=qcamera.ts", nil))
-	if response.Code != 200 || !strings.Contains(response.Body.String(), `"ready":true`) {
-		t.Fatal(response.Body.String())
+	for round := 0; round < 3; round++ {
+		for camera := range cameras {
+			response := httptest.NewRecorder()
+			server.ServeHTTP(response, httptest.NewRequest("POST", "/api/playback/prepare?drive="+fixtureDrive+"&camera="+camera, nil))
+			if response.Code != 200 || !strings.Contains(response.Body.String(), `"ready":true`) {
+				t.Fatal(response.Body.String())
+			}
+			response = httptest.NewRecorder()
+			server.ServeHTTP(response, httptest.NewRequest("GET", "/api/playlist?drive="+fixtureDrive+"&camera="+camera, nil))
+			if response.Code != 200 {
+				t.Fatal(response.Body.String())
+			}
+		}
 	}
 	index.mu.Lock()
 	defer index.mu.Unlock()
