@@ -637,6 +637,12 @@ onBeforeUnmount(() => {
     height: 120px;
   }
 }
+:global(:root[data-interaction='keyboard']) .live-feedback-enter-active,
+:global(:root[data-interaction='keyboard']) .live-feedback-leave-active,
+:global(:root[data-performance='true']) .live-feedback-enter-active,
+:global(:root[data-performance='true']) .live-feedback-leave-active {
+  transition: none;
+}
 @media (prefers-reduced-motion: reduce) {
   .live-feedback-enter-active,
   .live-feedback-leave-active {
