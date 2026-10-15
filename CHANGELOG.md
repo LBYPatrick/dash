@@ -33,6 +33,8 @@ All notable changes to Dash are documented here using Keep a Changelog.
 
 ### Fixed
 
+- Match interrupted streams to decoded packet positions so corrupt interior frames leave timestamp gaps and do not break MCAP conversion or shift surviving video frames.
+
 - Ignore Chromium's stale audio decode counters after HLS camera/session changes so silent footage keeps its audio control disabled.
 
 - Make every MCAP video message an independent H.264 keyframe with decoder headers so paused Foxglove seeks do not depend on preceding frames. Preserve recorded timing and original attachments.

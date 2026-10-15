@@ -339,3 +339,17 @@ func TestMCAPVideoStopsOnIgnitionOrUnknown(t *testing.T) {
 		})
 	}
 }
+
+func TestDecodedMCAPFramesPreserveGapsAndOmitTail(t *testing.T) {
+	probe := videoProbe{Positions: []int64{0, 188, 376, 564, 752, 940}, Offsets: []float64{0, .05, .10, .15, .20}}
+	// Decoder loses two interior packets. Recovery already excluded packet 5.
+	kept, err := decodedMCAPFrameIndexes(probe, []int64{0, 188, 752, 940})
+	if err != nil || len(kept) != 3 || kept[2] != 4 || probe.Offsets[kept[2]] != .20 {
+		t.Fatal(kept, err)
+	}
+	for _, invalid := range [][]int64{nil, {0, 189}, {188, 0}, {0, 0}, {940}} {
+		if _, err := decodedMCAPFrameIndexes(probe, invalid); err == nil {
+			t.Fatal("invalid decoder inventory accepted", invalid)
+		}
+	}
+}

@@ -124,6 +124,63 @@ func probeMCAPVideo(ctx context.Context, filename string) (videoProbe, error) {
 	}
 	return probe, nil
 }
+
+// A damaged packet can disappear from decoder output in the middle of a
+// stream. Match frame packet positions instead of sliding subsequent timestamps
+// over the gap. Complete logs retain strict original frame-count validation.
+func probeDecodedMCAPFrames(ctx context.Context, filename string, probe videoProbe) ([]int, error) {
+	limited, cancel := context.WithTimeout(ctx, 5*time.Minute)
+	defer cancel()
+	var output videoProbeBuffer
+	args := []string{"-v", "error", "-threads", strconv.Itoa(ProbeThreads), "-select_streams", "v:0", "-show_frames", "-show_entries", "frame=pkt_pos", "-of", "json", filename}
+	if err := runMediaCommand(limited, "ffprobe", &output, args...); err != nil {
+		return nil, err
+	}
+	var result struct {
+		Frames []struct {
+			Position string `json:"pkt_pos"`
+		} `json:"frames"`
+	}
+	if err := json.Unmarshal(output.Bytes(), &result); err != nil {
+		return nil, err
+	}
+	positions := make([]int64, 0, len(result.Frames))
+	for _, frame := range result.Frames {
+		position, err := strconv.ParseInt(frame.Position, 10, 64)
+		if err != nil {
+			return nil, errors.New("decoded frame has no source position")
+		}
+		positions = append(positions, position)
+	}
+	return decodedMCAPFrameIndexes(probe, positions)
+}
+
+func decodedMCAPFrameIndexes(probe videoProbe, positions []int64) ([]int, error) {
+	if probe.BFrames {
+		return nil, errors.New("cannot recover damaged B-frame stream timing")
+	}
+	available := make(map[int64]int, len(probe.Positions))
+	for n, position := range probe.Positions {
+		available[position] = n
+	}
+	kept := []int{}
+	last := -1
+	for _, position := range positions {
+		original, ok := available[position]
+		if !ok || original <= last {
+			return nil, errors.New("decoded frame positions do not match packet order")
+		}
+		last = original
+		if original < len(probe.Offsets) {
+			kept = append(kept, original)
+		}
+	}
+	if len(kept) == 0 {
+		return nil, errors.New("recording contains no decodable frames")
+	}
+	return kept, nil
+}
+
 func finiteVideo(value float64) bool { return !math.IsNaN(value) && !math.IsInf(value, 0) }
 
 type videoMessageWriter func(uint16, uint64, proto.Message) error
@@ -208,12 +265,31 @@ func (e *ExportManager) mcapVideos(ctx context.Context, writer *mcap.Writer, job
 				timings = append(timings, start+uint64(math.Round(offset*1e9)))
 			}
 		}
+		undecodable := 0
+		if partialIndexes {
+			decoded, decodeErr := probeDecodedMCAPFrames(ctx, asset.Path, probe)
+			if decodeErr != nil {
+				return fmt.Errorf("%d/%s decoded frames: %w", asset.Segment, camera, decodeErr)
+			}
+			undecodable = len(probe.Offsets) - len(decoded)
+			keptTimes := make([]uint64, 0, len(decoded))
+			keptOffsets := make([]float64, 0, len(decoded))
+			for _, original := range decoded {
+				keptTimes = append(keptTimes, timings[original])
+				keptOffsets = append(keptOffsets, probe.Offsets[original])
+			}
+			timings, probe.Offsets = keptTimes, keptOffsets
+			start = timings[0]
+			if undecodable > 0 {
+				basis += "; undecodable packets omitted, surviving capture times retained"
+			}
+		}
 		previousEnd[camera] = timings[len(timings)-1] + 1
 		previousStep[camera] = uint64(math.Round(probe.Step * 1e9))
 		if err := writer.WriteMetadata(&mcap.Metadata{Name: fmt.Sprintf("dash.video.%d.%s", asset.Segment, cameraTopics[camera]), Metadata: map[string]string{
 			"timeBasis": basis, "estimatedStartNanoseconds": strconv.FormatUint(estimatedStart, 10), "startNanoseconds": strconv.FormatUint(start, 10),
 			"droppedIncompletePackets": strconv.FormatBool(probe.DropLast), "partialLog": strconv.FormatBool(partialIndexes), "recoveredTiming": strconv.FormatBool(recoveredTiming), "recordedIndexes": strconv.Itoa(len(indexes)),
-			"overlapAdjusted": strconv.FormatBool(len(indexes) == 0 && start != estimatedStart), "rawHEVC20fps": strconv.FormatBool(len(indexes) == 0 && strings.HasSuffix(camera, ".hevc")), "bFramesConverted": strconv.FormatBool(probe.BFrames), "frames": strconv.Itoa(len(probe.Offsets)), "outputCodec": "h264", "keyframeIntervalFrames": strconv.Itoa(MCAPKeyframeIntervalFrames),
+			"overlapAdjusted": strconv.FormatBool(len(indexes) == 0 && start != estimatedStart), "rawHEVC20fps": strconv.FormatBool(len(indexes) == 0 && strings.HasSuffix(camera, ".hevc")), "bFramesConverted": strconv.FormatBool(probe.BFrames), "frames": strconv.Itoa(len(probe.Offsets)), "undecodablePackets": strconv.Itoa(undecodable), "outputCodec": "h264", "keyframeIntervalFrames": strconv.Itoa(MCAPKeyframeIntervalFrames),
 		}}); err != nil {
 			return err
 		}
