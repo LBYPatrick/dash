@@ -123,7 +123,7 @@ func (s *Server) downloadDiagnostics(w http.ResponseWriter, r *http.Request) {
 	s.index.mu.Lock()
 	status := s.index.status
 	s.index.mu.Unlock()
-	fmt.Fprintf(&result, "Index: running=%t completed=%d total=%d errors=%d\nManaged live API: %t\nFixed policy: cores=%d mediaThreads=%d heavyJobs=%d GoHeapMiB=%d\n", status.Running, status.Completed, status.Total, status.Errors, s.managedLive(), DeviceCPUCores, MediaThreads, HeavyJobLimit, GoHeapTargetMiB)
+	fmt.Fprintf(&result, "Index: running=%t completed=%d total=%d errors=%d\nManaged live API: %t\nFixed policy: cores=%d mediaThreads=%d heavyJobs=%d GoHeapMiB=%d indexWorkers=%d indexThreads=%d\n", status.Running, status.Completed, status.Total, status.Errors, s.managedLive(), DeviceCPUCores, MediaThreads, HeavyJobLimit, GoHeapTargetMiB, IndexWorkers, IndexMediaThreads)
 	if !deviceMode {
 		fmt.Fprintf(&result, "Process RSS KiB: %d\nSystem available RAM KiB: %d\n", procKB("/proc/self/status", "VmRSS:"), procKB("/proc/meminfo", "MemAvailable:"))
 		directory, err := currentCgroup()

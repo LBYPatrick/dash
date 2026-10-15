@@ -18,7 +18,6 @@ import (
 	"time"
 
 	"dash.local/backend/internal/telemetry"
-	_ "modernc.org/sqlite"
 )
 
 var segmentPattern = regexp.MustCompile(`^([a-zA-Z0-9_-]+--[a-zA-Z0-9_-]+)--([0-9]+)$`)
@@ -85,9 +84,13 @@ func newIndex(root, cache string, state StateReader) (*Index, error) {
 				err = nil
 			}
 		}
-		if err != nil || check != "ok" {
+		if err != nil {
 			db.Close()
-			return nil, errors.New("corrupt index")
+			return nil, err
+		}
+		if check != "ok" {
+			db.Close()
+			return nil, errIndexCorrupt
 		}
 		_, err = db.Exec(`CREATE TABLE IF NOT EXISTS segments (name TEXT PRIMARY KEY, fingerprint TEXT NOT NULL, entry TEXT NOT NULL, summary TEXT NOT NULL)`)
 		if err != nil {
@@ -98,12 +101,16 @@ func newIndex(root, cache string, state StateReader) (*Index, error) {
 			db.Close()
 			return nil, err
 		}
+		if err := configureIndexStorage(db); err != nil {
+			db.Close()
+			return nil, err
+		}
 		return db, nil
 	}
 	db, err := open()
-	if err != nil {
-		if removeErr := os.Remove(path); removeErr != nil && !os.IsNotExist(removeErr) {
-			return nil, removeErr
+	if err != nil && isCorruptIndex(err) {
+		if err = quarantineIndex(path); err != nil {
+			return nil, err
 		}
 		db, err = open()
 	}
@@ -203,38 +210,55 @@ func (i *Index) scan(parent context.Context) error {
 		if ctx.Err() != nil {
 			return ctx.Err()
 		}
-		i.mu.Lock()
-		priority := i.priorityDrive
-		i.mu.Unlock()
-		next := 0
-		if priority != "" {
-			best := int(^uint(0) >> 1)
-			for n, name := range pending {
-				if strings.HasPrefix(name, priority+"--") {
-					number, err := strconv.Atoi(strings.TrimPrefix(name, priority+"--"))
-					if err == nil && number < best {
-						next = n
-						best = number
+		batch := &indexComputeBatch{ctx: ctx}
+		type completedPart struct {
+			name string
+			err  error
+		}
+		results := make(chan completedPart, IndexWorkers)
+		count := min(IndexWorkers, len(pending))
+		for worker := 0; worker < count; worker++ {
+			i.mu.Lock()
+			priority := i.priorityDrive
+			i.mu.Unlock()
+			next := 0
+			if priority != "" {
+				best := int(^uint(0) >> 1)
+				for n, name := range pending {
+					if strings.HasPrefix(name, priority+"--") {
+						number, err := strconv.Atoi(strings.TrimPrefix(name, priority+"--"))
+						if err == nil && number < best {
+							next, best = n, number
+						}
 					}
 				}
 			}
+			name := pending[next]
+			pending = append(pending[:next], pending[next+1:]...)
+			initial := progress
+			initial.Current = name
+			go func() { results <- completedPart{name, i.scanSegment(ctx, name, generation, initial, batch.acquire)} }()
 		}
-		name := pending[next]
-		progress.Current = name
-		pending = append(pending[:next], pending[next+1:]...)
-		if err := i.scanSegment(ctx, name, generation, progress); err != nil {
-			if ctx.Err() != nil {
-				return ctx.Err()
+		// One heavy slot covers the bounded batch. Let previews/exports take
+		// their turn between batches instead of monopolizing the whole scan.
+		for worker := 0; worker < count; worker++ {
+			result := <-results
+			if result.err != nil && ctx.Err() == nil {
+				progress.Errors++
 			}
-			progress.Errors++
+			progress.Completed++
+			i.mu.Lock()
+			if i.status.Running {
+				current := i.status.Current
+				i.status = progress
+				i.status.Current, i.status.Running = current, true
+			}
+			i.mu.Unlock()
 		}
-		progress.Completed++
-		i.mu.Lock()
-		if i.status.Running {
-			i.status = progress
-			i.status.Running = true
+		batch.close()
+		if ctx.Err() != nil {
+			return ctx.Err()
 		}
-		i.mu.Unlock()
 	}
 
 	if ctx.Err() != nil {
@@ -304,7 +328,7 @@ func (i *Index) scan(parent context.Context) error {
 	finished = true
 	return nil
 }
-func (i *Index) scanSegment(ctx context.Context, name string, generation uint64, progress IndexStatus) error {
+func (i *Index) scanSegment(ctx context.Context, name string, generation uint64, progress IndexStatus, acquire func() error) error {
 	folder, err := safePath(i.root, name)
 	if err != nil {
 		return err
@@ -333,25 +357,43 @@ func (i *Index) scanSegment(ctx context.Context, name string, generation uint64,
 	hash := sha256.Sum256(inventory)
 	fingerprint := hex.EncodeToString(hash[:])
 	var oldHash, oldRaw string
-	_ = i.db.QueryRow("SELECT fingerprint,entry FROM segments WHERE name=?", name).Scan(&oldHash, &oldRaw)
+	_ = i.db.QueryRowContext(ctx, "SELECT fingerprint,summary FROM segments WHERE name=?", name).Scan(&oldHash, &oldRaw)
 	var old IndexedSegment
 	if oldHash == fingerprint && json.Unmarshal([]byte(oldRaw), &old) == nil && old.MediaVersion == 1 && old.TelemetryVersion == 7 {
 		if old.Thumbnail == "" {
 			return nil
 		}
-		if _, err := os.Stat(filepath.Join(i.cache, filepath.Base(old.Thumbnail))); err == nil {
+		if info, err := os.Stat(filepath.Join(i.cache, filepath.Base(old.Thumbnail))); err == nil && info.Mode().IsRegular() && info.Size() > 0 {
 			return nil
 		}
 	}
-	release, err := acquireCompute(ctx)
-	if err != nil {
+	if err := acquire(); err != nil {
 		return err
 	}
-	defer release()
+	if ctx.Err() != nil || i.state() != "parked" {
+		return context.Canceled
+	}
 	i.mu.Lock()
-	i.status = progress
-	i.status.Running = true
+	if !i.status.Running {
+		i.status = progress
+	}
+	i.status.Current, i.status.Running = name, true
 	i.mu.Unlock()
+	unchanged := oldHash == fingerprint && old.MediaVersion == 1 && old.TelemetryVersion == 7
+	if unchanged {
+		// Full telemetry is needed only when an existing thumbnail is missing.
+		// Ordinary inventory checks read the much smaller summary column.
+		if err := i.db.QueryRowContext(ctx, "SELECT entry FROM segments WHERE name=?", name).Scan(&oldRaw); err != nil {
+			return err
+		}
+		var full IndexedSegment
+		if json.Unmarshal([]byte(oldRaw), &full) == nil {
+			old = full
+			entry.Metadata = old.Metadata
+		} else {
+			unchanged = false // Repair a damaged cached value from the source.
+		}
+	}
 	entry.MediaVersion = 1
 	entry.TelemetryVersion = 7
 	var camera string
@@ -364,7 +406,7 @@ func (i *Index) scanSegment(ctx context.Context, name string, generation uint64,
 			camera = filepath.Join(folder, file.Name)
 		}
 	}
-	if qlog := telemetry.PreferredLog(logPaths, false); qlog != "" {
+	if qlog := telemetry.PreferredLog(logPaths, false); qlog != "" && !unchanged {
 		meta, err := telemetry.Decode(ctx, qlog)
 		if meta.Partial {
 			if full := telemetry.PreferredLog(logPaths, true); full != qlog {
@@ -415,7 +457,7 @@ func (i *Index) scanSegment(ctx context.Context, name string, generation uint64,
 		}
 	}
 	if camera != "" && oldHash == fingerprint && old.Thumbnail != "" {
-		if info, err := os.Stat(filepath.Join(i.cache, filepath.Base(old.Thumbnail))); err == nil && info.Mode().IsRegular() {
+		if info, err := os.Stat(filepath.Join(i.cache, filepath.Base(old.Thumbnail))); err == nil && info.Mode().IsRegular() && info.Size() > 0 {
 			entry.Thumbnail = old.Thumbnail
 		}
 	}
@@ -424,7 +466,7 @@ func (i *Index) scanSegment(ctx context.Context, name string, generation uint64,
 		thumbnail := fmt.Sprintf("%x.jpg", digest)
 		target := filepath.Join(i.cache, thumbnail)
 		job, cancel := context.WithTimeout(ctx, 30*time.Second)
-		err := runFFmpeg(job, "-i", camera, "-frames:v", "1", "-vf", "scale=320:-2", "-q:v", "5", target)
+		err := writeIndexThumbnail(job, camera, target)
 		cancel()
 		if err == nil {
 			entry.Thumbnail = "/api/thumbnail/" + thumbnail
@@ -434,6 +476,13 @@ func (i *Index) scanSegment(ctx context.Context, name string, generation uint64,
 				return ctx.Err()
 			}
 		}
+	}
+	current, err := recordingFingerprint(folder)
+	if err != nil {
+		return err
+	}
+	if current != fingerprint {
+		return errors.New("recording changed during indexing; retry on next inventory check")
 	}
 	data, err := json.Marshal(entry)
 	if err != nil {
@@ -448,8 +497,8 @@ func (i *Index) scanSegment(ctx context.Context, name string, generation uint64,
 	}
 	i.mu.Lock()
 	defer i.mu.Unlock()
-	if ctx.Err() != nil {
-		return ctx.Err()
+	if ctx.Err() != nil || i.state() != "parked" {
+		return context.Canceled
 	}
 	if generation != i.generation {
 		return context.Canceled

@@ -10,6 +10,8 @@ const (
 	AudioProbeBytes         = 16 << 20
 	AudioAnalyzeMicros      = 600 * 1000000 // Native parts are <= 60s; tolerate imported parts up to 10 min.
 	ProbeThreads            = 1
+	IndexWorkers            = 2
+	IndexMediaThreads       = MediaThreads / IndexWorkers
 	HeavyJobLimit           = 1
 	GoHeapTargetMiB         = 96
 	SupervisorHeapTargetMiB = 24

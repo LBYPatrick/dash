@@ -117,7 +117,7 @@ Heavy workers run only when firmware explicitly reports **`IsOnroad=0` and `IsOf
 
 One heavy operation runs at a time, only with confirmed parked state. Onroad or unknown state cancels processing. Fixed tunable constants in [`policy.go`](dash-backend/policy.go) assume eight cores, allow up to eight media threads and set bounded Go/media allocations. CPU is neither pinned nor throttled, and device mode does not probe system resources.
 
-Systemd requests 256 MiB memory high / 384 MiB maximum, zero swap and 128 tasks, and provides restart limits, journal logging and process-group cleanup. Available kernel enforcement varies by AGNOS; the app also uses soft memory targets and bounded buffers. See [resource policy and lifecycle](docs/installation.md#resource-policy). All installed assets and helpers live under `/data/dash`; `make device-uninstall DEVICE=comma@DEVICE_IP` removes them cleanly.
+Systemd requests 256 MiB memory high / 384 MiB maximum, zero swap and 128 tasks, and provides restart limits, journal logging and process-group cleanup. Available kernel enforcement varies by AGNOS; the app also uses soft memory targets and bounded buffers. See [resource policy and lifecycle](docs/installation.md#resource-policy). Indexing uses two bounded workers while parked, stops heavy work onroad/unknown, and resumes committed parts after interrupted power; see the [measured indexing improvements](docs/benchmarks/indexing.md). All installed assets and helpers live under `/data/dash`; `make device-uninstall DEVICE=comma@DEVICE_IP` removes them cleanly.
 
 ## Releases and updates
 

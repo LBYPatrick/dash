@@ -19,6 +19,37 @@ import (
 func videoDuration(ctx context.Context, filename string) (float64, error) {
 	limited, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
+	if strings.HasSuffix(filename, ".hevc") {
+		if duration, err := rawHEVCDuration(limited, filename); err == nil {
+			return duration, nil
+		}
+		if limited.Err() != nil {
+			return 0, limited.Err()
+		}
+	}
+	// Containers carry a duration in their timestamps. Counting every packet
+	// remains the fallback for unfamiliar raw HEVC, but wastes a full TS scan.
+	if !strings.HasSuffix(filename, ".hevc") {
+		var quick limitedBuffer
+		err := runMediaCommand(limited, "ffprobe", &quick, "-v", "error", "-threads", strconv.Itoa(ProbeThreads), "-select_streams", "v:0", "-show_entries", "stream=index:format=duration", "-of", "json", filename)
+		var result struct {
+			Streams []struct {
+				Index int `json:"index"`
+			} `json:"streams"`
+			Format struct {
+				Duration string `json:"duration"`
+			} `json:"format"`
+		}
+		if err == nil && json.Unmarshal(quick.value, &result) == nil && len(result.Streams) == 1 {
+			duration, _ := strconv.ParseFloat(result.Format.Duration, 64)
+			if finiteVideo(duration) && duration > 0 && duration <= 600 {
+				return duration, nil
+			}
+		}
+		if limited.Err() != nil {
+			return 0, limited.Err()
+		}
+	}
 	var output limitedBuffer
 	args := []string{"-max_alloc", strconv.Itoa(MediaAllocationLimitMiB << 20), "-v", "error", "-threads", strconv.Itoa(ProbeThreads), "-select_streams", "v:0", "-count_packets", "-show_entries", "stream=nb_read_packets,r_frame_rate:format=duration", "-of", "json", filename}
 	if err := runMediaCommand(limited, "ffprobe", &output, args...); err != nil {

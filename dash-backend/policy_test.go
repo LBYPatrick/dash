@@ -24,6 +24,9 @@ func TestComputeGateCannotOverrideFirmware(t *testing.T) {
 }
 
 func TestDevicePolicyAndStateCancellation(t *testing.T) {
+	if IndexWorkers < 1 || IndexMediaThreads < 1 || IndexWorkers*IndexMediaThreads > MediaThreads {
+		t.Fatal("index worker budget exceeds media budget")
+	}
 	if DeviceCPUCores <= 0 || MediaThreads <= 0 || MediaThreads > DeviceCPUCores || HeavyJobLimit != 1 || GoHeapTargetMiB >= ServiceMemoryHighMiB || ServiceMemoryHighMiB > ServiceMemoryMaxMiB {
 		t.Fatal("inconsistent fixed policy")
 	}

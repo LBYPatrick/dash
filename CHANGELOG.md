@@ -33,6 +33,8 @@ All notable changes to Dash are documented here using Keep a Changelog.
 
 ### Fixed
 
+- Resume indexing after abrupt shutdown with durable per-part WAL commits and atomic synced thumbnails; preserve recoverable journals and quarantine only confirmed corruption.
+
 - Cache unchanged corrupt-log failures instead of retrying them every scan, keep idle index progress stable during inventory checks, and guard camera switches and HEVC preparation against starting indexing.
 
 - Probe a full bounded recording part for late-starting AAC, preserve it in MP4 and HEVC previews, and invalidate earlier false-negative audio caches.
@@ -70,6 +72,8 @@ All notable changes to Dash are documented here using Keep a Changelog.
 - Restore mobile dashboard and detail-page scrolling by bounding content panes to the available viewport; retain the fixed session viewer.
 
 ### Changed
+
+- Speed parked indexing with two bounded workers, cached-summary reads, container duration probes and streaming native HEVC frame counts; preserve immediate onroad/unknown cancellation and foreground access between batches.
 
 - Centralize fixed comma 3X/4 budgets: eight cores/media threads, one heavy job, bounded Go/media allocations and requested systemd memory controls; remove device CPU quotas, affinity and system-resource probing. Keep host validation sequential with lower Go concurrency.
 
