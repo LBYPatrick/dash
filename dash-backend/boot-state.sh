@@ -56,9 +56,12 @@ case "$action" in
       while ! marker_valid; do
         current="$(fingerprint)" || current=unavailable
         if [[ "$current" != unavailable && "$current" != "$baseline" ]]; then
-          on="$(cat "$params/IsOnroad" 2>/dev/null)" || on=unavailable
+          on=absent
+          if [[ -e "$params/IsOnroad" || -L "$params/IsOnroad" ]]; then
+            on="$(cat "$params/IsOnroad" 2>/dev/null)" || on=unavailable
+          fi
           off="$(cat "$params/IsOffroad" 2>/dev/null)" || off=unavailable
-          if [[ ( "$on" == 0 && "$off" == 1 ) || ( "$on" == 1 && "$off" == 0 ) ]]; then
+          if [[ ( "$on" == absent && ( "$off" == 0 || "$off" == 1 ) ) || ( "$on" == 0 && "$off" == 1 ) || ( "$on" == 1 && "$off" == 0 ) ]]; then
             # Do not validate an IsOffroad file replaced while the pair was read.
             after="$(fingerprint)" || after=unavailable
             if [[ "$after" == "$current" ]]; then write_marker "$validated" validated; fi

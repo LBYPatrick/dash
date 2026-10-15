@@ -3,7 +3,7 @@ set -euo pipefail
 [[ $# == 0 ]] || { echo 'Usage: sudo bash /data/dash/uninstall.sh'; exit 2; }
 [[ "$(id -u)" == 0 ]] || { echo 'Run: sudo bash /data/dash/uninstall.sh'; exit 1; }
 [[ -d /data/dash && ! -L /data/dash ]] || { echo 'Unsafe or missing Dash directory'; exit 1; }
-[[ "$(cat /data/params/d/IsOnroad)" == 0 && "$(cat /data/params/d/IsOffroad)" == 1 ]] || { echo 'Uninstall requires confirmed parked state'; exit 1; }
+[[ "$(cat /data/params/d/IsOffroad)" == 1 && ( ( ! -e /data/params/d/IsOnroad && ! -L /data/params/d/IsOnroad ) || "$(cat /data/params/d/IsOnroad)" == 0 ) ]] || { echo 'Uninstall requires confirmed parked state'; exit 1; }
 source /data/dash/systemd-registration.sh
 fragment="$(systemctl show dash.service --property=FragmentPath --value 2>/dev/null || true)"
 [[ -z "$fragment" ]] || dash_unit_owned "$fragment" || { echo 'Refusing to touch another dash.service'; exit 1; }

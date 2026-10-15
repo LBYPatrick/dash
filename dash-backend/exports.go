@@ -286,6 +286,9 @@ func (e *ExportManager) cleanup() {
 		}
 	}
 	for id, job := range e.jobs {
+		if e.index.state() != "parked" {
+			return
+		}
 		if job.Status != "running" && job.Status != "queued" && time.Now().Unix()-job.Created > 3600 {
 			_ = os.Remove(job.output)
 			delete(e.jobs, id)

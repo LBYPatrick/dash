@@ -248,8 +248,12 @@ func TestActiveIndexMediaStopsOnRoadOrUnknown(t *testing.T) {
 		t.Skip("ffmpeg unavailable")
 	}
 	sample := cameraFixture(t, "h264", false)
-	for _, next := range []string{"onroad", "unknown"} {
-		t.Run(next, func(t *testing.T) {
+	for _, test := range []struct {
+		name, next  string
+		offroadOnly bool
+	}{{"onroad", "onroad", false}, {"unknown", "unknown", false}, {"offroad-only/onroad", "onroad", true}, {"offroad-only/unknown", "unknown", true}} {
+		t.Run(test.name, func(t *testing.T) {
+			next := test.next
 			index, _ := fixtureIndex(t)
 			for _, part := range []string{"0", "1"} {
 				folder := filepath.Join(index.root, fixtureDrive+"--"+part)
@@ -259,6 +263,26 @@ func TestActiveIndexMediaStopsOnRoadOrUnknown(t *testing.T) {
 			var state atomic.Value
 			state.Store("parked")
 			index.state = func() string { return state.Load().(string) }
+			transition := func(next string) { state.Store(next) }
+			if test.offroadOnly {
+				params := t.TempDir()
+				off := filepath.Join(params, "IsOffroad")
+				if err := os.WriteFile(off, []byte("1"), 0600); err != nil {
+					t.Fatal(err)
+				}
+				index.state = paramsState(params)
+				transition = func(next string) {
+					var err error
+					if next == "unknown" {
+						err = os.Remove(off)
+					} else {
+						err = os.WriteFile(off, []byte("0"), 0600)
+					}
+					if err != nil {
+						t.Fatal(err)
+					}
+				}
+			}
 			wrapper := t.TempDir()
 			marker := filepath.Join(wrapper, "started")
 			script := "#!/bin/bash\nset -e\nargs=(\"$@\")\nlast=$((${#args[@]}-1))\necho started > \"$DASH_TEST_INDEX_STARTED\"\nexec \"$DASH_TEST_INDEX_FFMPEG\" -stream_loop -1 -re \"${args[@]:0:$last}\" -ss 60 \"${args[$last]}\"\n"
@@ -274,13 +298,13 @@ func TestActiveIndexMediaStopsOnRoadOrUnknown(t *testing.T) {
 					break
 				}
 				if time.Now().After(deadline) {
-					state.Store(next)
+					transition(next)
 					t.Fatal("index encoder did not start")
 				}
 				time.Sleep(10 * time.Millisecond)
 			}
 			started := time.Now()
-			state.Store(next)
+			transition(next)
 			select {
 			case err := <-done:
 				if err == nil {

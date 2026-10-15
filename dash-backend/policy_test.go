@@ -51,3 +51,18 @@ func TestDevicePolicyAndStateCancellation(t *testing.T) {
 		cancel()
 	}
 }
+
+func TestFirmwareStateSelectsGoParallelism(t *testing.T) {
+	if IdleGoProcs < 1 || IdleGoProcs > DeviceCPUCores {
+		t.Fatal("idle processor budget is invalid")
+	}
+	for _, state := range []string{"parked", "onroad", "unknown", ""} {
+		want := IdleGoProcs
+		if state == "parked" {
+			want = DeviceCPUCores
+		}
+		if got := goParallelism(state); got != want {
+			t.Fatalf("state %q uses %d processors, want %d", state, got, want)
+		}
+	}
+}

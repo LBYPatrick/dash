@@ -6,6 +6,7 @@ import "time"
 // or CPU affinity is used. One heavy operation owns the media thread budget.
 const (
 	DeviceCPUCores          = 8
+	IdleGoProcs             = 1
 	MediaThreads            = DeviceCPUCores
 	AudioProbeBytes         = 16 << 20
 	AudioAnalyzeMicros      = 600 * 1000000 // Native parts are <= 60s; tolerate imported parts up to 10 min.
@@ -36,3 +37,12 @@ const (
 // Set once before workers start. Device mode uses fixed budgets and never
 // inspects /proc, cgroup controllers, system RAM or the CPU topology.
 var deviceMode bool
+
+// Only offroad state enables the full Go scheduling budget. Idle scheduling
+// keeps status/cached-data serving and the state watcher available onroad.
+func goParallelism(state string) int {
+	if state == "parked" {
+		return DeviceCPUCores
+	}
+	return IdleGoProcs
+}

@@ -118,7 +118,9 @@ func TestSimulationNeverAvailableInProduction(t *testing.T) {
 	if call("invalid") != 400 {
 		t.Fatal("invalid simulation state accepted")
 	}
-	if _, err := os.Stat(filepath.Join(params, "IsOnroad")); !os.IsNotExist(err) {
-		t.Fatal("unknown retains IsOnroad")
+	for _, key := range []string{"IsOffroad", "IsOnroad"} {
+		if _, err := os.Stat(filepath.Join(params, key)); !os.IsNotExist(err) {
+			t.Fatal("unknown retains", key)
+		}
 	}
 }

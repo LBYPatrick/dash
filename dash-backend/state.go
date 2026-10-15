@@ -18,18 +18,67 @@ import (
 
 type StateReader func() string
 
+// IsOffroad is the published firmware state. Older firmware also publishes
+// IsOnroad; an available onroad flag always vetoes heavy work. Read permission
+// errors and malformed flags must never be treated as an absent optional key.
 func paramsState(directory string) StateReader {
 	return func() string {
-		on, err1 := os.ReadFile(filepath.Join(directory, "IsOnroad"))
-		off, err2 := os.ReadFile(filepath.Join(directory, "IsOffroad"))
-		if err1 == nil && strings.TrimSpace(string(on)) == "1" {
-			return "onroad"
+		return firmwareState(func(name string) ([]byte, error) {
+			path := filepath.Join(directory, name)
+			data, err := os.ReadFile(path)
+			if os.IsNotExist(err) {
+				if _, statErr := os.Lstat(path); statErr == nil || !os.IsNotExist(statErr) {
+					return nil, errors.New("unreadable firmware state")
+				}
+			}
+			return data, err
+		})
+	}
+}
+
+func firmwareState(read func(string) ([]byte, error)) string {
+	readFlag := func(name string) (string, bool) {
+		data, err := read(name)
+		if os.IsNotExist(err) && name == "IsOnroad" {
+			return "absent", true
 		}
-		if err1 == nil && err2 == nil && strings.TrimSpace(string(on)) == "0" && strings.TrimSpace(string(off)) == "1" {
-			return "parked"
-		}
+		value := strings.TrimSpace(string(data))
+		return value, err == nil && (value == "0" || value == "1")
+	}
+	on, ok := readFlag("IsOnroad")
+	if !ok {
 		return "unknown"
 	}
+	if on == "1" {
+		return "onroad"
+	}
+	off, ok := readFlag("IsOffroad")
+	if !ok {
+		return "unknown"
+	}
+	if off == "0" {
+		return "onroad"
+	}
+	// Parameter updates are separate atomic file replacements. Confirm the
+	// same parked observation before allowing work across a state transition.
+	onAgain, ok := readFlag("IsOnroad")
+	if !ok {
+		return "unknown"
+	}
+	if onAgain == "1" {
+		return "onroad"
+	}
+	if onAgain != on {
+		return "unknown"
+	}
+	offAgain, ok := readFlag("IsOffroad")
+	if !ok {
+		return "unknown"
+	}
+	if offAgain == "0" {
+		return "onroad"
+	}
+	return "parked"
 }
 func parkedContext(parent context.Context, state StateReader) (context.Context, context.CancelFunc) {
 	ctx, cancel := context.WithCancel(parent)

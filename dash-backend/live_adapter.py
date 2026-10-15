@@ -22,6 +22,30 @@ def parent_death():
         os._exit(1)
 
 
+def firmware_offroad(params):
+    """Read the published state without mistaking missing legacy flags for onroad."""
+    try:
+        def read_onroad():
+            path = os.path.join(params, "IsOnroad")
+            try:
+                with open(path) as source:
+                    return source.read().strip()
+            except FileNotFoundError:
+                if os.path.lexists(path):
+                    raise
+                return "absent"
+
+        def read_offroad():
+            with open(os.path.join(params, "IsOffroad")) as source:
+                return source.read().strip()
+
+        on = read_onroad()
+        return (on in ("0", "absent") and read_offroad() == "1"
+                and read_onroad() == on and read_offroad() == "1")
+    except (OSError, UnicodeError):
+        return False
+
+
 async def run(config):
     parent_death()
     sys.path.insert(0, config["firmware"])
@@ -50,12 +74,8 @@ async def run(config):
     def parked():
         nonlocal last_panda
         try:
-            with open(os.path.join(config["params"], "IsOnroad")) as f:
-                if f.read().strip() != "0":
-                    return False
-            with open(os.path.join(config["params"], "IsOffroad")) as f:
-                if f.read().strip() != "1":
-                    return False
+            if not firmware_offroad(config["params"]):
+                return False
             sm.update(0)
             if sm.updated["pandaStates"]:
                 last_panda = time.monotonic()

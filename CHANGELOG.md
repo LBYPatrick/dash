@@ -6,6 +6,8 @@ All notable changes to Dash are documented here using Keep a Changelog.
 
 ### Added
 
+- Switch device Go scheduling between the full offroad budget and one processor onroad/unknown, keeping heavy work gated and reporting the active budget in diagnostics.
+
 - Fit Live camera and bottom controls to phone and desktop viewports, with recording elapsed time and secondary details in a Shelf popup.
 
 - Keep OTA in a dedicated popup under Settings; retain update health tracking after dismissal or tab reload, with explicit retry and stale-poll protection.
@@ -36,6 +38,10 @@ All notable changes to Dash are documented here using Keep a Changelog.
 - Remove the embedded browser map token from source and local Git history; use ignored `.env` configuration and credential-free OpenStreetMap defaults. Exclude env files from Docker build contexts.
 
 ### Fixed
+
+- Use sunnypilot’s published `IsOffroad` state across backend workers, live capture, boot and installation, supporting firmware without the legacy `IsOnroad` key. Keep present legacy flags as a veto and recheck parked observations across parameter changes.
+
+- Stop expired-export cleanup when offroad state ends between file and job cleanup.
 
 - Start reliably before `/data` is mounted by registering a small systemd unit copy instead of a dangling early-boot symlink; migrate existing registration and remove only Dash’s own files. Wait for fresh firmware flags at boot so stale parked state cannot launch early work.
 

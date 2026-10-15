@@ -25,6 +25,7 @@ format:
 	cd dash-backend && gofmt -w *.go internal/telemetry/*.go internal/mcaptypes/*/*.go
 test:
 	python3 -c 'import ast; ast.parse(open("dash-backend/live_adapter.py").read())'
+	python3 scripts/firmware-state.test.py
 	python3 scripts/setup-toolchains.test.py
 	python3 scripts/fetch-release.test.py
 	bash scripts/install-backend.test.sh

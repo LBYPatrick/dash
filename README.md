@@ -113,7 +113,7 @@ This route runs local checks, cross-compiles for the target, and uses the same s
 
 ## Processing and privacy
 
-Heavy workers run only when firmware explicitly reports **`IsOnroad=0` and `IsOffroad=1`**. Onroad, unknown, missing, or contradictory state blocks them; a 100 ms watchdog cancels active work when state changes. Cached information and existing original downloads remain available. This is software cancellation, not a hard real-time guarantee.
+Heavy workers run only when firmware publishes **`IsOffroad=1`**. Older firmware’s `IsOnroad` flag also vetoes work whenever present and nonzero. Missing/invalid offroad state, unreadable flags and contradictory state block heavy work; a 100 ms watchdog cancels active work when state changes. Cached information and existing original downloads remain available. This is software cancellation, not a hard real-time guarantee.
 
 One heavy operation runs at a time, only with confirmed parked state. Onroad or unknown state cancels processing. Fixed tunable constants in [`policy.go`](dash-backend/policy.go) assume eight cores, allow up to eight media threads and set bounded Go/media allocations. CPU is neither pinned nor throttled, and device mode does not probe system resources.
 

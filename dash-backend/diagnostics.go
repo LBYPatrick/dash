@@ -124,6 +124,7 @@ func (s *Server) downloadDiagnostics(w http.ResponseWriter, r *http.Request) {
 	status := s.index.status
 	s.index.mu.Unlock()
 	fmt.Fprintf(&result, "Index: running=%t completed=%d total=%d errors=%d\nManaged live API: %t\nFixed policy: cores=%d mediaThreads=%d heavyJobs=%d GoHeapMiB=%d indexWorkers=%d indexThreads=%d\n", status.Running, status.Completed, status.Total, status.Errors, s.managedLive(), DeviceCPUCores, MediaThreads, HeavyJobLimit, GoHeapTargetMiB, IndexWorkers, IndexMediaThreads)
+	fmt.Fprintf(&result, "Go scheduling: active=%d offroad=%d idle=%d\n", runtime.GOMAXPROCS(0), DeviceCPUCores, IdleGoProcs)
 	if !deviceMode {
 		fmt.Fprintf(&result, "Process RSS KiB: %d\nSystem available RAM KiB: %d\n", procKB("/proc/self/status", "VmRSS:"), procKB("/proc/meminfo", "MemAvailable:"))
 		directory, err := currentCgroup()

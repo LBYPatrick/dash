@@ -35,9 +35,11 @@ func (s *Server) simulationState(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if request.State == "unknown" {
-		if err := os.Remove(filepath.Join(s.params, "IsOnroad")); err != nil && !os.IsNotExist(err) {
-			fail(w, 500, err)
-			return
+		for _, key := range []string{"IsOffroad", "IsOnroad"} {
+			if err := os.Remove(filepath.Join(s.params, key)); err != nil && !os.IsNotExist(err) {
+				fail(w, 500, err)
+				return
+			}
 		}
 	} else {
 		on, off := "1", "0"

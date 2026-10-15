@@ -41,7 +41,7 @@ func main() {
 	flag.Parse()
 	deviceMode = *device
 	if *resourceSettings {
-		_ = json.NewEncoder(os.Stdout).Encode(map[string]int{"cpuCores": DeviceCPUCores, "mediaThreads": MediaThreads, "probeThreads": ProbeThreads, "heavyJobs": HeavyJobLimit, "heapMiB": GoHeapTargetMiB, "memoryHighMiB": ServiceMemoryHighMiB, "memoryMaxMiB": ServiceMemoryMaxMiB})
+		_ = json.NewEncoder(os.Stdout).Encode(map[string]int{"cpuCores": DeviceCPUCores, "mediaThreads": MediaThreads, "probeThreads": ProbeThreads, "idleGoProcs": IdleGoProcs, "heavyJobs": HeavyJobLimit, "heapMiB": GoHeapTargetMiB, "memoryHighMiB": ServiceMemoryHighMiB, "memoryMaxMiB": ServiceMemoryMaxMiB})
 		return
 	}
 	state := paramsState(*params)
@@ -142,7 +142,11 @@ func main() {
 			}
 		}
 	}
-	runtime.GOMAXPROCS(DeviceCPUCores)
+	if *device {
+		runtime.GOMAXPROCS(goParallelism(state()))
+	} else {
+		runtime.GOMAXPROCS(DeviceCPUCores)
+	}
 	debug.SetMemoryLimit(GoHeapTargetMiB << 20)
 	debug.SetGCPercent(60)
 	rootPath, err := filepath.Abs(*root)

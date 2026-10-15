@@ -92,9 +92,8 @@ reset_fixture
 run_guard prepare
 start_child
 assert_waiting
-printf 1 > "$fixture/params/IsOffroad"
-assert_waiting
 printf malformed > "$fixture/params/IsOnroad"
+printf 1 > "$fixture/params/IsOffroad"
 assert_waiting
 flags 1 1
 assert_waiting
@@ -113,6 +112,19 @@ start_child
 assert_waiting
 flags 1 0
 assert_started
+
+# Newer firmware publishes only IsOffroad. Its old value still cannot release
+# boot, but a fresh 1 or 0 starts the server without an IsOnroad dependency.
+for value in 1 0; do
+  reset_fixture
+  printf 1 > "$fixture/params/IsOffroad"
+  run_guard prepare
+  start_child
+  assert_waiting
+  printf '%s' "$value" > "$fixture/params/IsOffroad.next"
+  mv -f "$fixture/params/IsOffroad.next" "$fixture/params/IsOffroad"
+  assert_started
+done
 
 # Once validated, restart preparation and run remain idempotent this boot,
 # including when the normal Go state reader will subsequently see unknown.

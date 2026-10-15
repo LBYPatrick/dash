@@ -14,6 +14,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"strconv"
 	"strings"
 	"sync"
@@ -44,7 +45,10 @@ func newServer(ctx context.Context, index *Index, exports *ExportManager, app, p
 	server := &Server{ctx: ctx, index: index, exports: exports, app: app, params: params, firmware: firmware, upstream: strings.TrimRight(upstream, "/"), client: &http.Client{Timeout: 35 * time.Second}}
 	go func() {
 		lastState := index.state()
-		ticker := time.NewTicker(100 * time.Millisecond)
+		if deviceMode {
+			runtime.GOMAXPROCS(goParallelism(lastState))
+		}
+		ticker := time.NewTicker(DrivingWatchInterval)
 		defer ticker.Stop()
 		defer server.stopLive()
 		for {
@@ -53,6 +57,9 @@ func newServer(ctx context.Context, index *Index, exports *ExportManager, app, p
 				return
 			case <-ticker.C:
 				if state := index.state(); state != lastState {
+					if deviceMode {
+						runtime.GOMAXPROCS(goParallelism(state))
+					}
 					log.Printf("driving state: %s -> %s", lastState, state)
 					lastState = state
 				}
@@ -141,7 +148,7 @@ func (s *Server) getAPI(w http.ResponseWriter, r *http.Request) {
 		s.updateAPI(w, r)
 	case "/api/info":
 		_, ffmpeg := mediaTool("ffmpeg")
-		writeJSON(w, 200, map[string]any{"build": currentBuild(), "simulation": s.simulation, "kind": "dash-backend", "version": 1, "metadata": true, "ffmpeg": ffmpeg == nil, "recordings": "/files/", "driving": s.index.state(), "managedLive": s.managedLive(), "resources": map[string]any{"heavyJobs": HeavyJobLimit, "heapMiB": GoHeapTargetMiB, "mediaThreads": MediaThreads, "cpuCores": DeviceCPUCores, "deviceMode": deviceMode}})
+		writeJSON(w, 200, map[string]any{"build": currentBuild(), "simulation": s.simulation, "kind": "dash-backend", "version": 1, "metadata": true, "ffmpeg": ffmpeg == nil, "recordings": "/files/", "driving": s.index.state(), "managedLive": s.managedLive(), "resources": map[string]any{"heavyJobs": HeavyJobLimit, "heapMiB": GoHeapTargetMiB, "mediaThreads": MediaThreads, "cpuCores": DeviceCPUCores, "deviceMode": deviceMode, "goProcs": runtime.GOMAXPROCS(0), "idleGoProcs": IdleGoProcs}})
 	case "/api/index":
 		snapshot, err := s.index.snapshot()
 		if err != nil {

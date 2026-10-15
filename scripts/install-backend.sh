@@ -57,7 +57,7 @@ if [[ -n "$fragment" && "$(readlink -f -- "$fragment")" != /data/dash/systemd/da
   [[ ( "$fragment" == /etc/systemd/system/dash.service || "$fragment" == /run/systemd/system/dash.service ) && -f "$fragment" && ! -L "$fragment" && "$(head -n 1 "$fragment")" == '# Dash managed service. Source: /data/dash/systemd/dash.service' ]] || { echo 'dash.service belongs to another installation'; exit 1; }
 fi
 [[ -d /data/media/0/realdata && -d /data/params/d ]]
-[[ "$(cat /data/params/d/IsOnroad)" == 0 && "$(cat /data/params/d/IsOffroad)" == 1 ]] || { echo 'Install only with confirmed parked state'; exit 1; }
+[[ "$(cat /data/params/d/IsOffroad)" == 1 && ( ( ! -e /data/params/d/IsOnroad && ! -L /data/params/d/IsOnroad ) || "$(cat /data/params/d/IsOnroad)" == 0 ) ]] || { echo 'Install only with confirmed parked state'; exit 1; }
 [[ -r /data/media/0/realdata && -w /data ]]
 echo 'Preflight passed: confirmed parked, recording permissions, app folder and systemd. No CPU, memory, controller or topology probes.'
 PREFLIGHT
@@ -81,7 +81,7 @@ import json, sys
 with open(sys.argv[1], 'w') as output:
     json.dump({'repository': sys.argv[2], 'channel': sys.argv[3], 'automatic': sys.argv[4] != 'true'}, output)
 CONFIG
-ssh "${DASH_SSH_OPTIONS[@]}" "$DASH_TARGET" 'set -e; [[ "$(cat /data/params/d/IsOnroad)" == 0 && "$(cat /data/params/d/IsOffroad)" == 1 ]] || exit 1; sudo -n install -d -o root -g comma -m 1770 /data/dash; mkdir -p /data/dash/releases; rm -rf -- /data/dash/.install.new; mkdir -p /data/dash/.install.new'
+ssh "${DASH_SSH_OPTIONS[@]}" "$DASH_TARGET" 'set -e; [[ "$(cat /data/params/d/IsOffroad)" == 1 && ( ( ! -e /data/params/d/IsOnroad && ! -L /data/params/d/IsOnroad ) || "$(cat /data/params/d/IsOnroad)" == 0 ) ]] || exit 1; sudo -n install -d -o root -g comma -m 1770 /data/dash; mkdir -p /data/dash/releases; rm -rf -- /data/dash/.install.new; mkdir -p /data/dash/.install.new'
 scp "${DASH_SSH_OPTIONS[@]}" -r "$DASH_STAGING/payload/." "$DASH_TARGET:/data/dash/.install.new/"
 scp "${DASH_SSH_OPTIONS[@]}" dash-backend/install-service.sh "$DASH_TARGET:/data/dash/.install-service.new"
 scp "${DASH_SSH_OPTIONS[@]}" dash-backend/systemd-registration.sh "$DASH_TARGET:/data/dash/.registration.new"
@@ -93,7 +93,7 @@ scp "${DASH_SSH_OPTIONS[@]}" "$DASH_STAGING/startup-mode" "$DASH_TARGET:/data/da
 scp "${DASH_SSH_OPTIONS[@]}" "$DASH_STAGING/update.json" "$DASH_TARGET:/data/dash/.update.new"
 ssh "${DASH_SSH_OPTIONS[@]}" "$DASH_TARGET" bash -s <<'ACTIVATE'
 set -euo pipefail
-[[ "$(cat /data/params/d/IsOnroad)" == 0 && "$(cat /data/params/d/IsOffroad)" == 1 ]] || { echo 'Device no longer parked; staged files left inactive'; exit 1; }
+[[ "$(cat /data/params/d/IsOffroad)" == 1 && ( ( ! -e /data/params/d/IsOnroad && ! -L /data/params/d/IsOnroad ) || "$(cat /data/params/d/IsOnroad)" == 0 ) ]] || { echo 'Device no longer parked; staged files left inactive'; exit 1; }
 # Replace durable boot files only after their complete contents are on storage.
 # GNU sync with a path fsyncs that file/directory, not the entire filesystem.
 dash_install_atomic() {
