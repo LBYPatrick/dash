@@ -58,6 +58,8 @@ All notable changes to Dash are documented here using Keep a Changelog.
 
 ### Fixed
 
+- Include the root Dockerfile in the sandbox's Go test inputs so runtime-policy checks run inside the image.
+
 - Keep short portrait playback controls within the viewport; fit localized timestamp entry and compact sandbox/landscape chrome while retaining touch targets and map space.
 - Improve dark accent text contrast and inset keyboard focus, isolate nested sheets from background controls, restore mobile navigation focus, and describe recorded engagement confidence in text.
 - Restore a selected mobile session after reload once the first index snapshot arrives, keeping unindexed footage unavailable.

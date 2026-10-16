@@ -33,7 +33,7 @@ RUN go mod download
 COPY backend ./
 COPY frontend/public /work/frontend/public
 COPY scripts /work/scripts
-COPY Makefile package.json /work/
+COPY Makefile package.json Dockerfile /work/
 COPY .github /work/.github
 RUN go vet ./... && go test -race ./... && CGO_ENABLED=0 go build -trimpath -o /dash-backend .
 RUN go run ./cmd/dash-tool fixture
