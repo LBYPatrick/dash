@@ -141,6 +141,10 @@ sandbox-logs: ## Follow the latest backend logs
 sandbox-down: ## Stop the sandbox
 	docker compose down
 
+.PHONY: archive-smoke
+archive-smoke: ## Check synthetic batch exports and parked-state recovery
+	DASH_INTEGRATION=archive GOMAXPROCS=$(HOST_CHECK_PROCS) go -C backend test -p 1 -parallel 1 -count=1 -timeout=10m ./internal/hosttools -run '^TestArchiveIntegration$$'
+
 ##@ Device installation
 .PHONY: device-check device-install device-install-source device-uninstall
 device-check: ## Inspect a device over SSH without installing

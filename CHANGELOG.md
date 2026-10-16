@@ -64,6 +64,8 @@ All notable changes to Dash are documented here using Keep a Changelog.
 
 ### Fixed
 
+- Allow verified GitHub release-asset redirects when fetching pinned filesystem helper sources, and check archive pause/restart behavior through the synthetic HTTP API.
+
 - Preserve the firmware recording cleanup reserve during cached exports, previews, native installation and OTA; bound short preview output separately from whole parts.
 - Package recorded AAC correctly in streamed MP4 downloads and document both computer and direct SSH-session one-line installation.
 

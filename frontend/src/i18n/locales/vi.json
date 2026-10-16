@@ -489,7 +489,7 @@
   "transfers": {
     "accessKey": "Khóa truy cập",
     "addDestination": "Thêm đích lưu",
-    "authorizationInstructions": "Mở trang dịch vụ và nhập mã này. Giữ Dash mở đến khi cấp quyền hoàn tất.",
+    "authorizationInstructions": "Mở trang nhà cung cấp và nhập mã này. Quay lại Dash sau khi cấp quyền.",
     "authorizationRequired": "Cần cấp quyền dịch vụ",
     "backgroundDescription": "Bạn có thể đóng cửa sổ này. Thiết bị lưu tiến độ và dừng truyền khi lái xe hoặc không xác định được trạng thái.",
     "bucket": "Tên bucket",
