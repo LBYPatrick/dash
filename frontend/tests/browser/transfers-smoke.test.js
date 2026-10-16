@@ -153,6 +153,7 @@ test('batch export: mobile and desktop USB, progress, recovery and cloud authori
       await page
         .getByRole('button', { name: 'Save destination', exact: true })
         .click();
+      await page.locator('#transfer-name').waitFor({ state: 'hidden' });
       await page.getByText('Travel archive', { exact: true }).last().waitFor();
       await settleSheet(page);
       let audit = await new AxeBuilder({ page })
@@ -183,6 +184,12 @@ test('batch export: mobile and desktop USB, progress, recovery and cloud authori
       await page.getByRole('button', { name: 'Resume', exact: true }).click();
       await page.getByText('Transfer speed', { exact: true }).waitFor();
       await page.getByText('About 2 min', { exact: true }).waitFor();
+      if (process.env.DASH_CAPTURE_UI === '1') {
+        await settleSheet(page);
+        await page.screenshot({
+          path: `.artifacts/transfers-${viewport.width}-${colorScheme}.png`,
+        });
+      }
       assert.equal(batches, 1);
       await page
         .getByRole('button', { name: 'Cancel transfer', exact: true })

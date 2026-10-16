@@ -66,6 +66,8 @@ All notable changes to Dash are documented here using Keep a Changelog.
 
 ### Fixed
 
+- Keep filled accent controls above text contrast requirements after browser color rounding, and verify USB image tests with production mount options and custom save folders.
+
 - Fail closed on damaged archive identity/inventory paths and keep unreachable upload cleanup from starving other destinations; validate short-phone export sheets in all five languages.
 
 - Allow verified GitHub release-asset redirects when fetching pinned filesystem helper sources, and check archive pause/restart behavior through the synthetic HTTP API.

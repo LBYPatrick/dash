@@ -12,8 +12,9 @@ export function oklch({ l, c, h }: Oklch): string {
   return `oklch(${lightness}% ${chroma} ${hue.toFixed(1)})`;
 }
 
-/** Body text needs 4.5:1; a UI component only needs to be locatable, so 3:1. */
-const TEXT_CONTRAST = 4.5;
+// Keep headroom above AA for browser gamut mapping and 8-bit color rounding.
+// A palette accepted at exactly 4.5 can render below 4.5 in computed sRGB.
+const TEXT_CONTRAST = 4.8;
 const UI_CONTRAST = 3;
 
 /**
