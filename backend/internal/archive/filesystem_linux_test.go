@@ -67,8 +67,10 @@ func TestFilesystemImages(t *testing.T) {
 			loop := ""
 			mount := func() {
 				t.Helper()
+				// exFAT requests fuseblk, which requires a block device just as
+				// production does. A regular image file is not a valid substitute.
+				loop = string(bytes.TrimSpace(command("losetup", "--find", "--show", image)))
 				if kind == "ext4" {
-					loop = string(bytes.TrimSpace(command("losetup", "--find", "--show", image)))
 					if err := unix.Mount(loop, point, "ext4", unix.MS_NODEV|unix.MS_NOSUID|unix.MS_NOEXEC, ""); err != nil {
 						t.Fatal(err)
 					}
@@ -81,7 +83,7 @@ func TestFilesystemImages(t *testing.T) {
 					options += ",no_detach,norecover,windows_names"
 				}
 				stderr.Reset()
-				child = exec.Command(filepath.Join(tools, name), "-o", options, image, point)
+				child = exec.Command(filepath.Join(tools, name), "-o", options, loop, point)
 				child.Stderr = &stderr
 				if err := child.Start(); err != nil {
 					t.Fatal(err)

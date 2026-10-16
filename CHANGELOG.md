@@ -67,6 +67,7 @@ All notable changes to Dash are documented here using Keep a Changelog.
 ### Fixed
 
 - Keep filled accent controls above text contrast requirements after browser color rounding, and verify USB image tests with production mount options and custom save folders.
+- Keep nested export sheets visually above Settings on desktop, with focus and screen-reader isolation following the same modal order.
 
 - Fail closed on damaged archive identity/inventory paths and keep unreachable upload cleanup from starving other destinations; validate short-phone export sheets in all five languages.
 
