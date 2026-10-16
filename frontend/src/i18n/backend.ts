@@ -15,7 +15,8 @@ export function backendMessage(message: string): string {
     )
   )
     return t('backend.parked');
-  if (/2 GiB free/.test(message)) return t('backend.disk');
+  if (/2 GiB free|insufficient space above the recording reserve/.test(message))
+    return t('backend.disk');
   if (
     /already active|already has a live|operation is running|processing job/.test(
       message,

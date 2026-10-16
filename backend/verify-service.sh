@@ -27,5 +27,14 @@ kill -0 "$child"
 [[ "$(readlink /data/dash/current)" == "releases/$tag" && ! -e /data/dash/activation.json ]] || exit 1
 /data/dash/current/dash-backend --health-check
 /data/dash/current/dash-backend --resource-settings
+if [[ -f /data/dash/systemd/dash-usb.service ]]; then
+  systemctl is-active --quiet dash-usb.service
+  systemctl is-enabled --quiet dash-usb.service
+  helper="$(systemctl show dash-usb.service --property=FragmentPath --value)"
+  [[ -f "$helper" && ! -L "$helper" ]]
+  cmp -s "$helper" /data/dash/systemd/dash-usb.service
+  [[ "$(readlink -f -- "$(dirname "$helper")/multi-user.target.wants/dash-usb.service")" == "$helper" ]]
+  [[ -S /run/dash-usb/control.sock ]]
+fi
 echo 'Verified Dash readiness, boot-readable unit and enablement, supervised process identity, restart policy and process-group cleanup.'
 echo 'CPU uses the fixed app thread budget without quotas or affinity. Memory limits are requested through systemd; unsupported kernel controls are not probed.'

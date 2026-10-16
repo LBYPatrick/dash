@@ -1,0 +1,44 @@
+# Dash managed USB service. Source: /data/dash/systemd/dash-usb.service
+[Unit]
+Description=Dash constrained external USB mount helper
+After=local-fs.target
+Before=dash.service
+PartOf=dash.service
+RequiresMountsFor=/data
+StartLimitIntervalSec=300
+StartLimitBurst=3
+
+[Service]
+Type=simple
+User=root
+Group=comma
+WorkingDirectory=/data/dash
+RuntimeDirectory=dash-usb
+RuntimeDirectoryMode=0750
+RuntimeDirectoryPreserve=yes
+ExecStart=/data/dash/dash-bootstrap --usb-helper
+Restart=on-failure
+RestartSec=10
+TimeoutStopSec=10
+KillMode=control-group
+KillSignal=SIGTERM
+SendSIGKILL=yes
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=dash-usb
+UMask=0077
+NoNewPrivileges=yes
+RestrictAddressFamilies=AF_UNIX
+LimitNOFILE=128
+TasksMax=24
+MemoryHigh=64M
+MemoryMax=128M
+MemorySwapMax=0
+# Filesystem sandbox directives also create a private mount namespace. Keep
+# this service in the host namespace; its code validates fixed paths and USB
+# ancestry before its narrowly defined operations. No browser command or mount
+# option is executed. The unprivileged web service retains ProtectSystem=strict.
+PrivateMounts=no
+
+[Install]
+WantedBy=multi-user.target

@@ -12,8 +12,12 @@ import (
 	"path/filepath"
 	"runtime"
 	"runtime/debug"
+	"strings"
 	"syscall"
 	"time"
+
+	"dash.local/backend/internal/archive"
+	"dash.local/backend/internal/usb"
 )
 
 func main() {
@@ -43,7 +47,50 @@ func main() {
 	installTag := flag.String("install-tag", "", "Exact immutable installation tag")
 	installRepository := flag.String("install-repo", "LBYPatrick/dash", "Public installation repository")
 	installRuntime := flag.Bool("install-runtime", false, "Register only until reboot")
+	transferHome := flag.String("transfer-home", "", "Durable transfer state; defaults to transfers next to cache")
+	configureTransfer := flag.String("configure-transfer", "", "Import a private destination JSON file, or - for stdin")
+	transferKey := flag.Bool("transfer-setup-key", false, "Print the private setup key for trusted HTTPS destination configuration")
+	authorizeTransfer := flag.String("authorize-transfer", "", "Authorize a configured Google Drive/OneDrive destination over SSH")
+	localUSB := flag.String("simulation-usb-root", "", "Synthetic USB archive directory; simulation only")
+	usbHelper := flag.Bool("usb-helper", false, "Internal root-owned USB mount service")
+	verifyUSB := flag.Bool("verify-usb-bundle", false, "Verify bundled static USB filesystem tools without mounting")
 	flag.Parse()
+	if *verifyUSB {
+		executable, err := os.Executable()
+		if err == nil {
+			err = verifyStaticTools(filepath.Join(filepath.Dir(executable), "bin/usb"), runtime.GOARCH, []string{"mount.exfat-fuse", "ntfs-3g"})
+		}
+		if err != nil {
+			log.Fatal(err)
+		}
+		return
+	}
+	if *transferHome == "" {
+		*transferHome = filepath.Join(filepath.Dir(*cache), "transfers")
+	}
+	if *configureTransfer != "" || *transferKey || *authorizeTransfer != "" {
+		if err := transferCLI(*transferHome, *configureTransfer, *transferKey, *authorizeTransfer, paramsState(*params)); err != nil {
+			log.Fatal(err)
+		}
+		return
+	}
+	if *usbHelper {
+		runtime.GOMAXPROCS(1)
+		debug.SetMemoryLimit(USBHeapTargetMiB << 20)
+		ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+		defer cancel()
+		state := func() string {
+			data, err := os.ReadFile("/run/dash/boot-validated")
+			if err != nil || strings.TrimSpace(string(data)) != "validated" {
+				return "unknown"
+			}
+			return paramsState("/data/params/d")()
+		}
+		if err := usb.Serve(ctx, state); err != nil {
+			log.Fatal(err)
+		}
+		return
+	}
 	if *installRelease {
 		if err := installDeviceRelease(*installRepository, *installChannel, *installTag, *installRuntime); err != nil {
 			log.Fatal(err)
@@ -52,7 +99,7 @@ func main() {
 	}
 	deviceMode = *device
 	if *resourceSettings {
-		_ = json.NewEncoder(os.Stdout).Encode(map[string]int{"cpuCores": DeviceCPUCores, "mediaThreads": MediaThreads, "probeThreads": ProbeThreads, "idleGoProcs": IdleGoProcs, "heavyJobs": HeavyJobLimit, "heapMiB": GoHeapTargetMiB, "memoryHighMiB": ServiceMemoryHighMiB, "memoryMaxMiB": ServiceMemoryMaxMiB})
+		_ = json.NewEncoder(os.Stdout).Encode(map[string]int{"cpuCores": DeviceCPUCores, "mediaThreads": MediaThreads, "probeThreads": ProbeThreads, "idleGoProcs": IdleGoProcs, "heavyJobs": HeavyJobLimit, "heapMiB": GoHeapTargetMiB, "memoryHighMiB": ServiceMemoryHighMiB, "memoryMaxMiB": ServiceMemoryMaxMiB, "usbMemoryHighMiB": USBMemoryHighMiB, "usbMemoryMaxMiB": USBMemoryMaxMiB})
 		return
 	}
 	state := paramsState(*params)
@@ -130,6 +177,9 @@ func main() {
 	if *simulation && *requiredLimits {
 		log.Fatal("simulation is incompatible with the device systemd mode")
 	}
+	if *localUSB != "" && !*simulation {
+		log.Fatal("synthetic USB storage requires simulation mode")
+	}
 	if *containerLimits {
 		directory, err := currentCgroup()
 		if err != nil {
@@ -191,6 +241,21 @@ func main() {
 	server := newServer(ctx, index, exports, appPath, *params, *firmware, *upstream)
 	server.diagnostics = diagnostics
 	server.simulation = *simulation
+	server.transferHome, server.transferLocalRoot, server.transferEpoch = *transferHome, *localUSB, newTransferID()
+	server.usbClient = usb.NewClient()
+	if *localUSB != "" {
+		if err := os.MkdirAll(*localUSB, 0700); err != nil {
+			log.Fatal(err)
+		}
+	}
+	transfers, err := archive.New(ctx, archive.Options{Root: rootPath, Home: *transferHome, State: state, Acquire: acquireCompute, Factory: server.newTransferStore})
+	if err != nil {
+		log.Print("Transfer state unavailable; retained for repair. Playback and existing features remain available.")
+	} else {
+		defer transfers.Close()
+		server.transfers = transfers
+		server.transferAuth = archive.NewAuthorizer(ctx, transfers.Configs(), state)
+	}
 	updates, err := newUpdater(ctx, *updateHome, index.state, cancel)
 	if err != nil {
 		log.Printf("updates unavailable: %v", err)

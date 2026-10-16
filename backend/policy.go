@@ -16,6 +16,9 @@ const (
 	HeavyJobLimit           = 1
 	GoHeapTargetMiB         = 96
 	SupervisorHeapTargetMiB = 24
+	USBHeapTargetMiB        = 24
+	USBMemoryHighMiB        = 64
+	USBMemoryMaxMiB         = 128
 	MediaAllocationLimitMiB = 32
 	MediaRSSLimitMiB        = 192 // Optional host/container instrumentation only.
 	ServiceMemoryHighMiB    = 256
@@ -30,8 +33,17 @@ const (
 	PreviewChunkSeconds        = 4
 	PreviewMaxWidth            = 960
 	PreviewMaxHeight           = 540
+	PreviewChunkMaxBytes       = 32 << 20
+	PreviewPartMaxBytes        = 256 << 20
 	DrivingWatchInterval       = 100 * time.Millisecond
 	IndexInterval              = 15 * time.Second
+	ExportClaimTimeout         = 30 * time.Second
+	ExportWriteTimeout         = 20 * time.Second
+	// Match the firmware logger's cleanup floor, with headroom for writes
+	// between checks. Dash must not displace original recordings with caches.
+	RecordingReserveBytes   = 5 << 30
+	RecordingReservePercent = 10
+	RecordingReserveMargin  = 256 << 20
 )
 
 // Set once before workers start. Device mode uses fixed budgets and never

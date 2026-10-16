@@ -275,15 +275,19 @@ func testHelper(args []string) error {
 			return fmt.Errorf("injected enable failure")
 		}
 		if action == "disable" {
+			unit := args[len(args)-1]
+			if unit != "dash.service" && unit != "dash-usb.service" {
+				return fmt.Errorf("unexpected service")
+			}
 			layer := "etc"
 			if runtime {
 				layer = "run"
 			}
 			directory := filepath.Join(os.Getenv("DASH_TEST_ROOT"), layer, "systemd/system")
-			if _, err := os.Stat(filepath.Join(directory, "dash.service")); err != nil {
+			if _, err := os.Stat(filepath.Join(directory, unit)); err != nil {
 				return fmt.Errorf("unit missing before disable")
 			}
-			return removeIfExists(filepath.Join(directory, "multi-user.target.wants/dash.service"))
+			return removeIfExists(filepath.Join(directory, "multi-user.target.wants", unit))
 		}
 		return nil
 	default:

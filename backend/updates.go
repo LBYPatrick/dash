@@ -14,8 +14,6 @@ import (
 	"strings"
 	"sync"
 	"time"
-
-	"golang.org/x/sys/unix"
 )
 
 type UpdateConfig struct {
@@ -266,12 +264,8 @@ func (u *UpdateManager) download(ctx context.Context, config UpdateConfig, manif
 			return err
 		}
 	}
-	var disk unix.Statfs_t
-	if err := unix.Statfs(u.home, &disk); err != nil {
+	if err := requireRecordingSpace(u.home, 0); err != nil {
 		return err
-	}
-	if uint64(disk.Bavail)*uint64(disk.Bsize) < 2<<30 {
-		return errors.New("updates require 2 GiB free space; recordings will not be removed")
 	}
 	stage, err := os.MkdirTemp(releases, ".staging-")
 	if err != nil {

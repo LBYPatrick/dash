@@ -20,6 +20,8 @@ services:
     volumes:
       - sandbox-cache:/data/dash/cache
       - sandbox-params:/data/params/d
+      - sandbox-transfers:/data/dash/transfers
+      - sandbox-usb:/data/dash/usb-sim
     tmpfs:
       - /tmp:size=32m,mode=1777
     healthcheck:
@@ -36,3 +38,5 @@ services:
 volumes:
   sandbox-cache:
   sandbox-params:
+  sandbox-transfers:
+  sandbox-usb:

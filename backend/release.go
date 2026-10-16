@@ -181,7 +181,7 @@ func downloadRelease(ctx context.Context, client *http.Client, repository string
 	defer file.Close()
 	hash := sha256.New()
 	reader := &progressReader{ctx: ctx, reader: io.LimitReader(response.Body, asset.Bytes+1), total: asset.Bytes, progress: progress}
-	size, err := io.CopyBuffer(io.MultiWriter(file, hash), reader, make([]byte, 256<<10))
+	size, err := io.CopyBuffer(io.MultiWriter(&recordingSpaceWriter{path: filepath.Dir(archive), writer: file}, hash), reader, make([]byte, 256<<10))
 	if err != nil {
 		return err
 	}
@@ -281,7 +281,7 @@ func unpackRelease(ctx context.Context, archive, destination string, expected Bu
 			if err != nil {
 				return err
 			}
-			_, copyErr := io.CopyBuffer(output, checkedReader{ctx, reader}, make([]byte, 128<<10))
+			_, copyErr := io.CopyBuffer(&recordingSpaceWriter{path: destination, writer: output}, checkedReader{ctx, reader}, make([]byte, 128<<10))
 			if copyErr == nil {
 				copyErr = output.Sync()
 			}
@@ -329,7 +329,16 @@ func unpackRelease(ctx context.Context, archive, destination string, expected Bu
 	return nil
 }
 func verifyMediaBundle(folder, arch string) error {
-	data, err := readSmallFile(filepath.Join(folder, "bin/manifest.json"), 16<<10)
+	if err := verifyStaticTools(filepath.Join(folder, "bin"), arch, []string{"ffmpeg", "ffprobe"}); err != nil {
+		return err
+	}
+	if _, err := os.Stat(filepath.Join(folder, "bin/usb/manifest.json")); err == nil {
+		return verifyStaticTools(filepath.Join(folder, "bin/usb"), arch, []string{"mount.exfat-fuse", "ntfs-3g"})
+	}
+	return nil
+}
+func verifyStaticTools(directory, arch string, names []string) error {
+	data, err := readSmallFile(filepath.Join(directory, "manifest.json"), 16<<10)
 	if err != nil {
 		return fmt.Errorf("media manifest: %w", err)
 	}
@@ -348,8 +357,8 @@ func verifyMediaBundle(folder, arch string) error {
 	if arch == "amd64" {
 		machine = elf.EM_X86_64
 	}
-	for _, name := range []string{"ffmpeg", "ffprobe"} {
-		path := filepath.Join(folder, "bin", name)
+	for _, name := range names {
+		path := filepath.Join(directory, name)
 		binary, err := elf.Open(path)
 		if err != nil {
 			return fmt.Errorf("media %s: %w", name, err)

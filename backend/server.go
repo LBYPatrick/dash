@@ -20,25 +20,30 @@ import (
 	"sync"
 	"time"
 
-	"golang.org/x/sys/unix"
+	"dash.local/backend/internal/archive"
+	"dash.local/backend/internal/usb"
 )
 
 type Server struct {
-	updates                         *UpdateManager
-	simulationMu                    sync.Mutex
-	diagnostics                     *Diagnostics
-	simulation                      bool
-	liveRelease                     func()
-	ctx                             context.Context
-	index                           *Index
-	exports                         *ExportManager
-	app, params, firmware, upstream string
-	client                          *http.Client
-	liveMu                          sync.Mutex
-	liveOwned                       bool
-	liveTouched                     time.Time
-	liveLease                       string
-	liveCancel                      func()
+	transfers                                      *archive.Manager
+	transferAuth                                   *archive.Authorizer
+	usbClient                                      *usb.Client
+	transferHome, transferLocalRoot, transferEpoch string
+	updates                                        *UpdateManager
+	simulationMu                                   sync.Mutex
+	diagnostics                                    *Diagnostics
+	simulation                                     bool
+	liveRelease                                    func()
+	ctx                                            context.Context
+	index                                          *Index
+	exports                                        *ExportManager
+	app, params, firmware, upstream                string
+	client                                         *http.Client
+	liveMu                                         sync.Mutex
+	liveOwned                                      bool
+	liveTouched                                    time.Time
+	liveLease                                      string
+	liveCancel                                     func()
 }
 
 func newServer(ctx context.Context, index *Index, exports *ExportManager, app, params, firmware, upstream string) *Server {
@@ -94,6 +99,15 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	if strings.HasPrefix(r.URL.Path, "/api/") {
+		if strings.HasPrefix(r.URL.Path, "/api/transfers") || strings.HasPrefix(r.URL.Path, "/api/transfer-destinations") {
+			if r.Method != http.MethodGet && r.Method != http.MethodPost {
+				fail(w, 405, errors.New("method not allowed"))
+				return
+			}
+			r.Body = http.MaxBytesReader(w, r.Body, 65536)
+			s.transferAPI(w, r)
+			return
+		}
 		if r.Method == http.MethodPost {
 			s.post(w, r)
 			return
@@ -185,6 +199,10 @@ func (s *Server) getAPI(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 			if len(parts) == 2 && parts[1] == "download" {
+				if job.Streaming {
+					s.exports.downloadStream(w, r, job.ID)
+					return
+				}
 				if job.Status != "complete" {
 					fail(w, 409, errors.New("export not complete"))
 					return
@@ -285,6 +303,10 @@ func (s *Server) video(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+	outputLimit := int64(PreviewPartMaxBytes)
+	if chunk >= 0 {
+		outputLimit = PreviewChunkMaxBytes
+	}
 	companion := ""
 	companionStamp := ""
 	if strings.HasSuffix(file, ".hevc") {
@@ -321,9 +343,8 @@ func (s *Server) video(w http.ResponseWriter, r *http.Request) {
 		defer release()
 		if _, err := os.Stat(target); err != nil {
 			s.prunePreviews(folder, 256<<20)
-			var disk unix.Statfs_t
-			if err := unix.Statfs(folder, &disk); err != nil || uint64(disk.Bavail)*uint64(disk.Bsize) < 2<<30 {
-				fail(w, 507, errors.New("preview preparation requires 2 GiB free space"))
+			if err := requireRecordingSpace(folder, outputLimit); err != nil {
+				fail(w, 507, err)
 				return
 			}
 			partial := target + ".partial" + extension
@@ -388,7 +409,7 @@ func (s *Server) video(w http.ResponseWriter, r *http.Request) {
 					args = append(args, "-tag:v", "hvc1")
 				}
 			}
-			args = append(args, "-fs", "268435456")
+			args = append(args, "-fs", strconv.FormatInt(outputLimit, 10))
 			if transport {
 				args = append(args, "-f", "mpegts")
 			} else {
@@ -399,8 +420,8 @@ func (s *Server) video(w http.ResponseWriter, r *http.Request) {
 				fail(w, 422, err)
 				return
 			}
-			if info, err := os.Stat(partial); err != nil || info.Size() >= 256<<20 {
-				fail(w, 422, errors.New("preview exceeds 256 MiB; download the original file"))
+			if info, err := os.Stat(partial); err != nil || info.Size() >= outputLimit {
+				fail(w, 422, errors.New("preview exceeds its storage limit; download the original file"))
 				return
 			}
 			if err := os.Rename(partial, target); err != nil {

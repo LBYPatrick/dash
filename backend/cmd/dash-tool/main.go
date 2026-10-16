@@ -55,6 +55,18 @@ func run() error {
 			fmt.Println("Media bundle:", directory)
 		}
 		return nil
+	case "build-filesystems":
+		if len(args) == 0 {
+			args = []string{"arm64", "amd64"}
+		}
+		for _, arch := range args {
+			directory, err := tool.BuildFilesystems(arch)
+			if err != nil {
+				return err
+			}
+			fmt.Println("USB filesystem bundle:", directory)
+		}
+		return nil
 	case "fetch-release":
 		f := flag.NewFlagSet("fetch-release", flag.ContinueOnError)
 		var options hosttools.FetchOptions

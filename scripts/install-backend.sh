@@ -68,6 +68,7 @@ scp "${DASH_SSH_OPTIONS[@]}" backend/uninstall-service.sh "$DASH_TARGET:/data/da
 scp "${DASH_SSH_OPTIONS[@]}" backend/boot-state.sh "$DASH_TARGET:/data/dash/.boot-state.new"
 scp "${DASH_SSH_OPTIONS[@]}" backend/verify-service.sh "$DASH_TARGET:/data/dash/.verify-service.new"
 scp "${DASH_SSH_OPTIONS[@]}" backend/systemd/dash.service "$DASH_TARGET:/data/dash/.service.new"
+scp "${DASH_SSH_OPTIONS[@]}" backend/systemd/dash-usb.service "$DASH_TARGET:/data/dash/.usb-service.new"
 scp "${DASH_SSH_OPTIONS[@]}" "$DASH_STAGING/startup-mode" "$DASH_TARGET:/data/dash/.startup.new"
 scp "${DASH_SSH_OPTIONS[@]}" "$DASH_STAGING/update.json" "$DASH_TARGET:/data/dash/.update.new"
 ssh "${DASH_SSH_OPTIONS[@]}" "$DASH_TARGET" bash -s < backend/activate-install.sh

@@ -28,7 +28,9 @@ Dash turns your device's recordings into a searchable drive library. Connect ove
 
 Desktop offers resizable library and video/map panels. Mobile keeps playback controls available across Video and Map tabs, with trip details in a sheet. Light, dark, and system themes include an opaque performance mode and reduced-motion support. Settings also offers English, 日本語, 简体中文, 한국어, Tiếng Việt, or Follow system; language changes apply immediately.
 
-MCAP video uses H.264 with a keyframe in every message for paused Foxglove scrubbing. Exports preserve recorded frame timing and resolution, and include original files as attachments. This costs additional conversion time and storage; previously downloaded MCAPs need to be exported again.
+MCAP video uses H.264 with a keyframe in every message for paused Foxglove scrubbing. Exports preserve recorded frame timing and resolution, and include original files as attachments. Downloads stream directly to your browser without storing a large output file on the device. MCAP conversion increases download size and processing time; previously downloaded MCAPs need to be exported again.
+
+**Archive all recordings** to USB (exFAT, ext4 or NTFS), S3-compatible storage, Google Drive or OneDrive. Transfers retain originals, checkpoint progress across restarts, verify completed copies and stop onroad or when driving state is unknown. Open Export recordings beside the library or Export destinations in Settings. Cloud accounts are optional; their tokens remain private on the backend. See [archive setup and recovery](docs/exports.md), including CD OAuth registration and the remaining physical USB/account acceptance requirements.
 
 Live view and bounded browser recording support firmware-managed WebRTC and a Dash-owned adapter for older sunnypilot builds with installed camera/media libraries. Both require a visible viewer and confirmed parked state. Leaving Live or losing the viewer stops capture. Metadata and statistics depend on the logs actually recorded; unavailable data stays unavailable.
 
@@ -87,7 +89,15 @@ Run this on your computer, replacing `DEVICE_IP` with the parked device's addres
 curl -fsSL https://raw.githubusercontent.com/LBYPatrick/dash/main/scripts/remote-install.sh | bash -s -- --target comma@DEVICE_IP
 ```
 
-No checkout, Go, Vite+, or Docker is needed. Your computer needs Bash, curl and SSH; the device needs internet access to GitHub. Add `--identity /path/to/key` for an SSH key, `--channel dev` or `--channel nightly` for another channel, `--release TAG` to pin a build, or `--runtime` for this boot only. Main is the default. When already logged in as `comma` on the device, run the same command without `--target`. Run without `sudo`; the installer elevates only the existing service-registration steps. It verifies SHA-256 before running the native installer, then verifies and safely extracts the complete release. Downloads stop if parked state becomes unavailable.
+Or SSH into the device as `comma`, then run this **inside that SSH session**:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/LBYPatrick/dash/main/scripts/remote-install.sh | bash
+```
+
+The second form runs entirely on the device; your computer only provides the SSH terminal. No checkout, Go, Vite+, or Docker is needed. The first form needs Bash, curl and SSH on your computer. Both forms require device internet access to GitHub and confirmed parked state.
+
+Main is the default. For another channel, append `-s -- --channel dev` or `-s -- --channel nightly` after `bash` in the device command. Both forms accept `--release TAG` to pin a build and `--runtime` for this boot only. The computer form also accepts `--identity /path/to/key`. Run without `sudo`; the installer elevates only service registration. It verifies SHA-256 before running the native installer, then verifies and safely extracts the complete release. Download and extraction stop if parked state becomes unavailable.
 
 For a computer that can download from GitHub while the device cannot, use the checkout-based SSH route:
 

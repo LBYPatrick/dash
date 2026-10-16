@@ -118,6 +118,9 @@ describe('Shelf-compatible catalogs', () => {
     expect(
       backendMessage('this firmware lacks managed local streaming; detail'),
     ).not.toMatch(/^this firmware/);
+    expect(
+      backendMessage('insufficient space above the recording reserve; detail'),
+    ).toBe(t('backend.disk'));
     expect(backendMessage('diagnostic: unexpected packet 7')).toBe(
       'diagnostic: unexpected packet 7',
     );

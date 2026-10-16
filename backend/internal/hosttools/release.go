@@ -3,6 +3,7 @@ package hosttools
 import (
 	"archive/tar"
 	"compress/gzip"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -138,6 +139,13 @@ func (t *Tools) Release(source bool) error {
 		}
 		defer os.RemoveAll(stage)
 		flags := fmt.Sprintf("-s -w -X main.buildVersion=%s -X main.buildChannel=%s -X main.buildRevision=%s -X main.buildSequence=%s", identity.Version, channel, revision, sequence)
+		registration, registrationErr := releaseRegistration()
+		if registrationErr != nil {
+			return registrationErr
+		}
+		if registration != "" {
+			flags += " -X dash.local/backend/internal/archive.BundledRegistration=" + registration
+		}
 		data, err := t.command(t.path("backend"), []string{"CGO_ENABLED=0", "GOOS=linux", "GOARCH=" + arch}, "go", "build", "-trimpath", "-ldflags", flags, "-o", filepath.Join(stage, "dash-backend"), ".")
 		fmt.Print(string(data))
 		if err != nil {
@@ -151,6 +159,13 @@ func (t *Tools) Release(source bool) error {
 			return err
 		}
 		if err = copyTree(media, filepath.Join(stage, "bin")); err != nil {
+			return err
+		}
+		filesystems, err := t.BuildFilesystems(arch)
+		if err != nil {
+			return err
+		}
+		if err = copyTree(filesystems, filepath.Join(stage, "bin/usb")); err != nil {
 			return err
 		}
 		build := identity
@@ -207,6 +222,21 @@ func (t *Tools) Release(source bool) error {
 	}
 	fmt.Printf("Packaged %s in .artifacts/release\n", identity.Tag)
 	return nil
+}
+
+func releaseRegistration() (string, error) {
+	googleID, googleSecret, microsoftID := os.Getenv("DASH_GOOGLE_CLIENT_ID"), os.Getenv("DASH_GOOGLE_CLIENT_SECRET"), os.Getenv("DASH_MICROSOFT_CLIENT_ID")
+	if (googleID == "") != (googleSecret == "") {
+		return "", fmt.Errorf("Google OAuth client id and client secret must be supplied together")
+	}
+	if googleID == "" && microsoftID == "" {
+		return "", nil
+	}
+	data, err := json.Marshal(map[string]string{"googleClientId": googleID, "googleClientSecret": googleSecret, "microsoftClientId": microsoftID})
+	if err != nil {
+		return "", fmt.Errorf("OAuth application registration could not be encoded")
+	}
+	return base64.RawStdEncoding.EncodeToString(data), nil
 }
 func writeArchive(root, destination string) error {
 	file, err := os.Create(destination)

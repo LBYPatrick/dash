@@ -20,7 +20,6 @@ import (
 
 	dashv2 "dash.local/backend/internal/mcaptypes/dashv2"
 	"github.com/foxglove/mcap/go/mcap"
-	"golang.org/x/sys/unix"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -32,6 +31,7 @@ type ExportRequest struct {
 	Format   string `json:"format"`
 	Camera   string `json:"camera"`
 	H264     bool   `json:"h264"`
+	Stream   bool   `json:"stream,omitempty"`
 }
 type ExportAsset struct {
 	Segment  int
@@ -40,16 +40,21 @@ type ExportAsset struct {
 	Modified time.Time
 }
 type ExportJob struct {
-	ID       string  `json:"id"`
-	Status   string  `json:"status"`
-	Progress float64 `json:"progress"`
-	Message  string  `json:"message"`
-	Format   string  `json:"format"`
-	Name     string  `json:"name"`
-	Created  int64   `json:"created"`
-	Bytes    int64   `json:"bytes"`
-	output   string
-	cancel   context.CancelFunc
+	ID        string  `json:"id"`
+	Status    string  `json:"status"`
+	Progress  float64 `json:"progress"`
+	Message   string  `json:"message"`
+	Format    string  `json:"format"`
+	Name      string  `json:"name"`
+	Created   int64   `json:"created"`
+	Bytes     int64   `json:"bytes"`
+	Streaming bool    `json:"streaming,omitempty"`
+	output    string
+	cancel    context.CancelFunc
+	ctx       context.Context
+	request   ExportRequest
+	assets    []ExportAsset
+	expires   *time.Timer
 }
 type ExportManager struct {
 	index       *Index
@@ -104,6 +109,10 @@ func (e *ExportManager) cancelJob(id string) error {
 		return os.ErrNotExist
 	}
 	job.cancel()
+	if job.Streaming && job.Status == "queued" {
+		job.Status = "canceled"
+		job.Message = "Export canceled before download started"
+	}
 	return nil
 }
 func (e *ExportManager) collect(request ExportRequest) ([]ExportAsset, error) {
@@ -161,9 +170,10 @@ func (e *ExportManager) collect(request ExportRequest) ([]ExportAsset, error) {
 	if size > maxExportBytes {
 		return nil, errors.New("complete session exceeds the 8 GiB export limit")
 	}
-	var disk unix.Statfs_t
-	if err := unix.Statfs(e.folder, &disk); err == nil && uint64(disk.Bavail)*uint64(disk.Bsize) < uint64(size*2+(1<<30)) {
-		return nil, errors.New("insufficient temporary space; 1 GiB is reserved for the device")
+	if !request.Stream {
+		if err := requireRecordingSpace(e.folder, size*2); err != nil {
+			return nil, err
+		}
 	}
 	return assets, nil
 }
@@ -216,49 +226,86 @@ func (e *ExportManager) submit(request ExportRequest) (ExportJob, error) {
 		extension = "zip"
 		name = request.Drive + "-raw-video.zip"
 	}
-	job := &ExportJob{ID: id, Status: "queued", Message: "Queued", Format: request.Format, Name: name, Created: time.Now().Unix(), output: filepath.Join(e.folder, id+"."+extension), cancel: cancel}
+	job := &ExportJob{ID: id, Status: "queued", Message: "Queued", Format: request.Format, Name: name, Created: time.Now().Unix(), Streaming: request.Stream, output: filepath.Join(e.folder, id+"."+extension), cancel: cancel, ctx: ctx, request: request, assets: assets}
 	e.jobs[id] = job
-	go e.run(ctx, job, request, assets)
+	if request.Stream {
+		// No conversion starts until the browser claims its download. Abandoned
+		// requests cannot retain the heavy-operation queue indefinitely.
+		job.expires = time.AfterFunc(ExportClaimTimeout, func() {
+			e.mu.Lock()
+			defer e.mu.Unlock()
+			if job.Status == "queued" {
+				job.Status, job.Message = "canceled", "Download did not start; try again"
+				cancel()
+			}
+		})
+		context.AfterFunc(ctx, func() {
+			e.mu.Lock()
+			defer e.mu.Unlock()
+			if job.Status == "queued" {
+				job.Status, job.Message = "canceled", "Export stopped: vehicle no longer confirmed parked"
+			}
+		})
+	} else {
+		go e.run(ctx, job, request, assets, nil)
+	}
 	return *job, nil
 }
-func (e *ExportManager) run(ctx context.Context, job *ExportJob, request ExportRequest, assets []ExportAsset) {
-	defer job.cancel()
+func (e *ExportManager) run(ctx context.Context, job *ExportJob, request ExportRequest, assets []ExportAsset, destination io.Writer) error {
+	if !job.Streaming {
+		defer job.cancel()
+	}
 	e.update(job.ID, "running", "Preparing export", 0)
 	release, err := acquireCompute(ctx)
 	if err != nil {
 		e.update(job.ID, "failed", err.Error(), 0)
-		return
+		return err
 	}
 	defer release()
 	switch request.Format {
 	case "zip", "raw":
-		err = e.zip(ctx, job, request, assets)
+		if destination != nil {
+			err = e.zipTo(ctx, job, request, assets, destination)
+		} else {
+			err = e.zip(ctx, job, request, assets)
+		}
 	case "mp4":
-		err = e.mp4(ctx, job, request, assets)
+		err = e.mp4To(ctx, job, request, assets, destination)
 	case "mcap":
-		err = e.mcap(ctx, job, request, assets)
+		if destination != nil {
+			err = e.mcapTo(ctx, job, request, assets, destination)
+		} else {
+			err = e.mcap(ctx, job, request, assets)
+		}
 	}
 	if ctx.Err() != nil {
 		err = errors.New("export stopped: canceled or vehicle no longer confirmed parked")
 	}
 	if err != nil {
-		_ = os.Remove(job.output)
+		if !job.Streaming {
+			_ = os.Remove(job.output)
+		}
 		status := "failed"
 		if ctx.Err() != nil {
 			status = "canceled"
 		}
 		e.update(job.ID, status, err.Error(), 0)
-		return
+		return err
+	}
+	if job.Streaming {
+		e.update(job.ID, "complete", "Download sent", 1)
+		return nil
 	}
 	info, err := os.Stat(job.output)
 	if err != nil {
 		e.update(job.ID, "failed", err.Error(), 0)
-		return
+		return err
 	}
 	e.mu.Lock()
 	job.Bytes = info.Size()
 	e.mu.Unlock()
 	e.update(job.ID, "complete", "Ready to download", 1)
+	return nil
 }
 func (e *ExportManager) cleanup() {
 	if e.index.state() != "parked" {
@@ -343,7 +390,10 @@ func (e *ExportManager) zip(ctx context.Context, job *ExportJob, request ExportR
 		return err
 	}
 	defer file.Close()
-	archive := zip.NewWriter(&boundedWriter{ctx: ctx, writer: file})
+	return e.zipTo(ctx, job, request, assets, &recordingSpaceWriter{path: e.folder, writer: file})
+}
+func (e *ExportManager) zipTo(ctx context.Context, job *ExportJob, request ExportRequest, assets []ExportAsset, target io.Writer) error {
+	archive := zip.NewWriter(&boundedWriter{ctx: ctx, writer: target})
 	manifest, err := archive.Create("dash-manifest.json")
 	if err != nil {
 		return err
@@ -368,6 +418,9 @@ func (e *ExportManager) zip(ctx context.Context, job *ExportJob, request ExportR
 	return archive.Close()
 }
 func (e *ExportManager) mp4(ctx context.Context, job *ExportJob, request ExportRequest, assets []ExportAsset) error {
+	return e.mp4To(ctx, job, request, assets, nil)
+}
+func (e *ExportManager) mp4To(ctx context.Context, job *ExportJob, request ExportRequest, assets []ExportAsset, target io.Writer) error {
 	listing := filepath.Join(e.folder, job.ID+".txt")
 	defer os.Remove(listing)
 	var lines strings.Builder
@@ -402,7 +455,7 @@ func (e *ExportManager) mp4(ctx context.Context, job *ExportJob, request ExportR
 			return err
 		}
 		args = append(args, audioProbeArgs()...)
-		args = append(args, "-itsoffset", strconv.FormatFloat(audioOffset, 'f', 6, 64), "-f", "concat", "-safe", "0", "-i", audioListing, "-map", "1:a:0", "-c:a", "copy")
+		args = append(args, "-itsoffset", strconv.FormatFloat(audioOffset, 'f', 6, 64), "-f", "concat", "-safe", "0", "-i", audioListing, "-map", "1:a:0", "-c:a", "copy", "-bsf:a", "aac_adtstoasc")
 	} else {
 		args = append(args, "-an")
 	}
@@ -416,10 +469,17 @@ func (e *ExportManager) mp4(ctx context.Context, job *ExportJob, request ExportR
 			args = append(args, "-tag:v", "hvc1")
 		}
 	}
-	args = append(args, "-movflags", "+faststart", job.output)
+	if target != nil {
+		args = append(args, "-movflags", "frag_keyframe+empty_moov+default_base_moof", "-f", "mp4", "pipe:1")
+	} else {
+		args = append(args, "-movflags", "+faststart", job.output)
+	}
 	e.update(job.ID, "running", "Packaging selected camera as MP4", 0)
 	limited, cancel := context.WithTimeout(ctx, 30*time.Minute)
 	defer cancel()
+	if target != nil {
+		return runFFmpegTo(limited, target, args...)
+	}
 	go func() {
 		ticker := time.NewTicker(time.Second)
 		defer ticker.Stop()
@@ -428,7 +488,7 @@ func (e *ExportManager) mp4(ctx context.Context, job *ExportJob, request ExportR
 			case <-limited.Done():
 				return
 			case <-ticker.C:
-				if info, err := os.Stat(job.output); err == nil && info.Size() > maxExportBytes {
+				if info, err := os.Stat(job.output); (err == nil && info.Size() > maxExportBytes) || requireRecordingSpace(e.folder, 0) != nil {
 					cancel()
 					return
 				}
@@ -444,7 +504,10 @@ func (e *ExportManager) mcap(ctx context.Context, job *ExportJob, request Export
 		return err
 	}
 	defer file.Close()
-	writer, err := mcap.NewWriter(&boundedWriter{ctx: ctx, writer: file}, &mcap.WriterOptions{Chunked: true, ChunkSize: 1 << 20, IncludeCRC: true})
+	return e.mcapTo(ctx, job, request, assets, &recordingSpaceWriter{path: e.folder, writer: file})
+}
+func (e *ExportManager) mcapTo(ctx context.Context, job *ExportJob, request ExportRequest, assets []ExportAsset, target io.Writer) error {
+	writer, err := mcap.NewWriter(&boundedWriter{ctx: ctx, writer: target}, &mcap.WriterOptions{Chunked: true, ChunkSize: 1 << 20, IncludeCRC: true})
 	if err != nil {
 		return err
 	}

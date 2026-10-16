@@ -4,6 +4,7 @@ Description=Dash local drive library and PWA
 After=local-fs.target network.target
 Before=comma.service
 RequiresMountsFor=/data
+Wants=dash-usb.service
 StartLimitIntervalSec=300
 StartLimitBurst=3
 ConditionPathIsDirectory=/data/media/0/realdata

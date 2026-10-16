@@ -237,16 +237,38 @@ test('smoke', async () => {
           .count(),
         0,
       );
+      const submitted = page.waitForRequest(
+        (request) =>
+          new URL(request.url()).pathname === '/api/exports' &&
+          request.method() === 'POST',
+      );
       const [download] = await Promise.all([
         page.waitForEvent('download', { timeout: 60000 }),
         page
           .getByRole('button', { name: 'Download recording', exact: true })
           .click(),
       ]);
+      assert.strictEqual((await submitted).postDataJSON().stream, true);
       await page
         .getByRole('link', { name: 'Download again', exact: true })
         .waitFor();
       await download.saveAs(`.artifacts/smoke.${format}`);
+      assert.strictEqual(await download.failure(), null);
+      if (format === 'zip') {
+        // Streamed jobs are single-use. Retry must create a fresh job rather
+        // than navigating back to the already-consumed download endpoint.
+        const [retry] = await Promise.all([
+          page.waitForEvent('download', { timeout: 60000 }),
+          page
+            .getByRole('link', { name: 'Download again', exact: true })
+            .click(),
+        ]);
+        await retry.saveAs('.artifacts/smoke-again.zip');
+        assert.strictEqual(await retry.failure(), null);
+        await page
+          .getByRole('link', { name: 'Download again', exact: true })
+          .waitFor();
+      }
       if (format === 'raw')
         assert(download.suggestedFilename().endsWith('-raw-video.zip'));
       if (format === 'mp4') {
