@@ -75,11 +75,13 @@ func TestFilesystemImages(t *testing.T) {
 					return
 				}
 				name := "mount.exfat-fuse"
+				options := "allow_other,default_permissions,nodev,nosuid,noexec"
 				if kind == "ntfs" {
 					name = "ntfs-3g"
+					options += ",no_detach,norecover,windows_names"
 				}
 				stderr.Reset()
-				child = exec.Command(filepath.Join(tools, name), "-f", "-s", "-o", "allow_other,default_permissions,nodev,nosuid,noexec", image, point)
+				child = exec.Command(filepath.Join(tools, name), "-o", options, image, point)
 				child.Stderr = &stderr
 				if err := child.Start(); err != nil {
 					t.Fatal(err)

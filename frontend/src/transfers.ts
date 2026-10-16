@@ -4,6 +4,7 @@ export interface TransferDestination {
   kind: 'usb' | 's3' | 'gdrive' | 'onedrive';
   location: string;
   connected: boolean;
+  directory?: string;
 }
 export interface TransferBatch {
   id: string;
@@ -20,6 +21,11 @@ export interface TransferBatch {
   currentFile?: string;
   autoResume: boolean;
   cleanupPending?: boolean;
+  directory?: string;
+  progressReady?: boolean;
+  bytesPerSecond?: number;
+  etaSeconds?: number;
+  reusedBytes?: number;
 }
 export interface TransferAuthorization {
   destinationId: string;

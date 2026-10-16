@@ -144,7 +144,7 @@ func (c *Configs) UpdateSecret(expected Config, secret Secret) error {
 	if err != nil {
 		return err
 	}
-	if fingerprint(current) != fingerprint(expected) || current.Secret != expected.Secret {
+	if current.Kind != expected.Kind || current.ClientID != expected.ClientID || current.Tenant != expected.Tenant || current.Secret != expected.Secret {
 		return errors.New("destination changed during authorization")
 	}
 	current.Secret = secret
@@ -153,6 +153,28 @@ func (c *Configs) UpdateSecret(expected Config, secret Secret) error {
 		return err
 	}
 	return privateWrite(filepath.Join(c.home, expected.ID+".json"), append(data, '\n'))
+}
+
+// UpdateDirectory preserves credentials refreshed concurrently by OAuth.
+func (c *Configs) UpdateDirectory(id, directory string) (Destination, error) {
+	unlock, err := c.lock()
+	if err != nil {
+		return Destination{}, err
+	}
+	defer unlock()
+	config, err := c.Load(id)
+	if err != nil {
+		return Destination{}, err
+	}
+	config.Prefix = directory
+	if err = config.Validate(); err != nil {
+		return Destination{}, err
+	}
+	data, err := json.MarshalIndent(config, "", "  ")
+	if err == nil {
+		err = privateWrite(filepath.Join(c.home, id+".json"), append(data, '\n'))
+	}
+	return config.Public(), err
 }
 func (c *Configs) Remove(id string) error {
 	if !IDPattern.MatchString(id) {

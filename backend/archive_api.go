@@ -288,6 +288,26 @@ func (s *Server) transferAPI(w http.ResponseWriter, r *http.Request) {
 			writeJSON(w, 202, authorization)
 			return
 		}
+		if parts[1] == "directory" {
+			if s.transfers.DestinationBusy(parts[0]) {
+				fail(w, 409, errors.New("finish or cancel the transfer before changing its save folder"))
+				return
+			}
+			var input struct {
+				Path string `json:"path"`
+			}
+			if json.NewDecoder(r.Body).Decode(&input) != nil {
+				fail(w, 400, errors.New("invalid save folder"))
+				return
+			}
+			destination, err := s.transfers.SetDirectory(parts[0], input.Path)
+			if err != nil {
+				fail(w, 400, err)
+				return
+			}
+			writeJSON(w, 200, destination)
+			return
+		}
 		config, err := s.transfers.Configs().Load(parts[0])
 		if err != nil {
 			fail(w, 404, errors.New("destination unavailable"))
@@ -355,12 +375,12 @@ func (s *Server) newTransferStore(ctx context.Context, config archive.Config, so
 		if s.transferLocalRoot != "" {
 			root = s.transferLocalRoot
 		} else {
-			root, err = s.usbClient.Mount(ctx, config.VolumeUUID)
+			root, err = s.usbClient.Mount(ctx, config.VolumeUUID, config.Prefix)
 			if err != nil {
 				return nil, archive.DestinationError(err.Error())
 			}
 		}
-		return archive.NewLocalStore(root, source, s.transferEpoch)
+		return archive.NewLocalStoreAt(root, source, s.transferEpoch, config.Prefix)
 	default:
 		return nil, errors.New("unsupported transfer destination")
 	}

@@ -18,3 +18,6 @@
 +		if (rc != -ENOENT) return rc;
 +	}
 +#endif
+@@ -601 +615 @@
+-	char* argv[] = {"exfat", "-s", "-o", mount_options, mount_point, NULL};
++	char* argv[] = {"exfat", "-f", "-s", "-o", mount_options, mount_point, NULL};

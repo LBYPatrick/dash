@@ -4,6 +4,7 @@ package archive
 
 import (
 	"context"
+	"dash.local/backend/internal/archivepath"
 	"errors"
 	"io"
 	"net/url"
@@ -71,6 +72,7 @@ type Destination struct {
 	Location      string `json:"location"`
 	Connected     bool   `json:"connected"`
 	Authorization string `json:"authorization,omitempty"`
+	Directory     string `json:"directory"`
 }
 
 func (c Config) Public() Destination {
@@ -82,20 +84,15 @@ func (c Config) Public() Destination {
 	if c.Kind == "gdrive" || c.Kind == "onedrive" {
 		location, connected = c.FolderID, c.Secret.RefreshToken != "" || c.Secret.AccessToken != ""
 	}
-	return Destination{ID: c.ID, Name: c.Name, Kind: c.Kind, Location: location, Connected: connected}
+	return Destination{ID: c.ID, Name: c.Name, Kind: c.Kind, Location: location, Connected: connected, Directory: c.Prefix}
 }
 
 func (c Config) Validate() error {
 	if !IDPattern.MatchString(c.ID) || len(c.Name) == 0 || len(c.Name) > 80 {
 		return errors.New("destination needs a short name and an id containing lowercase letters, digits or hyphens")
 	}
-	if len(c.Prefix) > 512 || strings.ContainsAny(c.Prefix, "\\\r\n") || strings.HasPrefix(c.Prefix, "/") {
-		return errors.New("invalid archive prefix")
-	}
-	for _, part := range strings.Split(c.Prefix, "/") {
-		if part == ".." || part == "." {
-			return errors.New("invalid archive prefix")
-		}
+	if err := archivepath.Validate(c.Prefix); err != nil {
+		return err
 	}
 	switch c.Kind {
 	case "s3":
@@ -130,6 +127,8 @@ type Part struct {
 // Checkpoint contains private resumable upload capabilities. Never return it in
 // a public API, diagnostic dump, log line or exported manifest.
 type Checkpoint struct {
+	SentBytes     int64  `json:"sentBytes,omitempty"`
+	Reused        bool   `json:"reused,omitempty"`
 	VerifiedEpoch string `json:"verifiedEpoch,omitempty"`
 	Offset        int64  `json:"offset"`
 	UploadID      string `json:"uploadId,omitempty"`
@@ -150,21 +149,31 @@ type Asset struct {
 	Checkpoint Checkpoint
 }
 type Batch struct {
-	ID               string `json:"id"`
-	DestinationID    string `json:"destinationId"`
-	Status           string `json:"status"`
-	Message          string `json:"message"`
-	Created          int64  `json:"created"`
-	TotalFiles       int64  `json:"totalFiles"`
-	TotalBytes       int64  `json:"totalBytes"`
-	CompletedFiles   int64  `json:"completedFiles"`
-	CompletedBytes   int64  `json:"completedBytes"`
-	TransferredBytes int64  `json:"transferredBytes"`
-	Issues           int64  `json:"issues"`
-	CurrentFile      string `json:"currentFile,omitempty"`
-	AutoResume       bool   `json:"autoResume"`
-	CleanupPending   bool   `json:"cleanupPending"`
+	Directory        string  `json:"directory"`
+	BytesPerSecond   float64 `json:"bytesPerSecond"`
+	ETASeconds       *int64  `json:"etaSeconds,omitempty"`
+	ReusedBytes      int64   `json:"reusedBytes"`
+	ProgressReady    bool    `json:"progressReady"`
+	ID               string  `json:"id"`
+	DestinationID    string  `json:"destinationId"`
+	Status           string  `json:"status"`
+	Message          string  `json:"message"`
+	Created          int64   `json:"created"`
+	TotalFiles       int64   `json:"totalFiles"`
+	TotalBytes       int64   `json:"totalBytes"`
+	CompletedFiles   int64   `json:"completedFiles"`
+	CompletedBytes   int64   `json:"completedBytes"`
+	TransferredBytes int64   `json:"transferredBytes"`
+	Issues           int64   `json:"issues"`
+	CurrentFile      string  `json:"currentFile,omitempty"`
+	AutoResume       bool    `json:"autoResume"`
+	CleanupPending   bool    `json:"cleanupPending"`
 }
+
+func completed(cp Checkpoint, size int64) Checkpoint {
+	return Checkpoint{Offset: size, SentBytes: cp.SentBytes, Reused: cp.Reused}
+}
+
 type Source interface {
 	Open(string) (*SourceFile, error)
 }

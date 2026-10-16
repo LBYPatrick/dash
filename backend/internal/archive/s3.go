@@ -92,7 +92,8 @@ func (s *S3Store) Step(ctx context.Context, a Asset) (Checkpoint, bool, error) {
 			return cp, false, err
 		}
 		if exists {
-			return Checkpoint{Offset: a.Size}, true, nil
+			cp.Reused = cp.SentBytes == 0
+			return completed(cp, a.Size), true, nil
 		}
 	}
 	source, err := s.source.Open(a.Path)
@@ -111,7 +112,8 @@ func (s *S3Store) Step(ctx context.Context, a Asset) (Checkpoint, bool, error) {
 		if err != nil {
 			return cp, false, remoteError("S3", "upload", err)
 		}
-		return Checkpoint{Offset: a.Size}, true, nil
+		cp.SentBytes += a.Size
+		return completed(cp, a.Size), true, nil
 	}
 	if cp.UploadID == "" {
 		result, err := s.client.CreateMultipartUpload(ctx, &s3.CreateMultipartUploadInput{Bucket: aws.String(s.config.Bucket), Key: aws.String(s.key(a.Key)), Metadata: map[string]string{"dash-sha256": a.SHA256}})
@@ -131,7 +133,7 @@ func (s *S3Store) Step(ctx context.Context, a Asset) (Checkpoint, bool, error) {
 		number := int32(len(cp.Parts) + 1)
 		result, err := s.client.UploadPart(ctx, &s3.UploadPartInput{Bucket: aws.String(s.config.Bucket), Key: aws.String(s.key(a.Key)), UploadId: aws.String(cp.UploadID), PartNumber: aws.Int32(number), Body: io.NewSectionReader(source.ReaderAt, cp.Offset, count), ContentLength: aws.Int64(count)})
 		if apiCode(err) == "NoSuchUpload" {
-			return Checkpoint{}, false, nil
+			return Checkpoint{SentBytes: cp.SentBytes}, false, nil
 		}
 		if err != nil {
 			return cp, false, remoteError("S3", "upload part", err)
@@ -141,6 +143,7 @@ func (s *S3Store) Step(ctx context.Context, a Asset) (Checkpoint, bool, error) {
 		}
 		cp.Parts = append(cp.Parts, Part{number, aws.ToString(result.ETag)})
 		cp.Offset += count
+		cp.SentBytes += count
 		return cp, false, nil
 	}
 	parts := make([]types.CompletedPart, 0, len(cp.Parts))
@@ -149,7 +152,7 @@ func (s *S3Store) Step(ctx context.Context, a Asset) (Checkpoint, bool, error) {
 	}
 	_, err = s.client.CompleteMultipartUpload(ctx, &s3.CompleteMultipartUploadInput{Bucket: aws.String(s.config.Bucket), Key: aws.String(s.key(a.Key)), UploadId: aws.String(cp.UploadID), MultipartUpload: &types.CompletedMultipartUpload{Parts: parts}, IfNoneMatch: aws.String("*")})
 	if apiCode(err) == "NoSuchUpload" {
-		return Checkpoint{}, false, nil
+		return Checkpoint{SentBytes: cp.SentBytes}, false, nil
 	}
 	if apiCode(err) == "PreconditionFailed" {
 		return cp, false, ErrConflict
@@ -157,7 +160,7 @@ func (s *S3Store) Step(ctx context.Context, a Asset) (Checkpoint, bool, error) {
 	if err != nil {
 		return cp, false, remoteError("S3", "complete upload", err)
 	}
-	return Checkpoint{Offset: a.Size}, true, nil
+	return completed(cp, a.Size), true, nil
 }
 func (s *S3Store) Put(ctx context.Context, key string, data []byte) error {
 	hash := sha256.Sum256(data)
