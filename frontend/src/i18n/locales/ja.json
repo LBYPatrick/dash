@@ -186,7 +186,7 @@
     "mcapVideoTelemetryAndOriginals": "MCAP · 動画、車両データ、元ファイル",
     "exportCamera": "書き出すカメラ",
     "convertToH264ForWiderCompatibility": "互換性の高い H.264 に変換（低速）",
-    "8GibPerExportOneProcessingJob": "書き出しは 1 回 8 GiB まで、処理は同時に 1 件です。一時ファイルは 1 時間で失効します。走行開始時に処理を停止します。",
+    "8GibPerExportOneProcessingJob": "書き出しは 1 回 8 GiB までです。端末にコピーを保存せず、ブラウザーへ直接ダウンロードします。処理は同時に 1 件です。走行開始または接続切断で停止します。",
     "includesFoxgloveVideoChannelsDashTelemetryWhen": "Foxglove の動画チャンネル、索引済みの Dash 車両データ、元ファイルを含みます。B フレームのある映像は駐車中に変換します。",
     "connectToDashBackendToExportReal": "実際の録画を書き出すには dash-backend に接続してください。サンプルは画面のお試し用です。",
     "exportIsPausedUntilTheVehicleIs": "駐車を確認するまで書き出しは停止します。",
@@ -482,7 +482,7 @@
     "unsupportedLive": "このファームウェアには管理型ローカル配信がありません。走行開始時に停止できないエンコーダーは起動しません。",
     "parked": "この操作には駐車の確認と十分なメモリーが必要です。",
     "busy": "別の処理が実行中です。完了後に再試行してください。",
-    "disk": "2 GiB 以上の空き容量が必要です。録画は削除しません。",
+    "disk": "空き容量が不足しています。Dash が容量確保のために録画を削除することはありません。",
     "liveFailed": "ファームウェアの配信サービスを開始できません。ログを確認して再試行してください。",
     "cancelled": "駐車を確認できなくなったため処理を停止しました。"
   }

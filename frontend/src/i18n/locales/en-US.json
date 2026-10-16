@@ -186,7 +186,7 @@
     "mcapVideoTelemetryAndOriginals": "MCAP · video, telemetry and originals",
     "exportCamera": "Export camera",
     "convertToH264ForWiderCompatibility": "Convert to H.264 for wider compatibility (slower)",
-    "8GibPerExportOneProcessingJob": "8 GiB per export. One processing job at a time. Temporary exports expire after one hour. Starting a drive stops active processing.",
+    "8GibPerExportOneProcessingJob": "8 GiB per export. Downloads stream directly to your browser without storing a copy on the device. One processing job at a time. Driving or disconnecting stops the download.",
     "includesFoxgloveVideoChannelsDashTelemetryWhen": "Includes Foxglove video channels, Dash telemetry when indexed, and original files. Cameras with B-frames are converted while parked.",
     "connectToDashBackendToExportReal": "Connect to dash-backend to export real recordings. Samples are for exploring the interface.",
     "exportIsPausedUntilTheVehicleIs": "Export is paused until the vehicle is confirmed parked.",
@@ -482,7 +482,7 @@
     "unsupportedLive": "this firmware lacks managed local streaming; Dash will not start an unmanaged encoder that it cannot stop on ignition",
     "parked": "This operation requires confirmed parked state and available memory.",
     "busy": "Another processing job is running. Try again when it finishes.",
-    "disk": "At least 2 GiB of free storage is required. Recordings will not be removed.",
+    "disk": "There is not enough free storage. Dash will not remove recordings to make room.",
     "liveFailed": "The firmware streaming service could not start. Check device logs and retry.",
     "cancelled": "Processing stopped because parked state could not be confirmed."
   }

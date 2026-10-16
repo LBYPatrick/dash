@@ -186,7 +186,7 @@
     "mcapVideoTelemetryAndOriginals": "MCAP · 视频、遥测与原始文件",
     "exportCamera": "导出摄像头",
     "convertToH264ForWiderCompatibility": "转换为 H.264 以提高兼容性（较慢）",
-    "8GibPerExportOneProcessingJob": "每次导出限 8 GiB，同一时间只运行一项处理任务。临时导出文件一小时后过期。开始驾驶会停止正在运行的处理。",
+    "8GibPerExportOneProcessingJob": "每次导出限 8 GiB，文件直接下载到浏览器，不在设备上保存副本。同一时间只运行一项处理任务。开始驾驶或断开连接会停止下载。",
     "includesFoxgloveVideoChannelsDashTelemetryWhen": "包含 Foxglove 视频通道、已索引的 Dash 遥测及原始文件。带 B 帧的摄像头录像会在停车时转换。",
     "connectToDashBackendToExportReal": "连接 dash-backend 才能导出真实录像。示例仅用于体验界面。",
     "exportIsPausedUntilTheVehicleIs": "确认车辆已停放后才能导出。",
@@ -482,7 +482,7 @@
     "unsupportedLive": "此固件不支持受控本地串流。Dash 不会启动无法在点火时停止的非受控编码器。",
     "parked": "此操作需要已确认的停车状态及足够内存。",
     "busy": "另一项处理任务正在运行，请在完成后重试。",
-    "disk": "至少需要 2 GiB 可用空间，录像不会被删除。",
+    "disk": "可用存储空间不足。Dash 不会为了腾出空间而删除录制文件。",
     "liveFailed": "固件串流服务无法启动，请检查设备日志后重试。",
     "cancelled": "无法确认停车状态，处理已停止。"
   }

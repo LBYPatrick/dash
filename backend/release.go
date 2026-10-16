@@ -181,7 +181,7 @@ func downloadRelease(ctx context.Context, client *http.Client, repository string
 	defer file.Close()
 	hash := sha256.New()
 	reader := &progressReader{ctx: ctx, reader: io.LimitReader(response.Body, asset.Bytes+1), total: asset.Bytes, progress: progress}
-	size, err := io.CopyBuffer(io.MultiWriter(file, hash), reader, make([]byte, 256<<10))
+	size, err := io.CopyBuffer(io.MultiWriter(&recordingSpaceWriter{path: filepath.Dir(archive), writer: file}, hash), reader, make([]byte, 256<<10))
 	if err != nil {
 		return err
 	}
@@ -281,7 +281,7 @@ func unpackRelease(ctx context.Context, archive, destination string, expected Bu
 			if err != nil {
 				return err
 			}
-			_, copyErr := io.CopyBuffer(output, checkedReader{ctx, reader}, make([]byte, 128<<10))
+			_, copyErr := io.CopyBuffer(&recordingSpaceWriter{path: destination, writer: output}, checkedReader{ctx, reader}, make([]byte, 128<<10))
 			if copyErr == nil {
 				copyErr = output.Sync()
 			}

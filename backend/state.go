@@ -104,7 +104,10 @@ func parkedContext(parent context.Context, state StateReader) (context.Context, 
 	return ctx, cancel
 }
 func runFFmpeg(ctx context.Context, args ...string) error {
-	return runMediaCommand(ctx, "ffmpeg", nil, append([]string{"-hide_banner", "-loglevel", "error", "-nostdin", "-y", "-max_alloc", strconv.Itoa(MediaAllocationLimitMiB << 20), "-threads", strconv.Itoa(MediaThreads), "-filter_threads", strconv.Itoa(MediaThreads)}, args...)...)
+	return runFFmpegTo(ctx, nil, args...)
+}
+func runFFmpegTo(ctx context.Context, stdout io.Writer, args ...string) error {
+	return runMediaCommand(ctx, "ffmpeg", stdout, append([]string{"-hide_banner", "-loglevel", "error", "-nostdin", "-y", "-max_alloc", strconv.Itoa(MediaAllocationLimitMiB << 20), "-threads", strconv.Itoa(MediaThreads), "-filter_threads", strconv.Itoa(MediaThreads)}, args...)...)
 }
 func runMediaCommand(ctx context.Context, binary string, stdout io.Writer, args ...string) error {
 	if err := ctx.Err(); err != nil {

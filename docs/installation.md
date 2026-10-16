@@ -16,11 +16,23 @@ From your Linux/macOS computer, with the device parked and connected to the inte
 curl -fsSL https://raw.githubusercontent.com/LBYPatrick/dash/main/scripts/remote-install.sh | bash -s -- --target comma@DEVICE_IP
 ```
 
+Alternatively, first SSH into the device as `comma`. Run this directly in its Bash session:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/LBYPatrick/dash/main/scripts/remote-install.sh | bash
+```
+
+This form downloads, verifies and installs everything on the comma device. The computer only needs to establish SSH; it runs no installer and needs no curl or build environment. For example, select the development channel directly on the device with:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/LBYPatrick/dash/main/scripts/remote-install.sh | bash -s -- --channel dev
+```
+
 Your computer needs Bash, curl and SSH. No checkout or build tools are required. The SSH connection uses your configured keys and known hosts. Add `--identity KEY` to select a key. Enable SSH and verify the host key through your normal SSH connection first; the installer does not disable host-key verification. The device needs Bash, curl, SHA-256 tools, trusted CA certificates, systemd and noninteractive sudo already supplied by supported AGNOS firmware. It must reach GitHub over HTTPS.
 
 Main is the default. Add `--channel nightly` or `--channel dev`, `--release TAG` to pin a build within that channel, or `--runtime` for a temporary installation. `--repo OWNER/REPO` supports a public fork with matching releases. If already logged into the device as `comma`, omit `--target` and `--identity`. Do not run the command as root.
 
-The channel's bootstrap script identifies an immutable build and includes the native installer's SHA-256 digest. The script verifies the binary before executing it. The native installer validates the release manifest, exact archive size/digest, bounded extraction, Linux architecture and bundled media. It embeds the same preflight and activation scripts as the SSH installer below. It requires 2 GiB free space and cancels download/extraction when parked state is lost. It installs no OS packages. Temporary download files are removed after success; installed assets stay under `/data/dash`. Installation does not start any backend worker until the verified systemd service starts. A checksum protects download integrity; it is not an independent publisher signature. GitHub HTTPS and repository access remain the trust boundary.
+The channel's bootstrap script identifies an immutable build and includes the native installer's SHA-256 digest. The script verifies the binary before executing it. The native installer validates the release manifest, exact archive size/digest, bounded extraction, Linux architecture and bundled media. It embeds the same preflight and activation scripts as the SSH installer below. It preserves the recording storage reserve described below and cancels download/extraction when parked state is lost. It installs no OS packages. Temporary download files are removed after success; installed assets stay under `/data/dash`. Installation does not start any backend worker until the verified systemd service starts. A checksum protects download integrity; it is not an independent publisher signature. GitHub HTTPS and repository access remain the trust boundary.
 
 ## SSH installation from your computer
 
@@ -89,7 +101,9 @@ SQLite uses WAL and `synchronous=FULL`; each part commits separately. After rest
 
 Indexing checks unchanged size/mtime fingerprints every 15 seconds and retains unchanged thumbnails without resetting idle progress. Failed telemetry parses are cached too; changing the source or explicitly rebuilding the index retries them. Playing, seeking and switching cameras never rebuild a ready index. Uncached HEVC previews only prepare their own media cache. Complete logs provide raw HEVC frame counts when their byte totals account for the file, avoiding a full video scan. The selected preparation queue takes priority over the library scan. Interrupted log tails retain complete records and mark their summaries as incomplete; indexing can recover a longer prefix from rlog when qlog is truncated. Zero-byte camera files are omitted from playback and MP4/video channels, while original-asset exports preserve them. MCAP records recovery notes and clearly identifies estimated timing where an interrupted log ends before video.
 
-Exports have an 8 GiB input/output limit and free-space checks; incomplete outputs are deleted and completed exports expire after an hour. Preview input/output is bounded to 256 MiB per part and requires 2 GiB free storage. Rebuilding removes the disposable index, never source recordings.
+Exports have an 8 GiB input/output limit. The PWA requests a streamed download: ZIP, raw video ZIP, fragmented MP4 (including recorded AAC), and MCAP are written directly to the browser, without a large temporary output file or frontend Blob. Downloads start automatically. Closing the export sheet, disconnecting the download, or losing confirmed parked state cancels the worker. An unclaimed download expires after 30 seconds; retry creates a fresh export. Small audio-probe cache records and temporary concat manifests remain bounded. The legacy file-based API remains available to clients that omit `stream: true`; completed files expire after an hour and incomplete outputs are deleted.
+
+Disk-backed exports, preview preparation, native installation and OTA preserve at least the greater of 5 GiB or 10% of the filesystem, plus 256 MiB headroom. This avoids using the space where firmware starts deleting old recordings. These constants live in `backend/policy.go`. Export, installer and OTA writes recheck the reserve as output grows. Preview preparation reserves its bounded output and any temporary HEVC seek window before writing. Firmware and other applications can still consume storage independently. Preview input is bounded to 256 MiB per part; output is capped at 32 MiB per four-second chunk or 256 MiB for a whole-part request. Rebuilding removes the disposable index, never source recordings.
 
 ## Recording readiness and dates
 

@@ -101,14 +101,18 @@ func hevcPreviewWindow(ctx context.Context, file, cache string, start float64) (
 		err = errors.New("invalid preview packet offsets")
 		return
 	}
+	if err = requireRecordingSpace(cache, end-begin+int64(len(parameters))+PreviewChunkMaxBytes); err != nil {
+		return
+	}
 	window, err := os.CreateTemp(cache, ".hevc-window-*.hevc")
 	if err != nil {
 		return
 	}
 	temporary := window.Name()
 	cleanup = func() { _ = os.Remove(temporary) }
-	if _, err = window.Write(parameters); err == nil {
-		_, err = io.Copy(window, checkedReader{ctx, io.NewSectionReader(source, begin, end-begin)})
+	output := &recordingSpaceWriter{path: cache, writer: window}
+	if _, err = output.Write(parameters); err == nil {
+		_, err = io.Copy(output, checkedReader{ctx, io.NewSectionReader(source, begin, end-begin)})
 	}
 	closeErr := window.Close()
 	if err == nil {

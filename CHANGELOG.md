@@ -6,6 +6,8 @@ All notable changes to Dash are documented here using Keep a Changelog.
 
 ### Added
 
+- Stream whole-session ZIP, raw video, MP4 and MCAP downloads directly to the browser, with disconnect/ignition cancellation and fresh-job retries.
+
 - Add a checkout-free one-line installer, with direct device or SSH target modes, main/nightly/dev selection, pinned releases, verified native bootstrap downloads, and shared parked-only systemd activation.
 
 - Add a frontend polish acceptance check covering accent/theme contrast, nested modal isolation, keyboard focus, and precise timestamp controls across five languages and four phone sizes.
@@ -57,6 +59,9 @@ All notable changes to Dash are documented here using Keep a Changelog.
 - Remove completed animation handoff plans and an unused screenshot generator; retain maintained design/validation documentation under `docs/`.
 
 ### Fixed
+
+- Preserve the firmware recording cleanup reserve during cached exports, previews, native installation and OTA; bound short preview output separately from whole parts.
+- Package recorded AAC correctly in streamed MP4 downloads and document both computer and direct SSH-session one-line installation.
 
 - Include the root Dockerfile in the sandbox's Go test inputs so runtime-policy checks run inside the image.
 

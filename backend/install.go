@@ -70,12 +70,8 @@ func installDeviceRelease(repository, channel, tag string, temporary bool) error
 		return errors.New("another Dash installation is running")
 	}
 	defer unix.Flock(int(lock.Fd()), unix.LOCK_UN)
-	var disk unix.Statfs_t
-	if err = unix.Statfs(home, &disk); err != nil {
+	if err := requireRecordingSpace(home, 0); err != nil {
 		return err
-	}
-	if uint64(disk.Bavail)*uint64(disk.Bsize) < 2<<30 {
-		return errors.New("installation requires 2 GiB free space; recordings will not be removed")
 	}
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()

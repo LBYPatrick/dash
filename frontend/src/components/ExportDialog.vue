@@ -70,6 +70,7 @@ async function run() {
         format: format.value,
         camera: camera.value,
         h264: h264.value,
+        stream: true,
       }),
       signal,
     });
@@ -80,6 +81,15 @@ async function run() {
         job.error ? backendMessage(job.error) : t('export.couldNotStartExport'),
       );
     jobId = job.id;
+    const startDownload = () => {
+      const link = document.createElement('a');
+      link.href = `/api/exports/${job.id}/download`;
+      link.download = job.name || '';
+      document.body.append(link);
+      link.click();
+      link.remove();
+    };
+    if (job.streaming) startDownload();
     while (!signal.aborted) {
       status.value =
         job.status === 'queued'
@@ -89,12 +99,7 @@ async function run() {
             });
       if (job.status === 'complete') {
         download.value = `/api/exports/${job.id}/download`;
-        const link = document.createElement('a');
-        link.href = download.value;
-        link.download = job.name || '';
-        document.body.append(link);
-        link.click();
-        link.remove();
+        if (!job.streaming) startDownload();
         status.value = t('export.yourDownloadShouldStartAutomaticallyIfIt');
         return;
       }
@@ -213,6 +218,7 @@ defineExpose({ open });
             class="button primary full-width"
             :href="download"
             download
+            @click.prevent="run"
             ><Download :size="16" />{{ t('export.downloadAgain') }}</a
           ><button
             v-else

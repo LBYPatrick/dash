@@ -186,7 +186,7 @@
     "mcapVideoTelemetryAndOriginals": "MCAP · video, dữ liệu xe và tệp gốc",
     "exportCamera": "Camera để xuất",
     "convertToH264ForWiderCompatibility": "Chuyển sang H.264 để tương thích rộng hơn (chậm hơn)",
-    "8GibPerExportOneProcessingJob": "Mỗi lần xuất tối đa 8 GiB, chỉ xử lý một tác vụ mỗi lúc. Tệp tạm hết hạn sau một giờ. Bắt đầu lái sẽ dừng xử lý.",
+    "8GibPerExportOneProcessingJob": "Mỗi lần xuất tối đa 8 GiB. Tải trực tiếp về trình duyệt mà không lưu bản sao trên thiết bị. Mỗi lúc chỉ xử lý một tác vụ. Việc tải sẽ dừng khi lái xe hoặc mất kết nối.",
     "includesFoxgloveVideoChannelsDashTelemetryWhen": "Gồm kênh video Foxglove, dữ liệu Dash đã lập chỉ mục và tệp gốc. Video có B-frame được chuyển đổi khi đỗ xe.",
     "connectToDashBackendToExportReal": "Kết nối dash-backend để xuất bản ghi thật. Mẫu chỉ dùng để khám phá giao diện.",
     "exportIsPausedUntilTheVehicleIs": "Tạm dừng xuất đến khi xác nhận xe đã đỗ.",
@@ -482,7 +482,7 @@
     "unsupportedLive": "Firmware không có phát cục bộ được quản lý. Dash sẽ không chạy bộ mã hóa không thể dừng khi xe khởi hành.",
     "parked": "Thao tác cần xác nhận xe đã đỗ và có đủ bộ nhớ.",
     "busy": "Có tác vụ khác đang chạy. Thử lại khi hoàn tất.",
-    "disk": "Cần ít nhất 2 GiB trống. Bản ghi sẽ không bị xóa.",
+    "disk": "Không đủ dung lượng trống. Dash sẽ không xóa bản ghi để giải phóng dung lượng.",
     "liveFailed": "Không khởi động được dịch vụ phát của firmware. Kiểm tra nhật ký rồi thử lại.",
     "cancelled": "Đã dừng xử lý vì không xác nhận được xe đang đỗ."
   }
