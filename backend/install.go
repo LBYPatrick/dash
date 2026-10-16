@@ -20,7 +20,7 @@ import (
 
 // Keep both installation routes on the same reviewed lifecycle scripts.
 //
-//go:embed preflight-install.sh activate-install.sh install-service.sh systemd-registration.sh uninstall-service.sh boot-state.sh verify-service.sh systemd/dash.service
+//go:embed preflight-install.sh activate-install.sh install-service.sh systemd-registration.sh uninstall-service.sh boot-state.sh verify-service.sh systemd/dash.service systemd/dash-usb.service
 var installFiles embed.FS
 
 func runInstallScript(name string, args ...string) error {
@@ -142,6 +142,7 @@ func installDeviceRelease(repository, channel, tag string, temporary bool) error
 		"install-service.sh": ".install-service.new", "systemd-registration.sh": ".registration.new",
 		"uninstall-service.sh": ".uninstall-service.new", "boot-state.sh": ".boot-state.new",
 		"verify-service.sh": ".verify-service.new", "systemd/dash.service": ".service.new",
+		"systemd/dash-usb.service": ".usb-service.new",
 	} {
 		data, err := installFiles.ReadFile(source)
 		if err != nil {

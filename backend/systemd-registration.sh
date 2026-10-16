@@ -2,6 +2,7 @@
 # Sourced by Dash's root-owned install/uninstall helpers. The only persistent
 # system-partition changes are our small unit copy and enablement symlink.
 DASH_UNIT_MARKER='# Dash managed service. Source: /data/dash/systemd/dash.service'
+DASH_USB_UNIT_MARKER='# Dash managed USB service. Source: /data/dash/systemd/dash-usb.service'
 dash_registration_writable() { [[ -w /etc/systemd/system ]]; }
 
 # Accept the legacy /data link for migration, or our root-owned unit copy.
@@ -21,7 +22,9 @@ dash_unit_owned() {
 dash_registration_present() {
   local directory="$1"
   [[ -e "$directory/dash.service" || -L "$directory/dash.service" ||
-     -e "$directory/multi-user.target.wants/dash.service" || -L "$directory/multi-user.target.wants/dash.service" ]]
+     -e "$directory/multi-user.target.wants/dash.service" || -L "$directory/multi-user.target.wants/dash.service" ||
+     -e "$directory/dash-usb.service" || -L "$directory/dash-usb.service" ||
+     -e "$directory/multi-user.target.wants/dash-usb.service" || -L "$directory/multi-user.target.wants/dash-usb.service" ]]
 }
 
 dash_validate_registration() {
@@ -39,7 +42,21 @@ dash_validate_registration() {
 
 dash_validate_registrations() {
   dash_validate_registration /etc/systemd/system || return 1
-  dash_validate_registration /run/systemd/system
+  dash_validate_registration /run/systemd/system || return 1
+  dash_validate_usb_registration /etc/systemd/system || return 1
+  dash_validate_usb_registration /run/systemd/system
+}
+
+dash_validate_usb_registration() {
+  local directory="$1" file="$1/dash-usb.service" link="$1/multi-user.target.wants/dash-usb.service" target
+  if [[ -e "$file" || -L "$file" ]]; then
+    [[ -f "$file" && ! -L "$file" && "$(head -n 1 "$file")" == "$DASH_USB_UNIT_MARKER" ]] || { echo 'Refusing foreign USB helper registration' >&2; return 1; }
+  fi
+  if [[ -e "$link" || -L "$link" ]]; then
+    [[ -L "$link" ]] || { echo 'Refusing foreign USB helper enablement' >&2; return 1; }
+    target="$(readlink "$link")"
+    [[ "$target" == ../dash-usb.service || "$target" == "$directory/dash-usb.service" ]] || { echo 'Refusing foreign USB helper enablement' >&2; return 1; }
+  fi
 }
 
 dash_runtime_install_allowed() {
@@ -108,6 +125,15 @@ dash_systemd_registration() (
     ln -sfn ../dash.service "$wants/dash.service.next"
     mv -Tf "$wants/dash.service.next" "$wants/dash.service"
     sync -- "$wants" "$directory"
+    if [[ -f /data/dash/systemd/dash-usb.service ]]; then
+      install -o root -g root -m 644 /data/dash/systemd/dash-usb.service "$directory/dash-usb.service.next"
+      sync -- "$directory/dash-usb.service.next"
+      mv -Tf "$directory/dash-usb.service.next" "$directory/dash-usb.service"
+      ln -sfn ../dash-usb.service "$wants/dash-usb.service.next"
+      mv -Tf "$wants/dash-usb.service.next" "$wants/dash-usb.service"
+      sync -- "$wants" "$directory"
+      systemctl ${options[@]+"${options[@]}"} enable dash-usb.service
+    fi
     systemctl ${options[@]+"${options[@]}"} enable dash.service
     # A durable install supersedes a previous temporary installation.
     if [[ "$runtime" != true ]]; then dash_systemd_registration remove true; fi
@@ -119,6 +145,11 @@ dash_systemd_registration() (
       dash_unit_owned "$directory/dash.service" && rm "$directory/dash.service"
     fi
     if [[ -L "$wants/dash.service" ]]; then rm "$wants/dash.service"; fi
+    if [[ -f "$directory/dash-usb.service" ]]; then
+      systemctl ${options[@]+"${options[@]}"} disable dash-usb.service
+      rm "$directory/dash-usb.service"
+    fi
+    if [[ -L "$wants/dash-usb.service" ]]; then rm "$wants/dash-usb.service"; fi
     if [[ -d "$wants" ]]; then sync -- "$wants"; fi
     sync -- "$directory"
   fi

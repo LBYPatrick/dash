@@ -1,0 +1,28 @@
+syntax = "proto3";
+package dash.archive.v1;
+option go_package = "dash.local/backend/internal/archive/archivepb";
+message Original {
+  string source_path = 1;
+  string archive_path = 2;
+  uint64 bytes = 3;
+  string sha256 = 4;
+  int64 modified_unix_nanoseconds = 5;
+  string status = 6;
+}
+message Manifest {
+  uint32 version = 1;
+  string source_uuid = 2;
+  string session_id = 3;
+  string snapshot_id = 4;
+  repeated Original originals = 5;
+  string timestamp_basis = 6;
+}
+message Snapshot {
+  uint32 version = 1;
+  string source_uuid = 2;
+  string snapshot_id = 3;
+  int64 requested_unix_seconds = 4;
+  uint64 files = 5;
+  uint64 bytes = 6;
+  repeated Original issues = 7;
+}

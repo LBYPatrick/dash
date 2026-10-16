@@ -1,0 +1,20 @@
+{
+  "exfat": {
+    "version": "1.4.0",
+    "url": "https://github.com/relan/exfat/releases/download/v1.4.0/fuse-exfat-1.4.0.tar.gz",
+    "file": "exfat.tar.gz",
+    "sha256": "a1cfedc55e0e7a12c184605aa0f0bf44b24a3fb272449b20b2c8bbe6edb3001e"
+  },
+  "fuse": {
+    "version": "3.18.3",
+    "url": "https://github.com/libfuse/libfuse/releases/download/fuse-3.18.3/fuse-3.18.3.tar.gz",
+    "file": "fuse.tar.gz",
+    "sha256": "bcd19582c5e30f7fe45dd86a5540e998590aa01903afc7ebcbeea6c8ac5421ee"
+  },
+  "ntfs": {
+    "version": "2026.9.28",
+    "url": "https://codeload.github.com/tuxera/ntfs-3g/tar.gz/refs/tags/2026.9.28",
+    "file": "ntfs.tar.gz",
+    "sha256": "8a75293f07bf40df5701d296de32a4cb0e46d6ae135abb4f41b438df9868a390"
+  }
+}

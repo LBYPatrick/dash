@@ -6,7 +6,7 @@ The target needs a comma 3X/4 running Linux ARM64, systemd, a `comma` user/group
 
 Enable device SSH using the [official connection instructions](https://docs.comma.ai/how-to/connect-to-comma/). Use the address shown on your current network; no network switching is necessary. The PWA and API share `http://DEVICE_IP:8088`. Once installed, recordings and exports require no internet or account.
 
-All app assets live in `/data/dash`. The only persistent files outside it are a small systemd unit copy at `/etc/systemd/system/dash.service` and its boot-enablement symlink. A unit symlink into `/data` cannot reliably start at boot because systemd reads units before mounting `/data`; the copied unit declares `RequiresMountsFor=/data`. On AGNOS, root is normally read-only. The root-owned registration helper briefly remounts it writable **only** to add/remove Dash’s unit and enablement link, then restores read-only state on success or failure. It never edits firmware launchers, other units or mount configuration. Firmware and original recordings are left in place. Device mode uses fixed app budgets and does not inspect CPU topology, RAM availability, `/proc` or cgroup controller files.
+All app assets live in `/data/dash`. The only persistent files outside it are small systemd unit copies for `dash.service` and `dash-usb.service` under `/etc/systemd/system`, plus their boot-enablement symlinks. A unit symlink into `/data` cannot reliably start at boot because systemd reads units before mounting `/data`; the copied unit declares `RequiresMountsFor=/data`. On AGNOS, root is normally read-only. The root-owned registration helper briefly remounts it writable **only** to add/remove Dash’s units and enablement links, then restores read-only state on success or failure. It never edits firmware launchers, other units or mount configuration. Firmware and original recordings are left in place. Device mode uses fixed app budgets and does not inspect CPU topology, RAM availability or cgroup controller files. The USB helper inspects only block-device ancestry and mount state needed to protect system storage and recover its own mounts.
 
 ## One-line installation
 
@@ -51,7 +51,7 @@ For unpublished code, run `make setup-build-env`, start Docker on the **build ho
 
 ## Files and startup
 
-`/data/dash/dash-bootstrap` supervises `/data/dash/current/dash-backend`, which serves `/data/dash/current/dist`, reads `/data/media/0/realdata`, keeps disposable files in `/data/dash/cache`, and observes `/data/params/d`. It detects firmware capabilities in `/data/openpilot`. Use `/data/dash/dash.env` for optional `DASH_TLS_ARGS` or `DASH_EXTRA_ARGS`; keep customization inside the app folder. The unit source and installation helpers remain in `/data/dash`.
+`/data/dash/dash-bootstrap` supervises `/data/dash/current/dash-backend`, which serves `/data/dash/current/dist`, reads `/data/media/0/realdata`, keeps disposable files in `/data/dash/cache`, and observes `/data/params/d`. It detects firmware capabilities in `/data/openpilot`. Use `/data/dash/dash.env` for optional `DASH_TLS_ARGS` or `DASH_EXTRA_ARGS`; keep customization inside the app folder. The unit sources and installation helpers remain in `/data/dash`. Durable archive state and private destination credentials live in `transfers/`, separately from disposable `cache/`. Root-owned USB helpers, sources and licenses live in `usb-tools/`, with external mounts under `usb/`. See [archive setup](exports.md).
 
 ```sh
 sudo systemctl status dash.service
@@ -168,16 +168,16 @@ The SSH installer flushes staged release contents before switching `current`, an
 
 ## AGNOS updates and removal
 
-AGNOS documents `/data` as persisting across OS updates, unlike the other system partitions. Keep the bootstrap, versioned releases, update configuration/journal, PWA, cache, certificates, and unit source there. `/etc/systemd/system/dash.service` and its enablement symlink may be lost during an update. The bundled media tools remain with Dash under `/data`. This persistence distinction is documented in the [AGNOS 8 release notes](https://blog.comma.ai/094release/).
+AGNOS documents `/data` as persisting across OS updates, unlike the other system partitions. Keep the bootstrap, versioned releases, update configuration/journal, PWA, cache, certificates, and unit source there. The `dash.service` and `dash-usb.service` copies and enablement symlinks in `/etc/systemd/system` may be lost during an update. The bundled media tools remain with Dash under `/data`. This persistence distinction is documented in the [AGNOS 8 release notes](https://blog.comma.ai/094release/).
 
-After an AGNOS update, while parked, restore Dash’s systemd unit copy and enablement, then verify startup:
+After an AGNOS update, while parked, restore Dash’s systemd unit copies and enablement, then verify startup:
 
 ```sh
 sudo bash /data/dash/install.sh
 sudo bash /data/dash/verify-service.sh
 ```
 
-The script restores the copied unit and enablement link and checks fresh supervised startup again. Dash does not patch sunnypilot's manager or install an extra boot hook to resurrect itself. A firmware-only update normally leaves `/data/dash` alone, but can change log schemas or streaming APIs. A factory reset/reflash or explicit data wipe can remove `/data`; keep exported recordings elsewhere.
+The script restores both copied units and their enablement links and checks fresh supervised startup again. Dash does not patch sunnypilot's manager or install an extra boot hook to resurrect itself. A firmware-only update normally leaves `/data/dash` alone, but can change log schemas or streaming APIs. A factory reset/reflash or explicit data wipe can remove `/data`; keep exported recordings elsewhere.
 
 To remove Dash, its cached exports, static tools and both persistent/temporary systemd registrations:
 

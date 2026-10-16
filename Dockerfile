@@ -44,7 +44,7 @@ COPY --from=media /usr/lib/ /usr/lib/
 COPY --from=media /etc/alternatives/ /etc/alternatives/
 COPY --from=media /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
 RUN useradd --uid 1000 --create-home dash \
-    && mkdir -p /data/dash/cache /data/params/d \
+    && mkdir -p /data/dash/cache /data/dash/transfers /data/dash/usb-sim /data/params/d \
     && chown -R dash:dash /data
 COPY --from=backend /dash-backend /usr/local/bin/dash-backend
 COPY --from=web /work/frontend/dist /app

@@ -16,6 +16,9 @@ const (
 	HeavyJobLimit           = 1
 	GoHeapTargetMiB         = 96
 	SupervisorHeapTargetMiB = 24
+	USBHeapTargetMiB        = 24
+	USBMemoryHighMiB        = 64
+	USBMemoryMaxMiB         = 128
 	MediaAllocationLimitMiB = 32
 	MediaRSSLimitMiB        = 192 // Optional host/container instrumentation only.
 	ServiceMemoryHighMiB    = 256

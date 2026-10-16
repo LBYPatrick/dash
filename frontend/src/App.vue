@@ -38,6 +38,7 @@ import {
 } from './icons';
 import { vGlassTabs } from './glassTabs';
 import SettingsPopup from './components/SettingsPopup.vue';
+import TransfersSheet from './components/TransfersSheet.vue';
 import HoverTip from './vendor/shelf/HoverTip.vue';
 import { vTip, hideTip } from './vendor/shelf/hoverTip';
 import Sheet from './components/Sheet.vue';
@@ -226,6 +227,7 @@ function switchDevice() {
 }
 const sort = ref<'newest' | 'oldest' | 'longest'>('newest');
 const exportDialog = ref<InstanceType<typeof ExportDialog>>();
+const transfersDialog = ref<InstanceType<typeof TransfersSheet>>();
 const drivePoints = computed<Position[]>((previous) => {
   const points = (
     active.value?.segments.flatMap(
@@ -783,7 +785,11 @@ onBeforeUnmount(() => {
         role="group"
         :aria-label="t('app.appControls')"
       >
-        <SettingsPopup @rebuild="indexDrives(true)" @help="showHelp" />
+        <SettingsPopup
+          @rebuild="indexDrives(true)"
+          @help="showHelp"
+          @transfers="transfersDialog?.open('destinations')"
+        />
         <button
           type="button"
           class="icon-button desktop-help"
@@ -916,7 +922,11 @@ onBeforeUnmount(() => {
               >
                 <CircleHelp :size="18" />
               </button>
-              <SettingsPopup @rebuild="indexDrives(true)" @help="showHelp" />
+              <SettingsPopup
+                @rebuild="indexDrives(true)"
+                @help="showHelp"
+                @transfers="transfersDialog?.open('destinations')"
+              />
             </div>
           </div>
           <DeviceSwitcher
@@ -949,6 +959,15 @@ onBeforeUnmount(() => {
                 }}</span
               >
             </h2>
+            <button
+              v-if="backendOrigin"
+              class="icon-button"
+              :aria-label="t('transfers.exportRecordings')"
+              v-tip="t('transfers.exportRecordings')"
+              @click="transfersDialog?.open()"
+            >
+              <Download :size="17" />
+            </button>
             <button
               class="icon-button"
               :disabled="busy"
@@ -1579,6 +1598,7 @@ onBeforeUnmount(() => {
         </button>
       </div>
     </Sheet>
+    <TransfersSheet ref="transfersDialog" />
     <ToastStack :centred="!connected" />
   </div>
 </template>

@@ -22,13 +22,36 @@ high="$(sed -n 's/.*"memoryHighMiB":\([0-9][0-9]*\).*/\1/p' <<< "$settings")"
 max="$(sed -n 's/.*"memoryMaxMiB":\([0-9][0-9]*\).*/\1/p' <<< "$settings")"
 [[ "$high" =~ ^[1-9][0-9]*$ && "$max" =~ ^[1-9][0-9]*$ && "$max" -ge "$high" ]]
 sed -i "s/^MemoryHigh=.*/MemoryHigh=${high}M/; s/^MemoryMax=.*/MemoryMax=${max}M/" /data/dash/systemd/dash.service
+usb_high="$(sed -n 's/.*"usbMemoryHighMiB":\([0-9][0-9]*\).*/\1/p' <<< "$settings")"
+usb_max="$(sed -n 's/.*"usbMemoryMaxMiB":\([0-9][0-9]*\).*/\1/p' <<< "$settings")"
+[[ "$usb_high" =~ ^[1-9][0-9]*$ && "$usb_max" =~ ^[1-9][0-9]*$ && "$usb_max" -ge "$usb_high" ]]
+sed -i "s/^MemoryHigh=.*/MemoryHigh=${usb_high}M/; s/^MemoryMax=.*/MemoryMax=${usb_max}M/" /data/dash/systemd/dash-usb.service
 sync -- /data/dash/systemd/dash.service /data/dash/systemd
 install -d -o comma -g comma -m 700 /data/dash/cache
+for directory in /data/dash/usb /data/dash/usb-tools; do
+  [[ ! -L "$directory" ]] || { echo 'Refusing unsafe USB service directory'; exit 1; }
+  install -d -o root -g root -m 755 "$directory"
+done
+if [[ -f /data/dash/current/bin/usb/manifest.json ]]; then
+  /data/dash/current/dash-backend --verify-usb-bundle
+  for tool in mount.exfat-fuse ntfs-3g; do
+    install -o root -g root -m 755 "/data/dash/current/bin/usb/$tool" "/data/dash/usb-tools/$tool.next"
+    sync -- "/data/dash/usb-tools/$tool.next"
+    mv -Tf "/data/dash/usb-tools/$tool.next" "/data/dash/usb-tools/$tool"
+  done
+  for category in sources licenses; do
+    [[ -d "/data/dash/current/bin/usb/$category" && ! -L "/data/dash/current/bin/usb/$category" ]] || { echo 'USB helper sources/licenses are missing'; exit 1; }
+    cp -R --no-dereference "/data/dash/current/bin/usb/$category" /data/dash/usb-tools/
+    chown -R root:root "/data/dash/usb-tools/$category"
+  done
+  sync -- /data/dash/usb-tools
+fi
 runtime=false
 if [[ ${#options[@]} != 0 ]]; then runtime=true; fi
 dash_systemd_registration register "$runtime"
 systemctl daemon-reload
 systemctl reset-failed dash.service
+systemctl reset-failed dash-usb.service 2>/dev/null || true
 if ! systemctl restart dash.service; then
   systemctl stop dash.service
   dash_systemd_registration remove "$runtime"

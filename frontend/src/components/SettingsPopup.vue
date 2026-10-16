@@ -29,7 +29,7 @@ import { backendOrigin, indexStatus } from '../indexer';
 import { vTip } from '../vendor/shelf/hoverTip';
 import { vGlassTabs } from '../glassTabs';
 const { t } = useTranslation();
-const emit = defineEmits<{ rebuild: []; help: [] }>();
+const emit = defineEmits<{ rebuild: []; help: []; transfers: [] }>();
 const dialog = ref<InstanceType<typeof Sheet>>();
 const updatesDialog = ref<InstanceType<typeof Sheet>>();
 const themes = computed(
@@ -190,6 +190,16 @@ const themes = computed(
         <Download :size="18" />
         <span>{{ t('updates.dashUpdates') }}</span>
         <ChevronRight :size="16" />
+      </button>
+      <button
+        v-if="backendOrigin"
+        class="button full-width"
+        type="button"
+        aria-haspopup="dialog"
+        @click="emit('transfers')"
+      >
+        <Download :size="18" />{{ t('transfers.destinations')
+        }}<ChevronRight :size="16" />
       </button>
       <button
         class="settings-help button full-width"

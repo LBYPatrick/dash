@@ -194,3 +194,28 @@ for action in register remove-all; do
 done
 
 echo 'Systemd registration passed: boot-readable physical unit, atomic migration, foreign registration protection, scoped removal, read-only restoration, and remount-free runtime mode.'
+
+# The USB service follows the same durable, early-boot-readable registration.
+reset_fixture
+usb_source="$(dirname "$source_unit")/dash-usb.service"
+usb_unit="$(dirname "$unit")/dash-usb.service"
+usb_wants="$(dirname "$wants")/dash-usb.service"
+printf '# Dash managed USB service. Source: %s\n[Unit]\nRequiresMountsFor=/data\n' "$usb_source" > "$usb_source"
+register register
+[[ -f "$usb_unit" && ! -L "$usb_unit" && "$(readlink "$usb_wants")" == ../dash-usb.service ]] || fail 'USB helper registration is not boot-readable'
+cmp "$usb_source" "$usb_unit" || fail 'USB helper differs from owned source'
+assert_remounted_read_only
+register remove-all
+[[ ! -e "$usb_unit" && ! -L "$usb_wants" ]] || fail 'USB helper registration survived removal'
+
+# A foreign USB unit/link refuses the entire operation before any changes.
+for kind in unit wants; do
+  reset_fixture
+  if [[ "$kind" == unit ]]; then printf 'Foreign USB service\n' > "$usb_unit"; else ln -s /somebody/else "$usb_wants"; fi
+  for action in register remove-all; do
+    expect_failure "$action"
+    assert_not_called '^mount '
+    assert_not_called '^systemctl '
+    assert_not_called '^install '
+  done
+done

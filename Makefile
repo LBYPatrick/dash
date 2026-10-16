@@ -120,6 +120,10 @@ motion-smoke: ## Check transitions and reduced motion
 i18n-smoke: ## Check all five languages and preferences
 	vp test run --config frontend/browser.config.ts frontend/tests/browser/i18n-smoke.test.js
 
+.PHONY: transfers-smoke
+transfers-smoke: ## Check batch export and cloud connection flows
+	vp test run --config frontend/browser.config.ts frontend/tests/browser/transfers-smoke.test.js
+
 ##@ Docker sandbox
 .PHONY: sandbox-up sandbox-test sandbox-smoke sandbox-logs sandbox-down
 sandbox-up: ## Build and start the synthetic device sandbox
@@ -171,6 +175,14 @@ ota-smoke: ## Check activation and rollback in Linux/Docker
 
 build-media: ## Build bundled media tools; set MEDIA_ARCH
 	go -C backend run ./cmd/dash-tool build-media $(MEDIA_ARCH)
+
+.PHONY: build-filesystems
+build-filesystems: ## Build bundled exFAT and NTFS helpers; set MEDIA_ARCH
+	go -C backend run ./cmd/dash-tool build-filesystems $(MEDIA_ARCH)
+
+.PHONY: filesystem-smoke
+filesystem-smoke: ## Check USB helpers on isolated Linux filesystem images
+	DASH_INTEGRATION=filesystem GOMAXPROCS=$(HOST_CHECK_PROCS) go -C backend test -p 1 -parallel 1 -count=1 -timeout=20m ./internal/hosttools -run TestFilesystemIntegration
 
 media-smoke: ## Exercise bundled tools in Linux containers
 	DASH_INTEGRATION=media GOMAXPROCS=$(HOST_CHECK_PROCS) go -C backend test -p 1 -parallel 1 -count=1 -timeout=20m ./internal/hosttools -run TestMediaIntegration

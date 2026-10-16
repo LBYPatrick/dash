@@ -43,6 +43,7 @@ dash_install_atomic /data/dash/.verify-service.new /data/dash/verify-service.sh 
 dash_install_atomic /data/dash/.boot-state.new /data/dash/boot-state.sh 755
 sudo -n install -d -o root -g root -m 755 /data/dash/systemd
 dash_install_atomic /data/dash/.service.new /data/dash/systemd/dash.service 644
+dash_install_atomic /data/dash/.usb-service.new /data/dash/systemd/dash-usb.service 644
 if [[ -e "/data/dash/releases/$DASH_TAG" ]]; then
   rm -rf /data/dash/.install.new
 else
@@ -71,4 +72,4 @@ if ! sudo -n bash /data/dash/install.sh "${DASH_INSTALL_FLAGS[@]}"; then
   exit 1
 fi
 trap - ERR
-rm -f /data/dash/.registration.new /data/dash/.install-service.new /data/dash/.verify-service.new /data/dash/.uninstall-service.new /data/dash/.service.new /data/dash/.boot-state.new
+rm -f /data/dash/.registration.new /data/dash/.install-service.new /data/dash/.verify-service.new /data/dash/.uninstall-service.new /data/dash/.service.new /data/dash/.usb-service.new /data/dash/.boot-state.new

@@ -30,6 +30,8 @@ Desktop offers resizable library and video/map panels. Mobile keeps playback con
 
 MCAP video uses H.264 with a keyframe in every message for paused Foxglove scrubbing. Exports preserve recorded frame timing and resolution, and include original files as attachments. Downloads stream directly to your browser without storing a large output file on the device. MCAP conversion increases download size and processing time; previously downloaded MCAPs need to be exported again.
 
+**Archive all recordings** to USB (exFAT, ext4 or NTFS), S3-compatible storage, Google Drive or OneDrive. Transfers retain originals, checkpoint progress across restarts, verify completed copies and stop onroad or when driving state is unknown. Open Export recordings beside the library or Export destinations in Settings. Cloud accounts are optional; their tokens remain private on the backend. See [archive setup and recovery](docs/exports.md), including CD OAuth registration and the remaining physical USB/account acceptance requirements.
+
 Live view and bounded browser recording support firmware-managed WebRTC and a Dash-owned adapter for older sunnypilot builds with installed camera/media libraries. Both require a visible viewer and confirmed parked state. Leaving Live or losing the viewer stops capture. Metadata and statistics depend on the logs actually recorded; unavailable data stays unavailable.
 
 HEVC cameras use short, cached H.264 previews while parked, with visible preparation feedback. Recorded AAC audio follows camera selection and stays in MP4 downloads. Follow remains enabled during GPS gaps, with a small availability indicator. Shelf’s dismissible notifications and eight accent presets apply throughout the interface; blue is the default.

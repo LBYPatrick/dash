@@ -14,7 +14,7 @@ The workflow runs formatting, Go installer tests, Vite+ frontend tests, Go race 
 
 Media jobs compile and smoke-test the pinned sources with Docker Buildx on matching native ARM64 and AMD64 runners. Source-keyed caches are checked for input identity, binary digests and architecture before reuse. Each job uploads its tested bundle; packaging restores executable permissions after artifact transfer and verifies the contents again. CI does not emulate a compiler, and no build container runs on the device. See GitHub's [native runner reference](https://docs.github.com/en/actions/reference/runners/github-hosted-runners).
 
-CI needs no repository secrets: only its short-lived `github.token`, with release-writing permission confined to the publish job. Action revisions are pinned. GitHub supports `concurrency.queue: max`; actionlint v1.7.12 still flags that new property, so workflow structure tests also verify the channel-only trigger and queue policy. Per-channel runs queue rather than cancel each other (GitHub's queue limit is 100 pending runs).
+Release publishing uses the short-lived `github.token`, with release-writing permission confined to the publish job. Optional OAuth app registrations come from `DASH_GOOGLE_CLIENT_ID`, `DASH_GOOGLE_CLIENT_SECRET` and `DASH_MICROSOFT_CLIENT_ID` repository secrets during packaging; user account tokens never enter CD. See [cloud archive setup](exports.md#google-drive-and-onedrive). Action revisions are pinned. GitHub supports `concurrency.queue: max`; actionlint v1.7.12 still flags that new property, so workflow structure tests also verify the channel-only trigger and queue policy. Per-channel runs queue rather than cancel each other (GitHub's queue limit is 100 pending runs).
 
 ## Release assets
 
@@ -111,23 +111,26 @@ Both sunnypilot and openpilot offer SSH access, but that alone does not prove a 
   releases/<tag>/
     dash-backend           replaceable Go service
     dist/                  matching prebuilt PWA
-    bin/                   static FFmpeg/ffprobe, manifest, licenses, sources
+    bin/                   static FFmpeg/ffprobe and usb/ helpers, manifests, licenses, sources
     release.json
   update.json              repository, selected channel, automatic checks
   ready.json               verified downloaded manifest, when present
   pending.json             explicit restart/install request, when present
   activation.json          durable activation journal during probation
   update-failure.json      rollback/postponement explanation, when present
+  transfers/               durable archive state and private destination credentials
+  usb/                     owned external volume mount points
+  usb-tools/               root-owned stable filesystem helpers, sources and licenses
   cache/                   existing index, previews, exports and bounded logs
     supervisor-ready.json  live bootstrap/child identity after health probation
   install.sh / uninstall.sh / verify-service.sh
   systemd-registration.sh  root-owned scoped unit setup/restoration
-  systemd/dash.service     persistent source; small copy registered in /etc
+  systemd/                 dash.service and dash-usb.service; small copies registered in /etc
 ```
 
 A systemd-owned boot guard waits for fresh firmware state before executing the stable bootstrap as the main process. Its `/run/dash` markers survive same-boot restarts and disappear at reboot. It starts the selected backend directly, with no shell or detached worker, in its own process group inside the **same** service cgroup. Device mode applies fixed constants: a 24 MiB bootstrap heap target, 96 MiB backend target, one heavy job and an eight-core/media-thread ceiling, without CPU quota or affinity. Systemd requests aggregate memory high 256 MiB/max 384 MiB, zero swap and 128 tasks; kernel support varies and is not probed. Startup/restart limits, journal logging and whole-cgroup shutdown remain systemd's responsibility. The supervisor kills the retired child's entire process group before replacement, including any surviving FFmpeg child. After startup probation, it sleeps waiting for process exit rather than polling while driving.
 
-App updates cannot edit systemd units or invoke sudo. The stable bootstrap/protocol and root-owned unit helpers change only through an explicit SSH installation. This is intentional bootloader separation: an app update cannot replace its rollback mechanism. A future protocol or unit migration needs a new SSH install. AGNOS persistence/recovery follows [installation.md](installation.md): `/data` persists normally, `/etc` unit registration and OS packages may not.
+App updates cannot edit systemd units or invoke sudo. The stable bootstrap/protocol and root-owned unit helpers change only through an explicit SSH installation. This is intentional bootloader separation: an app update cannot replace its rollback mechanism. A future protocol or unit migration needs a new SSH install. The root-owned USB service and filesystem helpers follow the same rule: OTA carries verified helper assets, but a parked explicit installer run is needed to refresh their privileged stable copies. Existing installs need that reinstall once to register USB support. AGNOS persistence/recovery follows [installation.md](installation.md): `/data` persists normally, `/etc` unit registration and OS packages may not.
 
 ## Updating in Settings
 

@@ -1,0 +1,20 @@
+--- a/fuse/main.c
++++ b/fuse/main.c
+@@ -321 +321 @@
+-		, UNUSED unsigned int flags
++		, unsigned int flags
+@@ -324,0 +325,14 @@
++#if FUSE_USE_VERSION >= 30
++	/* Dash: honor Linux RENAME_NOREPLACE. This helper runs single-threaded,
++	 * so the lookup and rename cannot interleave with another FUSE request.
++	 * Never silently replace an archive on filesystems without hard links. */
++	if (flags & ~1U)
++		return -EINVAL;
++	if (flags & 1U)
++	{
++		struct exfat_node* node;
++		int rc = exfat_lookup(&ef, &node, new_path);
++		if (rc == 0) { exfat_put_node(&ef, node); return -EEXIST; }
++		if (rc != -ENOENT) return rc;
++	}
++#endif

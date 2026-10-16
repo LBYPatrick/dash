@@ -19,24 +19,31 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"dash.local/backend/internal/archive"
+	"dash.local/backend/internal/usb"
 )
 
 type Server struct {
-	updates                         *UpdateManager
-	simulationMu                    sync.Mutex
-	diagnostics                     *Diagnostics
-	simulation                      bool
-	liveRelease                     func()
-	ctx                             context.Context
-	index                           *Index
-	exports                         *ExportManager
-	app, params, firmware, upstream string
-	client                          *http.Client
-	liveMu                          sync.Mutex
-	liveOwned                       bool
-	liveTouched                     time.Time
-	liveLease                       string
-	liveCancel                      func()
+	transfers                                      *archive.Manager
+	transferAuth                                   *archive.Authorizer
+	usbClient                                      *usb.Client
+	transferHome, transferLocalRoot, transferEpoch string
+	updates                                        *UpdateManager
+	simulationMu                                   sync.Mutex
+	diagnostics                                    *Diagnostics
+	simulation                                     bool
+	liveRelease                                    func()
+	ctx                                            context.Context
+	index                                          *Index
+	exports                                        *ExportManager
+	app, params, firmware, upstream                string
+	client                                         *http.Client
+	liveMu                                         sync.Mutex
+	liveOwned                                      bool
+	liveTouched                                    time.Time
+	liveLease                                      string
+	liveCancel                                     func()
 }
 
 func newServer(ctx context.Context, index *Index, exports *ExportManager, app, params, firmware, upstream string) *Server {
@@ -92,6 +99,15 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	if strings.HasPrefix(r.URL.Path, "/api/") {
+		if strings.HasPrefix(r.URL.Path, "/api/transfers") || strings.HasPrefix(r.URL.Path, "/api/transfer-destinations") {
+			if r.Method != http.MethodGet && r.Method != http.MethodPost {
+				fail(w, 405, errors.New("method not allowed"))
+				return
+			}
+			r.Body = http.MaxBytesReader(w, r.Body, 65536)
+			s.transferAPI(w, r)
+			return
+		}
 		if r.Method == http.MethodPost {
 			s.post(w, r)
 			return
