@@ -152,3 +152,5 @@ make filesystem-smoke
 The filesystem check uses newly created images inside an isolated mount namespace, including remount/resume and exclusive publication tests. It never targets physical disks. Channel CI builds native ARM64/AMD64 static helpers, verifies architecture/digests and runs these checks. Matching upstream sources, the exFAT patch, build recipe and GPL/LGPL notices ship in each release. Nothing installs test/build packages on the comma.
 
 A physical drive copy/eject/power-cycle test and real Google/Microsoft/S3 account authorization remain separate acceptance steps. Do not describe protocol mocks or synthetic volumes as those hardware/account tests.
+
+`make archive-smoke` also exercises a running synthetic backend's real HTTP API: all-original copying, pause/resume, onroad rejection, public-state redaction and index independence. Set `DASH_ARCHIVE_URL` for a local synthetic server. With the default Docker sandbox, `DASH_ARCHIVE_RESTART=1 make archive-smoke` additionally restarts only that container and checks durable manual pause. It refuses any non-synthetic backend.

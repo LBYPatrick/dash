@@ -103,7 +103,7 @@ jobs:
             chmod +x ".artifacts/filesystems/linux-$arch/mount.exfat-fuse" ".artifacts/filesystems/linux-$arch/ntfs-3g"
           done
       - name: Verify native OTA activation and rollback under device limits
-        run: make sandbox-up && make ota-smoke
+        run: make sandbox-up && make ota-smoke && DASH_ARCHIVE_RESTART=1 make archive-smoke
       - name: Verify build-yourself SSH installer with mocked transport
         run: make source-install-smoke
       - name: Build device release archives

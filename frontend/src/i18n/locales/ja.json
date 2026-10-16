@@ -489,7 +489,7 @@
   "transfers": {
     "accessKey": "アクセスキー",
     "addDestination": "保存先を追加",
-    "authorizationInstructions": "サービスのページでこのコードを入力し、認証が完了するまで Dash を開いておいてください。",
+    "authorizationInstructions": "サービスのページでこのコードを入力し、承認後に Dash に戻ってください。",
     "authorizationRequired": "サービスへの認証が必要です",
     "backgroundDescription": "この画面を閉じても進行状況は保存されます。走行中や状態不明時は転送を停止します。",
     "bucket": "バケット名",

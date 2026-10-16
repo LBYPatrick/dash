@@ -489,7 +489,7 @@
   "transfers": {
     "accessKey": "访问密钥 ID",
     "addDestination": "添加目标",
-    "authorizationInstructions": "打开服务商页面并输入此代码，在授权完成前保持 Dash 打开。",
+    "authorizationInstructions": "打开提供商页面并输入此代码，授权后返回 Dash。",
     "authorizationRequired": "需要服务商授权",
     "backgroundDescription": "可以关闭此窗口。设备会保留进度，并在驾驶或状态未知时停止传输。",
     "bucket": "存储桶名称",

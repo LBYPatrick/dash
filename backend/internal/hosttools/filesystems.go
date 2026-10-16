@@ -81,7 +81,13 @@ func (t *Tools) BuildFilesystems(arch string) (string, error) {
 		if err != nil || parsed.Scheme != "https" {
 			return "", fmt.Errorf("invalid filesystem source URL")
 		}
-		response, err := fetch(source.URL, map[string]bool{parsed.Host: true})
+		hosts := map[string]bool{parsed.Host: true}
+		if parsed.Host == "github.com" {
+			for host := range releaseHosts {
+				hosts[host] = true
+			}
+		}
+		response, err := fetch(source.URL, hosts)
 		if err != nil {
 			return "", err
 		}

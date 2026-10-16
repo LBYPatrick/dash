@@ -489,7 +489,7 @@
   "transfers": {
     "accessKey": "Access key",
     "addDestination": "Add destination",
-    "authorizationInstructions": "Open the provider page and enter this code. Keep Dash open until authorization completes.",
+    "authorizationInstructions": "Open the provider page and enter this code. Return to Dash after approving access.",
     "authorizationRequired": "Provider authorization required",
     "backgroundDescription": "You can close this popup. The device keeps progress and stops transfers while driving or when state is unknown.",
     "bucket": "Bucket name",
