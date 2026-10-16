@@ -43,6 +43,8 @@ All notable changes to Dash are documented here using Keep a Changelog.
 
 ### Changed
 
+- Build and smoke-test static media on native ARM64 and AMD64 CI runners, with verified source-keyed caches and artifact handoff to release packaging.
+
 - Move release, fixture, media, SDK and sandbox host tooling from standalone JavaScript/Python launchers to Go. Run browser acceptance as Vite+ framework tests; remove `.mjs` files and direct Node commands from Make, installers, Docker and CI.
 
 - Use the full Vite+ toolchain for the frontend and shared JavaScript tooling: managed Node/pnpm, one frozen lockfile, Rolldown builds, Vitest, Oxlint and Oxfmt. Update host setup, Make commands, CI and the sandbox builder; retain Vue template type checks.
