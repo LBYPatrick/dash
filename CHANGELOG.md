@@ -6,6 +6,8 @@ All notable changes to Dash are documented here using Keep a Changelog.
 
 ### Added
 
+- Add a checkout-free one-line installer, with direct device or SSH target modes, main/nightly/dev selection, pinned releases, verified native bootstrap downloads, and shared parked-only systemd activation.
+
 - Add a frontend polish acceptance check covering accent/theme contrast, nested modal isolation, keyboard focus, and precise timestamp controls across five languages and four phone sizes.
 
 - Switch device Go scheduling between the full offroad budget and one processor onroad/unknown, keeping heavy work gated and reporting the active budget in diagnostics.

@@ -65,6 +65,10 @@ func TestPublishRecovery(t *testing.T) {
 			}
 			id, _ := ReleaseIdentity("dev", "12", strings.Repeat("a", 40), "0.1.0", false)
 			manifest := Manifest{Identity: id, Assets: map[string]Asset{"arm64": {Name: archiveName(id, "arm64"), Bytes: 1, SHA256: strings.Repeat("a", 64)}, "amd64": {Name: archiveName(id, "amd64"), Bytes: 1, SHA256: strings.Repeat("b", 64)}}}
+			manifest.Installers = map[string]Asset{}
+			for _, arch := range []string{"arm64", "amd64"} {
+				manifest.Installers[arch] = Asset{Name: "dash-bootstrap-linux-" + arch, Bytes: 1, SHA256: strings.Repeat("a", 64)}
+			}
 			if err := writeJSON(filepath.Join(directory, "manifest.json"), manifest); err != nil {
 				t.Fatal(err)
 			}
@@ -83,7 +87,7 @@ func TestPublishRecovery(t *testing.T) {
 				case "view":
 					names := []string{"manifest.json"}
 					if !strings.HasPrefix(args[2], "channel-") {
-						names = append(names, "SHA256SUMS", manifest.Assets["arm64"].Name, manifest.Assets["amd64"].Name)
+						names = append(names, "SHA256SUMS", "bootstrap.sh", manifest.Assets["arm64"].Name, manifest.Assets["amd64"].Name, manifest.Installers["arm64"].Name, manifest.Installers["amd64"].Name)
 					}
 					assets := []map[string]string{}
 					for _, name := range names {

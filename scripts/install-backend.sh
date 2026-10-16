@@ -44,28 +44,7 @@ if [[ -n "$DASH_IDENTITY" ]]; then
   DASH_SSH_OPTIONS+=(-i "$DASH_IDENTITY" -o IdentitiesOnly=yes)
 fi
 # This block is intentionally read-only and never changes driving params.
-ssh "${DASH_SSH_OPTIONS[@]}" "$DASH_TARGET" bash -s -- "$DASH_RUNTIME" <<'PREFLIGHT'
-set -euo pipefail
-command -v systemctl >/dev/null
-command -v findmnt >/dev/null
-command -v mount >/dev/null
-id comma >/dev/null
-[[ ! -L /data/dash ]] || { echo '/data/dash must not be a symlink'; exit 1; }
-# Only inspect our own unit, never replace another application's registration.
-fragment="$(systemctl show dash.service --property=FragmentPath --value 2>/dev/null || true)"
-if [[ -n "$fragment" && "$(readlink -f -- "$fragment")" != /data/dash/systemd/dash.service ]]; then
-  [[ ( "$fragment" == /etc/systemd/system/dash.service || "$fragment" == /run/systemd/system/dash.service ) && -f "$fragment" && ! -L "$fragment" && "$(head -n 1 "$fragment")" == '# Dash managed service. Source: /data/dash/systemd/dash.service' ]] || { echo 'dash.service belongs to another installation'; exit 1; }
-fi
-# Reject this mode mismatch before downloads, uploads or stopping the service.
-if [[ "$1" == true ]] && [[ -e /etc/systemd/system/dash.service || -L /etc/systemd/system/dash.service || -e /etc/systemd/system/multi-user.target.wants/dash.service || -L /etc/systemd/system/multi-user.target.wants/dash.service ]]; then
-  echo 'Persistent Dash registration exists; use persistent mode or uninstall before a runtime-only installation.' >&2
-  exit 1
-fi
-[[ -d /data/media/0/realdata && -d /data/params/d ]]
-[[ "$(cat /data/params/d/IsOffroad)" == 1 && ( ( ! -e /data/params/d/IsOnroad && ! -L /data/params/d/IsOnroad ) || "$(cat /data/params/d/IsOnroad)" == 0 ) ]] || { echo 'Install only with confirmed parked state'; exit 1; }
-[[ -r /data/media/0/realdata && -w /data ]]
-echo 'Preflight passed: confirmed parked, recording permissions, app folder and systemd. No CPU, memory, controller or topology probes.'
-PREFLIGHT
+ssh "${DASH_SSH_OPTIONS[@]}" "$DASH_TARGET" bash -s -- "$DASH_RUNTIME" < backend/preflight-install.sh
 if [[ "$DASH_MODE" == check ]]; then exit 0; fi
 command -v go >/dev/null || { echo 'The SSH client requires Go matching backend/go.mod'; exit 1; }
 DASH_STAGING="$(mktemp -d)"
@@ -91,80 +70,6 @@ scp "${DASH_SSH_OPTIONS[@]}" backend/verify-service.sh "$DASH_TARGET:/data/dash/
 scp "${DASH_SSH_OPTIONS[@]}" backend/systemd/dash.service "$DASH_TARGET:/data/dash/.service.new"
 scp "${DASH_SSH_OPTIONS[@]}" "$DASH_STAGING/startup-mode" "$DASH_TARGET:/data/dash/.startup.new"
 scp "${DASH_SSH_OPTIONS[@]}" "$DASH_STAGING/update.json" "$DASH_TARGET:/data/dash/.update.new"
-ssh "${DASH_SSH_OPTIONS[@]}" "$DASH_TARGET" bash -s <<'ACTIVATE'
-set -euo pipefail
-[[ "$(cat /data/params/d/IsOffroad)" == 1 && ( ( ! -e /data/params/d/IsOnroad && ! -L /data/params/d/IsOnroad ) || "$(cat /data/params/d/IsOnroad)" == 0 ) ]] || { echo 'Device no longer parked; staged files left inactive'; exit 1; }
-# Replace durable boot files only after their complete contents are on storage.
-# GNU sync with a path fsyncs that file/directory, not the entire filesystem.
-dash_install_atomic() {
-  local source="$1" destination="$2" mode="$3"
-  sudo -n install -o root -g root -m "$mode" "$source" "$destination.next"
-  sudo -n sync -- "$destination.next"
-  sudo -n mv -Tf -- "$destination.next" "$destination"
-  sudo -n sync -- "$(dirname "$destination")"
-}
-DASH_PREVIOUS="$(readlink /data/dash/current || true)"
-dash_activation_failed() {
-  trap - ERR
-  sudo -n systemctl stop dash.service || true
-  if [[ "$DASH_PREVIOUS" =~ ^releases/[a-zA-Z0-9.+_-]+$ ]]; then
-    ln -sfn "$DASH_PREVIOUS" /data/dash/.current.new
-    mv -Tf /data/dash/.current.new /data/dash/current
-    sync -- /data/dash
-  fi
-  echo 'Activation failed; previous release restored when available. Dash remains stopped.' >&2
-  exit 1
-}
-DASH_TAG="$(sed -n 's/.*"tag": *"\([a-zA-Z0-9.+_-]*\)".*/\1/p' /data/dash/.install.new/release.json)"
-[[ "$DASH_TAG" =~ ^[a-zA-Z0-9][a-zA-Z0-9.+_-]{0,127}$ ]] || { echo 'Invalid staged tag'; exit 1; }
-# Never remove a release that the boot symlink might still reference. An
-# identical reinstall can reuse it; repair a damaged release with a fresh tag.
-if [[ -e "/data/dash/releases/$DASH_TAG" ]]; then
-  diff -qr /data/dash/.install.new "/data/dash/releases/$DASH_TAG" >/dev/null || { echo 'Existing release differs; install a fresh --source build or another release tag'; exit 1; }
-fi
-# Flush staged payloads before publishing their directory or boot pointer.
-find /data/dash/.install.new -type f -exec sync -- {} +
-find /data/dash/.install.new -depth -type d -exec sync -- {} +
-trap dash_activation_failed ERR
-if systemctl cat dash.service >/dev/null 2>&1; then sudo -n systemctl stop dash.service; fi
-# The bootstrap is stable across OTA. Only an explicit SSH install replaces it.
-dash_install_atomic /data/dash/.install.new/dash-backend /data/dash/dash-bootstrap 755
-dash_install_atomic /data/dash/.install-service.new /data/dash/install.sh 755
-dash_install_atomic /data/dash/.registration.new /data/dash/systemd-registration.sh 755
-dash_install_atomic /data/dash/.uninstall-service.new /data/dash/uninstall.sh 755
-dash_install_atomic /data/dash/.verify-service.new /data/dash/verify-service.sh 755
-dash_install_atomic /data/dash/.boot-state.new /data/dash/boot-state.sh 755
-sudo -n install -d -o root -g root -m 755 /data/dash/systemd
-dash_install_atomic /data/dash/.service.new /data/dash/systemd/dash.service 644
-if [[ -e "/data/dash/releases/$DASH_TAG" ]]; then
-  rm -rf /data/dash/.install.new
-else
-  mv /data/dash/.install.new "/data/dash/releases/$DASH_TAG"
-fi
-sync -- /data/dash/releases
-ln -sfn "releases/$DASH_TAG" /data/dash/.current.new
-mv -Tf /data/dash/.current.new /data/dash/current
-sync -- /data/dash
-sync -- /data/dash/.update.new
-mv /data/dash/.update.new /data/dash/update.json
-sync -- /data/dash
-rm -f /data/dash/pending.json /data/dash/activation.json /data/dash/ready.json
-dash_install_atomic /data/dash/.startup.new /data/dash/startup-mode 644
-rm -f /data/dash/.startup.new
-DASH_INSTALL_FLAGS=()
-if [[ "$(cat /data/dash/startup-mode)" == runtime ]]; then DASH_INSTALL_FLAGS=(--runtime); fi
-if ! sudo -n bash /data/dash/install.sh "${DASH_INSTALL_FLAGS[@]}"; then
-  sudo -n systemctl stop dash.service || true
-  if [[ "$DASH_PREVIOUS" =~ ^releases/[a-zA-Z0-9.+_-]+$ ]]; then
-    ln -s "$DASH_PREVIOUS" /data/dash/.current.new
-    mv -Tf /data/dash/.current.new /data/dash/current
-    sync -- /data/dash
-  fi
-  echo 'Installation failed; previous release restored when available. Service remains stopped.'
-  exit 1
-fi
-trap - ERR
-rm -f /data/dash/.registration.new /data/dash/.install-service.new /data/dash/.verify-service.new /data/dash/.uninstall-service.new /data/dash/.service.new /data/dash/.boot-state.new
-ACTIVATE
+ssh "${DASH_SSH_OPTIONS[@]}" "$DASH_TARGET" bash -s < backend/activate-install.sh
 echo "Installed. Open http://${DASH_TARGET#*@}:8088 on the same LAN or device hotspot."
 echo 'Lifecycle: sudo systemctl {start|stop|restart|status} dash.service'

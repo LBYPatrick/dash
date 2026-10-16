@@ -41,7 +41,7 @@ func TestInstallerOffroadExpressions(t *testing.T) {
 	root, err := ProjectRoot()
 	require(t, err)
 	guards := []string{}
-	for _, name := range []string{"scripts/install-backend.sh", "backend/install-service.sh", "backend/uninstall-service.sh"} {
+	for _, name := range []string{"scripts/install-backend.sh", "backend/preflight-install.sh", "backend/activate-install.sh", "backend/install-service.sh", "backend/uninstall-service.sh"} {
 		data, err := os.ReadFile(filepath.Join(root, name))
 		require(t, err)
 		text := string(data)

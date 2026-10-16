@@ -327,7 +327,7 @@ func TestAtomicInstall(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	script, err := os.ReadFile(filepath.Join(root, "scripts/install-backend.sh"))
+	script, err := os.ReadFile(filepath.Join(root, "backend/activate-install.sh"))
 	if err != nil {
 		t.Fatal(err)
 	}

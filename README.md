@@ -81,6 +81,16 @@ The target needs systemd, SSH access and noninteractive sudo for Dash’s servic
 
 ### From a release
 
+Run this on your computer, replacing `DEVICE_IP` with the parked device's address:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/LBYPatrick/dash/main/scripts/remote-install.sh | bash -s -- --target comma@DEVICE_IP
+```
+
+No checkout, Go, Vite+, or Docker is needed. Your computer needs Bash, curl and SSH; the device needs internet access to GitHub. Add `--identity /path/to/key` for an SSH key, `--channel dev` or `--channel nightly` for another channel, `--release TAG` to pin a build, or `--runtime` for this boot only. Main is the default. When already logged in as `comma` on the device, run the same command without `--target`. Run without `sudo`; the installer elevates only the existing service-registration steps. It verifies SHA-256 before running the native installer, then verifies and safely extracts the complete release. Downloads stop if parked state becomes unavailable.
+
+For a computer that can download from GitHub while the device cannot, use the checkout-based SSH route:
+
 Your computer needs this checkout, Go matching `backend/go.mod`, Make, and SSH/SCP. The Go host tool verifies the prebuilt payload; no local frontend or device-backend build is needed.
 
 ```sh

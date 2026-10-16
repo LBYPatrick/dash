@@ -20,6 +20,8 @@ Each immutable build release contains:
 - `dash-<safe-tag>-linux-amd64.tar.gz`
 - `manifest.json` identifying protocol, version, channel, source revision, CI build number, artifact sizes and SHA-256 digests
 - `SHA256SUMS`
+- `dash-bootstrap-linux-arm64` and `dash-bootstrap-linux-amd64`: the matching native backend with an explicit installation command and embedded lifecycle scripts
+- `bootstrap.sh`: a small installer pinned to that immutable tag and its native binary digests
 
 `<safe-tag>` is the release tag with `+` replaced by `-` for GitHub asset filenames; the actual release tag and version keep `+`. An archive contains `dash-backend`, `dist/`, `release.json`, and `bin/` with static FFmpeg/ffprobe, checksums, licenses and exact corresponding source/build files. Media binaries are checked for Linux architecture and static linkage during extraction. `dist/` is the production PWA, not source or `node_modules`. The binary's compiled identity and the archive metadata agree. `package.json` supplies the base version; the workflow run number and source hash make every channel build unique without a manual version bump for every commit. Increase the base version for product releases. Keep this workflow's build-number history; recreating the workflow with a lower counter requires a deliberate migration rather than silently downgrading devices.
 
@@ -37,6 +39,10 @@ make ota-smoke
 `make ota-smoke` builds two local CI-format versions, boots the real Linux supervisor/backend in Docker, applies an update, checks persistence and limits, rejects installation with unknown driving state, then stages a deliberately failing ELF to prove rollback. It injects local verified-stage fixtures; it does not create GitHub releases or access a car. Unit tests separately exercise HTTPS feed handling, checksum/download boundaries, archive rejection and ignition cancellation. Local fixtures are not official CI releases.
 
 ## Installation from an SSH client
+
+The [one-line installer](installation.md#one-line-installation) downloads prebuilt releases on the device. It requires no checkout or Go on your computer. Both the immutable release and its channel feed publish `bootstrap.sh`; the script pins its native installer to one exact build. Feed replacements may briefly return 404; retrying is safe. The bootstrap's SHA-256 digests also appear in the immutable manifest's `installers` entries and `SHA256SUMS`.
+
+Use the checkout route below when downloads must happen on your computer instead:
 
 ```sh
 # Read-only device requirements; no download, build, upload or service change.

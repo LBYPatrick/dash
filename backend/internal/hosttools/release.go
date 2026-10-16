@@ -47,7 +47,8 @@ type Asset struct {
 // Manifest identifies an immutable build and its architecture-specific assets.
 type Manifest struct {
 	Identity
-	Assets map[string]Asset `json:"assets"`
+	Assets     map[string]Asset `json:"assets"`
+	Installers map[string]Asset `json:"installers,omitempty"`
 }
 
 // ReleaseIdentity validates channel inputs and derives a unique build identity.
@@ -128,7 +129,7 @@ func (t *Tools) Release(source bool) error {
 	if err = os.MkdirAll(output, 0755); err != nil {
 		return err
 	}
-	manifest := Manifest{Identity: identity, Assets: map[string]Asset{}}
+	manifest := Manifest{Identity: identity, Assets: map[string]Asset{}, Installers: map[string]Asset{}}
 	var sums strings.Builder
 	for _, arch := range architectures {
 		stage, err := os.MkdirTemp(t.path(".artifacts"), "release-stage-"+arch+"-")
@@ -170,6 +171,33 @@ func (t *Tools) Release(source bool) error {
 		}
 		manifest.Assets[arch] = Asset{Name: name, Bytes: size, SHA256: digest}
 		fmt.Fprintf(&sums, "%s  %s\n", digest, name)
+		if !source {
+			name = "dash-bootstrap-linux-" + arch
+			if err = copyFile(filepath.Join(stage, "dash-backend"), filepath.Join(output, name)); err != nil {
+				return err
+			}
+			digest, size, err = digestFile(filepath.Join(output, name))
+			if err != nil {
+				return err
+			}
+			manifest.Installers[arch] = Asset{Name: name, Bytes: size, SHA256: digest}
+			fmt.Fprintf(&sums, "%s  %s\n", digest, name)
+		}
+	}
+	if !source {
+		template, err := os.ReadFile(t.path("scripts/release-bootstrap.sh"))
+		if err != nil {
+			return err
+		}
+		script := strings.NewReplacer("__CHANNEL__", channel, "__TAG__", identity.Tag, "__ARM64_SHA__", manifest.Installers["arm64"].SHA256, "__AMD64_SHA__", manifest.Installers["amd64"].SHA256).Replace(string(template))
+		if err = os.WriteFile(filepath.Join(output, "bootstrap.sh"), []byte(script), 0644); err != nil {
+			return err
+		}
+		digest, _, err := digestFile(filepath.Join(output, "bootstrap.sh"))
+		if err != nil {
+			return err
+		}
+		fmt.Fprintf(&sums, "%s  bootstrap.sh\n", digest)
 	}
 	if err = writeJSON(filepath.Join(output, "manifest.json"), manifest); err != nil {
 		return err
@@ -253,12 +281,17 @@ func (t *Tools) Publish() error {
 	if _, err := validateIdentity(manifest, manifest.Channel, "arm64", manifest.Tag); err != nil {
 		return err
 	}
-	if len(manifest.Assets) != 2 {
+	if len(manifest.Assets) != 2 || len(manifest.Installers) != 2 {
 		return fmt.Errorf("channel releases require both device architectures")
 	}
 	for arch, asset := range manifest.Assets {
 		if !validArch(arch) || asset.Name != archiveName(manifest.Identity, arch) || asset.Bytes <= 0 || asset.Bytes > MaxArchive || !checksumPattern.MatchString(asset.SHA256) {
 			return fmt.Errorf("invalid publication asset metadata")
+		}
+	}
+	for arch, asset := range manifest.Installers {
+		if !validArch(arch) || asset.Name != "dash-bootstrap-linux-"+arch || asset.Bytes <= 0 || asset.Bytes > 32<<20 || !checksumPattern.MatchString(asset.SHA256) {
+			return fmt.Errorf("invalid bootstrap metadata")
 		}
 	}
 	inspect := func(tag string) (*releaseView, error) {
@@ -315,11 +348,12 @@ func (t *Tools) Publish() error {
 		}
 		advance = previous.Sequence <= manifest.Sequence
 	}
-	names := []string{"manifest.json", "SHA256SUMS"}
+	names := []string{"manifest.json", "SHA256SUMS", "bootstrap.sh"}
 	for _, arch := range []string{"arm64", "amd64"} {
 		asset, ok := manifest.Assets[arch]
 		if ok {
 			names = append(names, asset.Name)
+			names = append(names, manifest.Installers[arch].Name)
 		}
 	}
 	existing, err := inspect(manifest.Tag)
@@ -370,5 +404,5 @@ func (t *Tools) Publish() error {
 			return err
 		}
 	}
-	return t.run(nil, "gh", "release", "upload", feed, t.path(".artifacts/release/manifest.json"), "--clobber")
+	return t.run(nil, "gh", "release", "upload", feed, t.path(".artifacts/release/manifest.json"), t.path(".artifacts/release/bootstrap.sh"), "--clobber")
 }

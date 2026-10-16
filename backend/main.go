@@ -38,7 +38,18 @@ func main() {
 	updateHome := flag.String("update-home", "", "Managed release installation directory")
 	readyFile := flag.String("ready-file", "", "Internal supervisor readiness marker")
 	version := flag.Bool("version", false, "Print build identity as JSON and exit")
+	installRelease := flag.Bool("install-release", false, "Install a verified release on this parked device; no server or workers")
+	installChannel := flag.String("install-channel", "main", "Installation channel: main, nightly or dev")
+	installTag := flag.String("install-tag", "", "Exact immutable installation tag")
+	installRepository := flag.String("install-repo", "LBYPatrick/dash", "Public installation repository")
+	installRuntime := flag.Bool("install-runtime", false, "Register only until reboot")
 	flag.Parse()
+	if *installRelease {
+		if err := installDeviceRelease(*installRepository, *installChannel, *installTag, *installRuntime); err != nil {
+			log.Fatal(err)
+		}
+		return
+	}
 	deviceMode = *device
 	if *resourceSettings {
 		_ = json.NewEncoder(os.Stdout).Encode(map[string]int{"cpuCores": DeviceCPUCores, "mediaThreads": MediaThreads, "probeThreads": ProbeThreads, "idleGoProcs": IdleGoProcs, "heavyJobs": HeavyJobLimit, "heapMiB": GoHeapTargetMiB, "memoryHighMiB": ServiceMemoryHighMiB, "memoryMaxMiB": ServiceMemoryMaxMiB})

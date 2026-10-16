@@ -8,6 +8,20 @@ Enable device SSH using the [official connection instructions](https://docs.comm
 
 All app assets live in `/data/dash`. The only persistent files outside it are a small systemd unit copy at `/etc/systemd/system/dash.service` and its boot-enablement symlink. A unit symlink into `/data` cannot reliably start at boot because systemd reads units before mounting `/data`; the copied unit declares `RequiresMountsFor=/data`. On AGNOS, root is normally read-only. The root-owned registration helper briefly remounts it writable **only** to add/remove Dash’s unit and enablement link, then restores read-only state on success or failure. It never edits firmware launchers, other units or mount configuration. Firmware and original recordings are left in place. Device mode uses fixed app budgets and does not inspect CPU topology, RAM availability, `/proc` or cgroup controller files.
 
+## One-line installation
+
+From your Linux/macOS computer, with the device parked and connected to the internet:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/LBYPatrick/dash/main/scripts/remote-install.sh | bash -s -- --target comma@DEVICE_IP
+```
+
+Your computer needs Bash, curl and SSH. No checkout or build tools are required. The SSH connection uses your configured keys and known hosts. Add `--identity KEY` to select a key. Enable SSH and verify the host key through your normal SSH connection first; the installer does not disable host-key verification. The device needs Bash, curl, SHA-256 tools, trusted CA certificates, systemd and noninteractive sudo already supplied by supported AGNOS firmware. It must reach GitHub over HTTPS.
+
+Main is the default. Add `--channel nightly` or `--channel dev`, `--release TAG` to pin a build within that channel, or `--runtime` for a temporary installation. `--repo OWNER/REPO` supports a public fork with matching releases. If already logged into the device as `comma`, omit `--target` and `--identity`. Do not run the command as root.
+
+The channel's bootstrap script identifies an immutable build and includes the native installer's SHA-256 digest. The script verifies the binary before executing it. The native installer validates the release manifest, exact archive size/digest, bounded extraction, Linux architecture and bundled media. It embeds the same preflight and activation scripts as the SSH installer below. It requires 2 GiB free space and cancels download/extraction when parked state is lost. It installs no OS packages. Temporary download files are removed after success; installed assets stay under `/data/dash`. Installation does not start any backend worker until the verified systemd service starts. A checksum protects download integrity; it is not an independent publisher signature. GitHub HTTPS and repository access remain the trust boundary.
+
 ## SSH installation from your computer
 
 ```sh
