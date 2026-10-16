@@ -75,7 +75,7 @@ func TestFilesystemImages(t *testing.T) {
 					return
 				}
 				name := "mount.exfat-fuse"
-				options := "allow_other,default_permissions,nodev,nosuid,noexec"
+				options := "uid=1000,gid=1000,umask=0077,allow_other,default_permissions,nodev,nosuid,noexec,max_read=131072"
 				if kind == "ntfs" {
 					name = "ntfs-3g"
 					options += ",no_detach,norecover,windows_names"
@@ -128,13 +128,34 @@ func TestFilesystemImages(t *testing.T) {
 					unmount()
 				}
 			}()
+			// Exercise the same folder ownership and fsync operations as the
+			// privileged helper, including exFAT's emulated uid/gid behavior.
+			prefix := "Drives/2026"
+			for _, relative := range []string{"Drives", prefix, prefix + "/dash-archive"} {
+				directory := filepath.Join(point, relative)
+				if err := os.Mkdir(directory, 0700); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.Chown(directory, 1000, 1000); err != nil {
+					t.Fatal(err)
+				}
+				folder, err := os.Open(directory)
+				if err != nil {
+					t.Fatal(err)
+				}
+				err = folder.Sync()
+				folder.Close()
+				if err != nil {
+					t.Fatal(err)
+				}
+			}
 			data := bytes.Repeat([]byte("original camera bytes"), 700000)
 			sum, sha1, err := Hash(context.Background(), bytes.NewReader(data))
 			if err != nil {
 				t.Fatal(err)
 			}
 			a := Asset{Path: "video", Key: "dash-archive/v1/source/sessions/trip/originals/segment/road.hevc", Size: int64(len(data)), Modified: oneSourceModified(), SHA256: sum, SHA1: sha1}
-			store, err := NewLocalStore(point, memorySource{data}, "first-process")
+			store, err := NewLocalStoreAt(point, memorySource{data}, "first-process", prefix)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -152,7 +173,7 @@ func TestFilesystemImages(t *testing.T) {
 			mounted = false
 			mount()
 			mounted = true
-			store, err = NewLocalStore(point, memorySource{data}, "new-process")
+			store, err = NewLocalStoreAt(point, memorySource{data}, "new-process", prefix)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -170,7 +191,7 @@ func TestFilesystemImages(t *testing.T) {
 			if !done {
 				t.Fatal("copy did not finish")
 			}
-			file, err := os.Open(filepath.Join(point, filepath.FromSlash(a.Key)))
+			file, err := os.Open(filepath.Join(point, prefix, filepath.FromSlash(a.Key)))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -181,16 +202,16 @@ func TestFilesystemImages(t *testing.T) {
 			}
 			// Exercise the publish syscall directly on this filesystem. A check-then-
 			// rename in application code would not cover upstream FUSE rename flags.
-			pending, err := store.root.Open("dash-archive/pending", os.O_CREATE|os.O_WRONLY)
+			pending, err := store.root.Open(store.key("dash-archive/pending"), os.O_CREATE|os.O_WRONLY)
 			if err != nil {
 				t.Fatal(err)
 			}
 			pending.WriteString("must not replace original")
 			pending.Close()
-			if err = store.root.Publish("dash-archive/pending", a.Key); !errors.Is(err, os.ErrExist) {
+			if err = store.root.Publish(store.key("dash-archive/pending"), store.key(a.Key)); !errors.Is(err, os.ErrExist) {
 				t.Fatalf("exclusive publication failed: %v", err)
 			}
-			got, err = os.ReadFile(filepath.Join(point, filepath.FromSlash(a.Key)))
+			got, err = os.ReadFile(filepath.Join(point, prefix, filepath.FromSlash(a.Key)))
 			if err != nil || !bytes.Equal(got, data) {
 				t.Fatal("existing original overwritten", err)
 			}
