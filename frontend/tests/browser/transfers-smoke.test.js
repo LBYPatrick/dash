@@ -3,6 +3,27 @@ import AxeBuilder from '@axe-core/playwright';
 import { assert, test } from 'vite-plus/test';
 import { installMapFixture } from './map-fixture.js';
 
+async function settleSheet(page) {
+  await page
+    .locator('.scrim')
+    .last()
+    .evaluate(async (element) => {
+      await new Promise((resolve) =>
+        requestAnimationFrame(() => requestAnimationFrame(resolve)),
+      );
+      await Promise.all(
+        element
+          .getAnimations({ subtree: true })
+          .filter(
+            (animation) =>
+              animation.timeline === document.timeline &&
+              animation.effect?.getComputedTiming().iterations !== Infinity,
+          )
+          .map((animation) => animation.finished.catch(() => {})),
+      );
+    });
+}
+
 test('batch export: mobile and desktop USB, progress, recovery and cloud authorization', async () => {
   const origin = process.env.DASH_TEST_URL || 'http://127.0.0.1:8088';
   const browser = await chromium.launch({
@@ -128,7 +149,7 @@ test('batch export: mobile and desktop USB, progress, recovery and cloud authori
         .getByRole('button', { name: 'Save destination', exact: true })
         .click();
       await page.getByText('Travel archive', { exact: true }).last().waitFor();
-      await page.waitForTimeout(500);
+      await settleSheet(page);
       let audit = await new AxeBuilder({ page })
         .withTags(['wcag2a', 'wcag2aa', 'wcag21aa'])
         .analyze();
@@ -185,7 +206,110 @@ test('batch export: mobile and desktop USB, progress, recovery and cloud authori
         await link.getAttribute('href'),
         'https://www.google.com/device',
       );
+      await settleSheet(page);
       audit = await new AxeBuilder({ page })
+        .withTags(['wcag2a', 'wcag2aa', 'wcag21aa'])
+        .analyze();
+      assert.deepEqual(
+        audit.violations.map((v) => ({
+          id: v.id,
+          nodes: v.nodes.map((n) => ({
+            target: n.target,
+            failureSummary: n.failureSummary,
+          })),
+        })),
+        [],
+      );
+      await context.close();
+    }
+  } finally {
+    await browser.close();
+  }
+});
+
+test('transfer sheets fit short phones in all five languages', async () => {
+  const { readFileSync } = await import('node:fs');
+  const browser = await chromium.launch({
+    executablePath:
+      process.env.CHROME_PATH ||
+      '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+    headless: true,
+    args: ['--disable-gpu', '--use-angle=swiftshader'],
+  });
+  try {
+    for (const locale of ['en-US', 'ja', 'zh-CN', 'ko', 'vi']) {
+      const labels = JSON.parse(
+        readFileSync(`frontend/src/i18n/locales/${locale}.json`, 'utf8'),
+      );
+      const context = await browser.newContext({
+        viewport: { width: 320, height: 568 },
+        locale,
+        colorScheme: 'dark',
+        reducedMotion: 'reduce',
+      });
+      await installMapFixture(context);
+      await context.route('**/api/transfers', (route) =>
+        route.fulfill({
+          json: {
+            destinations: [],
+            batches: [],
+            authorizations: [],
+            driving: 'parked',
+            configurationSecure: false,
+            usbSupported: true,
+            bundledProviders: {},
+          },
+        }),
+      );
+      await context.route('**/api/transfers/volumes', (route) =>
+        route.fulfill({ json: [] }),
+      );
+      const page = await context.newPage();
+      await page.goto(process.env.DASH_TEST_URL || 'http://127.0.0.1:8088');
+      await page
+        .getByRole('button', { name: labels.settings.settings, exact: true })
+        .first()
+        .click();
+      await page
+        .getByRole('button', {
+          name: labels.transfers.destinations,
+          exact: true,
+        })
+        .click();
+      await page
+        .getByRole('button', {
+          name: labels.transfers.addDestination,
+          exact: true,
+        })
+        .click();
+      await page
+        .getByText(labels.transfers.noVolumes, { exact: true })
+        .waitFor();
+      const combo = page.getByRole('combobox', {
+        name: labels.transfers.provider,
+        exact: true,
+      });
+      await combo.click();
+      await page
+        .getByRole('option', { name: labels.transfers.s3Storage, exact: true })
+        .click();
+      await page
+        .getByText(labels.transfers.secureSetup, { exact: true })
+        .waitFor();
+      const save = page.getByRole('button', {
+        name: labels.transfers.saveDestination,
+        exact: true,
+      });
+      await save.scrollIntoViewIfNeeded();
+      assert(await save.isDisabled());
+      assert(
+        await page.evaluate(
+          () => document.documentElement.scrollWidth <= innerWidth,
+        ),
+      );
+      const bounds = await save.boundingBox();
+      assert(bounds && bounds.y >= 0 && bounds.y + bounds.height <= 568);
+      const audit = await new AxeBuilder({ page })
         .withTags(['wcag2a', 'wcag2aa', 'wcag21aa'])
         .analyze();
       assert.deepEqual(
