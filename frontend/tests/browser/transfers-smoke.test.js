@@ -4,24 +4,21 @@ import { assert, test } from 'vite-plus/test';
 import { installMapFixture } from './map-fixture.js';
 
 async function settleSheet(page) {
-  await page
-    .locator('.scrim')
-    .last()
-    .evaluate(async (element) => {
-      await new Promise((resolve) =>
-        requestAnimationFrame(() => requestAnimationFrame(resolve)),
-      );
-      await Promise.all(
-        element
-          .getAnimations({ subtree: true })
-          .filter(
-            (animation) =>
-              animation.timeline === document.timeline &&
-              animation.effect?.getComputedTiming().iterations !== Infinity,
-          )
-          .map((animation) => animation.finished.catch(() => {})),
-      );
-    });
+  await page.locator('.scrim').evaluateAll(async (elements) => {
+    await new Promise((resolve) =>
+      requestAnimationFrame(() => requestAnimationFrame(resolve)),
+    );
+    await Promise.all(
+      elements
+        .flatMap((element) => element.getAnimations({ subtree: true }))
+        .filter(
+          (animation) =>
+            animation.timeline === document.timeline &&
+            animation.effect?.getComputedTiming().iterations !== Infinity,
+        )
+        .map((animation) => animation.finished.catch(() => {})),
+    );
+  });
 }
 
 test('batch export: mobile and desktop USB, progress, recovery and cloud authorization', async () => {
@@ -184,6 +181,20 @@ test('batch export: mobile and desktop USB, progress, recovery and cloud authori
       await page.getByRole('button', { name: 'Resume', exact: true }).click();
       await page.getByText('Transfer speed', { exact: true }).waitFor();
       await page.getByText('About 2 min', { exact: true }).waitFor();
+      await settleSheet(page);
+      const pause = page.getByRole('button', { name: 'Pause', exact: true });
+      assert(
+        await pause.evaluate((button) => {
+          const bounds = button.getBoundingClientRect();
+          return button.contains(
+            document.elementFromPoint(
+              bounds.x + bounds.width / 2,
+              bounds.y + bounds.height / 2,
+            ),
+          );
+        }),
+        'active export sheet is covered by another modal',
+      );
       if (process.env.DASH_CAPTURE_UI === '1') {
         await settleSheet(page);
         await page.screenshot({
