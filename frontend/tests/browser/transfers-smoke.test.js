@@ -90,6 +90,10 @@ test('batch export: mobile and desktop USB, progress, recovery and cloud authori
                 completedFiles: 12,
                 completedBytes: 50000000,
                 transferredBytes: 57000000,
+                bytesPerSecond: 12500000,
+                etaSeconds: 78,
+                progressReady: true,
+                reusedBytes: 10000000,
                 issues: 0,
                 autoResume: true,
               },
@@ -126,6 +130,7 @@ test('batch export: mobile and desktop USB, progress, recovery and cloud authori
           kind: input.kind,
           location: input.volumeUuid || '',
           connected: input.kind === 'usb',
+          directory: input.prefix,
         };
         snapshot.destinations.push(value);
         await route.fulfill({ json: value });
@@ -176,6 +181,8 @@ test('batch export: mobile and desktop USB, progress, recovery and cloud authori
       await page.getByRole('button', { name: 'Pause', exact: true }).click();
       await page.getByRole('button', { name: 'Resume', exact: true }).waitFor();
       await page.getByRole('button', { name: 'Resume', exact: true }).click();
+      await page.getByText('Transfer speed', { exact: true }).waitFor();
+      await page.getByText('About 2 min', { exact: true }).waitFor();
       assert.equal(batches, 1);
       await page
         .getByRole('button', { name: 'Cancel transfer', exact: true })
@@ -284,6 +291,7 @@ test('transfer sheets fit short phones in all five languages', async () => {
         .click();
       await page
         .getByText(labels.transfers.noVolumes, { exact: true })
+        .last()
         .waitFor();
       const combo = page.getByRole('combobox', {
         name: labels.transfers.provider,
@@ -324,6 +332,130 @@ test('transfer sheets fit short phones in all five languages', async () => {
       );
       await context.close();
     }
+  } finally {
+    await browser.close();
+  }
+});
+
+test('USB plug appears automatically and copies into the chosen relative folder', async () => {
+  const browser = await chromium.launch({
+    executablePath:
+      process.env.CHROME_PATH ||
+      '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+    headless: true,
+    args: ['--disable-gpu', '--use-angle=swiftshader'],
+  });
+  try {
+    const context = await browser.newContext({
+      viewport: { width: 390, height: 844 },
+      colorScheme: 'light',
+    });
+    await installMapFixture(context);
+    const snapshot = {
+      destinations: [],
+      batches: [],
+      authorizations: [],
+      driving: 'parked',
+      configurationSecure: false,
+      usbSupported: true,
+    };
+    let plugged = false,
+      saved,
+      started;
+    await context.route('**/api/transfers**', (route) => {
+      const path = new URL(route.request().url()).pathname;
+      if (path.endsWith('/volumes'))
+        return route.fulfill({
+          json: plugged
+            ? [
+                {
+                  uuid: 'USB-TEST-0001',
+                  label: 'Holiday drive',
+                  filesystem: 'exfat',
+                  name: 'sdb1',
+                  mounted: false,
+                  available: true,
+                },
+              ]
+            : [],
+        });
+      if (route.request().method() === 'POST')
+        started = route.request().postDataJSON();
+      return route.fulfill({ json: snapshot });
+    });
+    await context.route('**/api/transfer-destinations', (route) => {
+      saved = route.request().postDataJSON();
+      snapshot.destinations.push({
+        id: saved.id,
+        name: saved.name,
+        kind: 'usb',
+        location: saved.volumeUuid,
+        directory: saved.prefix,
+        connected: true,
+      });
+      return route.fulfill({ json: snapshot.destinations[0] });
+    });
+    const page = await context.newPage();
+    await page.goto(process.env.DASH_TEST_URL || 'http://127.0.0.1:8088');
+    await page
+      .getByRole('button', { name: 'Settings', exact: true })
+      .first()
+      .click();
+    await page
+      .getByRole('button', { name: 'Export destinations', exact: true })
+      .click();
+    await settleSheet(page);
+    await page.keyboard.press('Escape');
+    await page
+      .getByRole('button', { name: 'Copy all originals', exact: true })
+      .waitFor();
+    plugged = true;
+    await page.getByText('Holiday drive connected', { exact: true }).waitFor();
+    assert.equal(
+      await page.getByRole('button', { name: 'Refresh USB drives' }).count(),
+      0,
+    );
+    await page.getByRole('button', { name: 'Save folder' }).click();
+    await page
+      .getByRole('textbox', { name: 'Folder path' })
+      .fill('Family/2026');
+    await settleSheet(page);
+    const audit = await new AxeBuilder({ page })
+      .withTags(['wcag2a', 'wcag2aa', 'wcag21aa'])
+      .analyze();
+    assert.deepEqual(
+      audit.violations.map((value) => ({
+        id: value.id,
+        nodes: value.nodes.map((node) => node.target),
+      })),
+      [],
+    );
+    await page.getByRole('button', { name: 'Use this folder' }).click();
+    await page
+      .getByText('Family/2026/dash-archive/v1/…', { exact: true })
+      .first()
+      .waitFor();
+    // A background snapshot must not erase a folder chosen for a new drive.
+    await page.waitForResponse(
+      (response) => new URL(response.url()).pathname === '/api/transfers',
+    );
+    await page
+      .getByText('Family/2026/dash-archive/v1/…', { exact: true })
+      .first()
+      .waitFor();
+    await page
+      .getByRole('button', { name: 'Copy all originals', exact: true })
+      .click();
+    await page.waitForFunction(
+      () =>
+        !document.querySelector(
+          '.transfer-panel button[type="submit"]:disabled',
+        ),
+    );
+    assert.equal(saved.prefix, 'Family/2026');
+    assert.equal(saved.volumeUuid, 'USB-TEST-0001');
+    assert.equal(started.destinationId, saved.id);
+    await context.close();
   } finally {
     await browser.close();
   }

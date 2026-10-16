@@ -10,13 +10,13 @@ import {
   LoaderCircle,
   Pause,
   Play,
-  RefreshCw,
   Unplug,
   Check,
   ArrowUpRight,
 } from '../icons';
 import Sheet from './Sheet.vue';
 import SelectMenu from './SelectMenu.vue';
+import { useToasts } from '../vendor/shelf/toasts';
 import {
   transferRequest,
   terminalTransfer,
@@ -26,6 +26,7 @@ import {
   type USBVolume,
 } from '../transfers';
 const { t } = useTranslation();
+const toasts = useToasts();
 const setupCommand = '/data/dash/current/dash-backend --configure-transfer -';
 const endpointPlaceholder = 'https://…';
 const panel = ref<InstanceType<typeof Sheet>>(),
@@ -33,6 +34,10 @@ const panel = ref<InstanceType<typeof Sheet>>(),
   editor = ref<InstanceType<typeof Sheet>>(),
   authorizationPanel = ref<InstanceType<typeof Sheet>>(),
   issuesPanel = ref<InstanceType<typeof Sheet>>();
+const folderPanel = ref<InstanceType<typeof Sheet>>(),
+  saveFolder = ref(''),
+  folderDraft = ref(''),
+  folderError = ref('');
 const snapshot = ref<TransferSnapshot>({
   destinations: [],
   batches: [],
@@ -69,6 +74,74 @@ const authorizationID = ref(''),
   issues = ref<{ path: string; status: string }[]>([]);
 let timer: ReturnType<typeof setTimeout> | undefined;
 let controller: AbortController | undefined;
+let volumeTimer: ReturnType<typeof setTimeout> | undefined;
+let volumeController: AbortController | undefined;
+const choices = computed(() => [
+  ...snapshot.value.destinations.map((value) => ({
+    value: value.id,
+    label: value.name,
+  })),
+  ...volumes.value
+    .filter(
+      (volume) =>
+        volume.available &&
+        !snapshot.value.destinations.some(
+          (item) =>
+            item.kind === 'usb' &&
+            item.location.toLowerCase() === volume.uuid.toLowerCase(),
+        ),
+    )
+    .map((volume) => ({
+      value: `volume:${volume.uuid}`,
+      label: `${volume.label || volume.name} · ${volume.filesystem}`,
+    })),
+]);
+const selectedDestination = computed(() =>
+  snapshot.value.destinations.find((value) => value.id === destination.value),
+);
+watch([destination, () => selectedDestination.value?.directory], () => {
+  saveFolder.value = selectedDestination.value?.directory || '';
+});
+function randomDestinationID(provider: string) {
+  return `${provider}-${Array.from(crypto.getRandomValues(new Uint8Array(6)), (value) => value.toString(16).padStart(2, '0')).join('')}`;
+}
+function folderPreview(folder: string) {
+  return [folder, 'dash-archive/v1/…'].filter(Boolean).join('/');
+}
+function editFolder() {
+  folderDraft.value = saveFolder.value;
+  folderError.value = '';
+  folderPanel.value?.showModal();
+}
+async function applyFolder() {
+  if (busy.value) return;
+  busy.value = true;
+  folderError.value = '';
+  try {
+    if (selectedDestination.value) {
+      await transferRequest(
+        `/api/transfer-destinations/${destination.value}/directory`,
+        { path: folderDraft.value },
+      );
+      selectedDestination.value.directory = folderDraft.value;
+    }
+    saveFolder.value = folderDraft.value;
+    folderPanel.value?.close();
+  } catch (cause) {
+    folderError.value = backendMessage((cause as Error).message);
+  } finally {
+    busy.value = false;
+  }
+}
+function eta(seconds: number) {
+  if (seconds < 60)
+    return t('transfers.etaSeconds', { count: Math.ceil(seconds) });
+  if (seconds < 3600)
+    return t('transfers.etaMinutes', { count: Math.ceil(seconds / 60) });
+  return t('transfers.etaHours', {
+    count: formatNumber(seconds / 3600, { maximumFractionDigits: 1 }),
+  });
+}
 const active = computed(() =>
   snapshot.value.batches.find((batch) => !terminalTransfer(batch.status)),
 );
@@ -143,8 +216,8 @@ async function load() {
     );
     if (current.signal.aborted || controller !== current) return;
     snapshot.value = value;
-    if (!destination.value && snapshot.value.destinations.length)
-      destination.value = snapshot.value.destinations[0].id;
+    if (!destination.value && choices.value.length)
+      destination.value = choices.value[0]!.value;
     error.value = '';
   } catch (cause) {
     if (!current.signal.aborted && controller === current)
@@ -160,12 +233,15 @@ async function open(mode: 'transfer' | 'destinations' = 'transfer') {
   error.value = '';
   panel.value?.showModal();
   await load();
+  void refreshVolumes();
   if (mode === 'destinations') destinationsPanel.value?.showModal();
 }
 function close() {
   opened.value = false;
   clearTimeout(timer);
   controller?.abort();
+  clearTimeout(volumeTimer);
+  volumeController?.abort();
   clearSecrets();
 }
 function clearSecrets() {
@@ -189,12 +265,27 @@ async function perform(operation: () => Promise<unknown>) {
   }
 }
 async function start() {
-  await perform(() =>
-    transferRequest('/api/transfers', {
+  await perform(async () => {
+    if (destination.value.startsWith('volume:')) {
+      const uuid = destination.value.slice(7),
+        volume = volumes.value.find((value) => value.uuid === uuid);
+      if (!volume?.available) throw new Error(t('transfers.noVolumes'));
+      const id = randomDestinationID('usb');
+      await transferRequest('/api/transfer-destinations', {
+        id,
+        name: volume.label || volume.name,
+        kind: 'usb',
+        volumeUuid: uuid,
+        prefix: saveFolder.value,
+        secret: {},
+      });
+      destination.value = id;
+    }
+    await transferRequest('/api/transfers', {
       destinationId: destination.value,
       autoResume: autoResume.value,
-    }),
-  );
+    });
+  });
 }
 async function action(batch: TransferBatch, value: string) {
   await perform(() =>
@@ -202,19 +293,48 @@ async function action(batch: TransferBatch, value: string) {
   );
 }
 async function refreshVolumes() {
+  if (
+    !opened.value ||
+    !snapshot.value.usbSupported ||
+    snapshot.value.driving !== 'parked'
+  ) {
+    if (opened.value)
+      volumeTimer = setTimeout(() => void refreshVolumes(), 3000);
+    return;
+  }
+  clearTimeout(volumeTimer);
+  volumeController?.abort();
+  const current = new AbortController();
+  volumeController = current;
   refreshingVolumes.value = true;
-  editorError.value = '';
   try {
-    volumes.value = await transferRequest<USBVolume[]>(
+    const result = await transferRequest<USBVolume[]>(
       '/api/transfers/volumes',
+      undefined,
+      undefined,
+      current.signal,
     );
+    if (current.signal.aborted || current !== volumeController) return;
+    volumes.value = result;
     if (!volumeUUID.value)
       volumeUUID.value =
         volumes.value.find((volume) => volume.available)?.uuid || '';
+    if (!destination.value && choices.value.length)
+      destination.value = choices.value[0]!.value;
+    if (
+      destination.value.startsWith('volume:') &&
+      !choices.value.some((choice) => choice.value === destination.value)
+    )
+      destination.value = '';
   } catch (cause) {
-    editorError.value = backendMessage((cause as Error).message);
+    if (!current.signal.aborted)
+      editorError.value = backendMessage((cause as Error).message);
   } finally {
-    refreshingVolumes.value = false;
+    if (current === volumeController) {
+      refreshingVolumes.value = false;
+      if (opened.value)
+        volumeTimer = setTimeout(() => void refreshVolumes(), 3000);
+    }
   }
 }
 function addDestination() {
@@ -237,7 +357,7 @@ async function save() {
   if (busy.value || !canSave.value) return;
   busy.value = true;
   editorError.value = '';
-  const id = `${kind.value}-${Array.from(crypto.getRandomValues(new Uint8Array(6)), (value) => value.toString(16).padStart(2, '0')).join('')}`;
+  const id = randomDestinationID(kind.value);
   try {
     await transferRequest(
       '/api/transfer-destinations',
@@ -306,7 +426,11 @@ async function remove(id: string, operation = 'remove') {
     destination.value = '';
 }
 async function eject(uuid: string) {
-  await perform(() => transferRequest('/api/transfers/eject', { uuid }));
+  await perform(async () => {
+    await transferRequest('/api/transfers/eject', { uuid });
+    toasts.show({ tone: 'success', message: t('transfers.safeToUnplug') });
+    await refreshVolumes();
+  });
 }
 async function showIssues(batch: TransferBatch) {
   await perform(async () => {
@@ -349,6 +473,9 @@ defineExpose({ open });
           />
         </div>
         <p role="status">{{ statusLabel(active.status) }}</p>
+        <p v-if="active.directory" class="transfer-path">
+          {{ folderPreview(active.directory) }}
+        </p>
         <div
           class="transfer-progress"
           role="progressbar"
@@ -368,6 +495,44 @@ defineExpose({ open });
           }}
           · {{ formatBytes(active.transferredBytes) }} /
           {{ formatBytes(active.totalBytes) }}
+        </p>
+        <dl v-if="active.status === 'running'" class="transfer-metrics">
+          <div>
+            <dt>{{ t('transfers.transferRate') }}</dt>
+            <dd>
+              {{
+                active.bytesPerSecond
+                  ? t('transfers.rateValue', {
+                      rate: formatBytes(active.bytesPerSecond),
+                    })
+                  : t('transfers.measuring')
+              }}
+            </dd>
+          </div>
+          <div>
+            <dt>{{ t('transfers.timeRemaining') }}</dt>
+            <dd>
+              {{
+                active.etaSeconds != null
+                  ? eta(active.etaSeconds)
+                  : t('transfers.estimating')
+              }}
+            </dd>
+          </div>
+        </dl>
+        <p
+          v-if="active.progressReady === false"
+          class="transfer-detail"
+          role="status"
+        >
+          {{ t('transfers.restoringProgress') }}
+        </p>
+        <p v-if="active.reusedBytes" class="transfer-detail">
+          {{
+            t('transfers.reusedBytes', {
+              size: formatBytes(active.reusedBytes),
+            })
+          }}
         </p>
         <p
           v-if="active.currentFile"
@@ -429,16 +594,47 @@ defineExpose({ open });
           id="batch-destination"
           v-model="destination"
           :aria-label="t('transfers.destination')"
-          :disabled="!snapshot.destinations.length || busy"
-          :options="
-            snapshot.destinations.map((value) => ({
-              value: value.id,
-              label: value.name,
-            }))
-          "
+          :disabled="!choices.length || busy"
+          :options="choices"
         />
-        <p v-if="!snapshot.destinations.length" class="transfer-detail">
+        <p v-if="!choices.length" class="transfer-detail">
           {{ t('transfers.noDestinations') }}
+        </p>
+        <p
+          v-if="snapshot.usbSupported && !volumes.length"
+          class="transfer-detail"
+          role="status"
+        >
+          {{ t('transfers.noVolumes') }}
+        </p>
+        <TransitionGroup name="usb-arrival" tag="div" class="usb-arrivals">
+          <span
+            v-for="volume in volumes.filter((value) => value.available)"
+            :key="volume.uuid"
+            class="transfer-detail"
+            ><Unplug :size="15" />{{
+              t('transfers.driveDetected', {
+                name: volume.label || volume.name,
+              })
+            }}</span
+          >
+        </TransitionGroup>
+        <button
+          v-if="destination"
+          class="folder-choice"
+          type="button"
+          :disabled="busy"
+          @click="editFolder"
+        >
+          <FolderOpen :size="18" /><span
+            ><strong>{{ t('transfers.saveFolder') }}</strong
+            ><small>{{
+              saveFolder || t('transfers.destinationRoot')
+            }}</small></span
+          ><span aria-hidden="true">›</span>
+        </button>
+        <p v-if="destination" class="transfer-path">
+          {{ folderPreview(saveFolder) }}
         </p>
         <label class="checkbox-field"
           ><input v-model="autoResume" type="checkbox" />{{
@@ -455,7 +651,12 @@ defineExpose({ open });
         <button
           type="submit"
           class="button primary full-width"
-          :disabled="busy || !destination || snapshot.driving !== 'parked'"
+          :disabled="
+            busy ||
+            !destination ||
+            snapshot.driving !== 'parked' ||
+            (!!selectedDestination && !selectedDestination.connected)
+          "
         >
           <LoaderCircle v-if="busy" class="spinning" :size="17" /><Download
             v-else
@@ -641,31 +842,19 @@ defineExpose({ open });
           id="transfer-volume"
           v-model="volumeUUID"
           :aria-label="t('transfers.usbVolume')"
-          :disabled="
-            refreshingVolumes || !volumes.some((volume) => volume.available)
-          "
+          :disabled="!volumes.some((volume) => volume.available)"
           :options="
             volumes
               .filter((volume) => volume.available)
               .map((volume) => ({
                 value: volume.uuid,
-                label: `${volume.label || volume.name} · ${volume.filesystem} · ${volume.uuid}`,
+                label: `${volume.label || volume.name} · ${volume.filesystem}`,
               }))
           "
         />
         <p v-if="!refreshingVolumes && !volumes.length" class="transfer-detail">
           {{ t('transfers.noVolumes') }}
         </p>
-        <button
-          class="text-button"
-          type="button"
-          :disabled="refreshingVolumes"
-          @click="refreshVolumes"
-        >
-          <RefreshCw :class="{ spinning: refreshingVolumes }" :size="16" />{{
-            t('transfers.refreshUSB')
-          }}
-        </button>
       </template>
       <template v-else-if="bundledSelected"
         ><p class="transfer-detail">
@@ -809,16 +998,22 @@ defineExpose({ open });
             autocomplete="off"
           />
         </template>
-        <label class="field-label" for="transfer-prefix">{{
-          t('transfers.prefix')
-        }}</label
-        ><input
-          id="transfer-prefix"
-          v-model="prefix"
-          class="transfer-input"
-          autocomplete="off"
-        />
       </template>
+      <label class="field-label" for="transfer-prefix">{{
+        t('transfers.saveFolder')
+      }}</label>
+      <input
+        id="transfer-prefix"
+        v-model="prefix"
+        class="transfer-input"
+        autocomplete="off"
+        autocapitalize="off"
+        :spellcheck="false"
+        maxlength="512"
+        :placeholder="t('transfers.destinationRoot')"
+      />
+      <p class="transfer-detail">{{ t('transfers.folderHelp') }}</p>
+      <p class="transfer-path">{{ folderPreview(prefix) }}</p>
       <p v-if="editorError" class="inline-error" role="alert">
         {{ editorError }}
       </p>
@@ -830,6 +1025,36 @@ defineExpose({ open });
         <LoaderCircle v-if="busy" class="spinning" :size="17" />{{
           t('transfers.saveDestination')
         }}
+      </button>
+    </form>
+  </Sheet>
+  <Sheet
+    ref="folderPanel"
+    :title="t('transfers.saveFolder')"
+    :close-label="t('transfers.close')"
+    over-sheets
+  >
+    <form class="modal-inner transfer-panel" @submit.prevent="applyFolder">
+      <label for="batch-folder" class="field-label">{{
+        t('transfers.folderPath')
+      }}</label>
+      <input
+        id="batch-folder"
+        v-model="folderDraft"
+        class="transfer-input"
+        maxlength="512"
+        autocomplete="off"
+        autocapitalize="off"
+        :spellcheck="false"
+        :placeholder="t('transfers.destinationRoot')"
+      />
+      <p class="transfer-detail">{{ t('transfers.folderHelp') }}</p>
+      <p class="transfer-path">{{ folderPreview(folderDraft) }}</p>
+      <p v-if="folderError" class="inline-error" role="alert">
+        {{ folderError }}
+      </p>
+      <button class="button primary full-width" type="submit" :disabled="busy">
+        {{ t('transfers.useFolder') }}
       </button>
     </form>
   </Sheet>
@@ -1023,8 +1248,73 @@ defineExpose({ open });
   gap: 4px;
   min-width: 0;
 }
+.folder-choice {
+  border: 0;
+  border-radius: 6px;
+  background: var(--surface-raised);
+  color: var(--ink);
+  padding: 12px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  text-align: start;
+  cursor: pointer;
+  min-height: 56px;
+}
+.folder-choice > span:first-of-type {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+  overflow-wrap: anywhere;
+}
+.folder-choice small {
+  color: var(--muted);
+}
+.transfer-metrics {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 12px;
+  margin: 0;
+}
+.transfer-metrics dt {
+  color: var(--muted);
+  font-size: 12px;
+}
+.transfer-metrics dd {
+  margin: 4px 0 0;
+  font-size: 15px;
+  overflow-wrap: anywhere;
+}
+.transfer-metrics,
+.transfer-detail {
+  font-variant-numeric: tabular-nums;
+}
+.usb-arrivals:empty {
+  display: none;
+}
+.usb-arrivals > span {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.usb-arrival-enter-active,
+.usb-arrival-leave-active {
+  transition:
+    opacity 180ms ease-out,
+    transform 180ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+.usb-arrival-enter-from,
+.usb-arrival-leave-to {
+  opacity: 0;
+  transform: translateY(6px);
+}
 @media (prefers-reduced-motion: reduce) {
   .transfer-progress span {
+    transition: none;
+  }
+  .usb-arrival-enter-active,
+  .usb-arrival-leave-active {
     transition: none;
   }
 }

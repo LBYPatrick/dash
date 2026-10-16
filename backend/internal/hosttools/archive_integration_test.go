@@ -16,6 +16,8 @@ func TestArchiveIntegration(t *testing.T) {
 	api.state(t, "parked")
 	defer func() { api.request("/api/simulation/state", map[string]string{"state": "unknown"}) }()
 	api.post(t, "/api/transfer-destinations", map[string]any{"id": id, "name": "Synthetic archive", "kind": "usb", "volumeUuid": "DASH-SIM-0001", "secret": map[string]any{}}, 200)
+	api.post(t, "/api/transfer-destinations/"+id+"/directory", map[string]any{"path": "../escape"}, 400)
+	api.post(t, "/api/transfer-destinations/"+id+"/directory", map[string]any{"path": "Test archives/2026"}, 200)
 	for _, state := range []string{"unknown", "onroad"} {
 		api.state(t, state)
 		api.post(t, "/api/transfers", map[string]any{"destinationId": id, "autoResume": true}, 409)
@@ -49,6 +51,7 @@ func TestArchiveIntegration(t *testing.T) {
 		assertThat(t, nested(find(), "status") == "paused", "manual pause did not survive server restart")
 	}
 	before := nested(find(), "completedFiles")
+	api.post(t, "/api/transfer-destinations/"+id+"/directory", map[string]any{"path": "Changed"}, 409)
 	api.state(t, "onroad")
 	api.post(t, "/api/transfers/"+batch.ID+"/resume", map[string]any{}, 409)
 	time.Sleep(300 * time.Millisecond)
@@ -65,6 +68,7 @@ func TestArchiveIntegration(t *testing.T) {
 	result := find()
 	total, _ := result["totalFiles"].(float64)
 	assertThat(t, total >= 36 && result["completedFiles"] == total && result["completedBytes"] == result["totalBytes"], "archive missed original cameras/logs")
+	assertThat(t, result["directory"] == "Test archives/2026" && result["progressReady"] == true && result["transferredBytes"] == result["totalBytes"], "archive folder or durable progress differs")
 	_, public, err := api.request("/api/transfers", nil)
 	require(t, err)
 	for _, private := range []string{"uploadUrl", "refreshToken", "accessToken", "secretKey", "clientSecret", "setup.key"} {

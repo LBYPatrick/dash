@@ -14,6 +14,7 @@ import (
 	"regexp"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"dash.local/backend/internal/archive/archivepb"
@@ -25,6 +26,11 @@ import (
 )
 
 type Manager struct {
+	totalsReady  atomic.Bool
+	totalsMu     sync.Mutex
+	meterMu      sync.Mutex
+	meters       map[string]*transferMeter
+	batchMu      sync.Mutex
 	options      Options
 	db           *sql.DB
 	configs      *Configs
@@ -95,8 +101,16 @@ func New(ctx context.Context, options Options) (*Manager, error) {
 		root.Close()
 		return nil, err
 	}
+	if err = installTotals(db); err != nil {
+		db.Close()
+		root.Close()
+		return nil, err
+	}
 	worker, cancel := context.WithCancel(ctx)
 	m := &Manager{options: options, db: db, configs: configs, source: directorySource{root}, ctx: worker, cancel: cancel, done: make(chan struct{}), wake: make(chan struct{}, 1), cleanupTried: map[string]time.Time{}}
+	var summaryVersion string
+	_ = db.QueryRow("SELECT value FROM settings WHERE key='summary_version'").Scan(&summaryVersion)
+	m.totalsReady.Store(summaryVersion == "1")
 	if err = db.QueryRow("SELECT value FROM settings WHERE key='source_uuid'").Scan(&m.sourceID); err != nil {
 		cancel()
 		db.Close()
@@ -139,6 +153,11 @@ func (m *Manager) Start(destination string, auto bool) (Batch, error) {
 	if m.options.State() != "parked" {
 		return Batch{}, errors.New("batch exports require confirmed parked state")
 	}
+	if err := m.ensureTotals(m.ctx); err != nil {
+		return Batch{}, errors.New("transfer progress is restoring; try again when parked")
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	config, err := m.configs.Load(destination)
 	if err != nil {
 		return Batch{}, err
@@ -146,8 +165,6 @@ func (m *Manager) Start(destination string, auto bool) (Batch, error) {
 	if (config.Kind == "gdrive" || config.Kind == "onedrive") && !config.Public().Connected {
 		return Batch{}, ErrReconnect
 	}
-	m.mu.Lock()
-	defer m.mu.Unlock()
 	var active int
 	if err = m.db.QueryRow(`SELECT count(*) FROM batches WHERE status NOT IN ('complete','complete_with_issues','canceled')`).Scan(&active); err != nil {
 		return Batch{}, err
@@ -156,7 +173,7 @@ func (m *Manager) Start(destination string, auto bool) (Batch, error) {
 		return Batch{}, errors.New("finish or cancel the existing transfer first")
 	}
 	id := randomID()
-	_, err = m.db.Exec("INSERT INTO batches(id,destination,fingerprint,status,message,created,auto) VALUES(?,?,?,'queued','Preparing inventory',?,?)", id, destination, fingerprint(config), time.Now().Unix(), auto)
+	_, err = m.db.Exec("INSERT INTO batches(id,destination,fingerprint,status,message,created,auto,directory) VALUES(?,?,?,'queued','Preparing inventory',?,?,?)", id, destination, fingerprint(config), time.Now().Unix(), auto, config.Prefix)
 	if err != nil {
 		return Batch{}, err
 	}
@@ -197,12 +214,17 @@ func (m *Manager) Action(id, action string) error {
 	return nil
 }
 func (m *Manager) batch(id string) (Batch, error) {
+	m.batchMu.Lock()
+	defer m.batchMu.Unlock()
 	var b Batch
-	err := m.db.QueryRow(`SELECT id,destination,status,message,created,auto,cleanup FROM batches WHERE id=?`, id).Scan(&b.ID, &b.DestinationID, &b.Status, &b.Message, &b.Created, &b.AutoResume, &b.CleanupPending)
+	err := m.db.QueryRow(`SELECT id,destination,status,message,created,auto,cleanup,directory FROM batches WHERE id=?`, id).Scan(&b.ID, &b.DestinationID, &b.Status, &b.Message, &b.Created, &b.AutoResume, &b.CleanupPending, &b.Directory)
 	if err != nil {
 		return b, err
 	}
-	err = m.db.QueryRow(`SELECT count(*),coalesce(sum(size),0),coalesce(sum(CASE WHEN status='complete' THEN 1 ELSE 0 END),0),coalesce(sum(CASE WHEN status='complete' THEN size ELSE 0 END),0),coalesce(sum(CASE WHEN status IN ('missing','changed','conflict','deferred') THEN 1 ELSE 0 END),0),coalesce(sum(CASE WHEN status='complete' THEN size ELSE coalesce(json_extract(checkpoint,'$.offset'),0) END),0) FROM files WHERE batch=?`, id).Scan(&b.TotalFiles, &b.TotalBytes, &b.CompletedFiles, &b.CompletedBytes, &b.Issues, &b.TransferredBytes)
+	var sent, issueBytes int64
+	err = m.db.QueryRow(`SELECT coalesce(t.files,0),coalesce(t.bytes,0),coalesce(t.complete_files,0),coalesce(t.complete_bytes,0),coalesce(t.issues,0),coalesce(t.progress_bytes,0),coalesce(t.sent_bytes,0),coalesce(t.reused_bytes,0),coalesce(t.issue_bytes,0) FROM batches b LEFT JOIN batch_totals t ON t.batch=b.id WHERE b.id=?`, id).Scan(&b.TotalFiles, &b.TotalBytes, &b.CompletedFiles, &b.CompletedBytes, &b.Issues, &b.TransferredBytes, &sent, &b.ReusedBytes, &issueBytes)
+	b.ProgressReady = m.totalsReady.Load()
+	m.measure(&b, sent, issueBytes, time.Now())
 	if err == nil {
 		_ = m.db.QueryRow(`SELECT path FROM files WHERE batch=? AND status IN ('pending','copying') ORDER BY path LIMIT 1`, id).Scan(&b.CurrentFile)
 	}
@@ -245,7 +267,11 @@ func (m *Manager) run() {
 		}
 		worked := false
 		if m.options.State() == "parked" {
-			worked = m.next()
+			if !m.totalsReady.Load() {
+				worked = m.ensureTotals(m.ctx) == nil
+			} else {
+				worked = m.next()
+			}
 		} else {
 			_, _ = m.db.Exec(`UPDATE batches SET status=CASE WHEN auto=1 THEN 'waiting_parked' ELSE 'paused' END,message='Paused until confirmed parked' WHERE status IN ('queued','scanning','running','finalizing')`)
 		}
@@ -559,7 +585,7 @@ func (m *Manager) step(ctx context.Context, id string) error {
 	a.Status = "copying"
 	if done {
 		a.Status = "complete"
-		a.Checkpoint = Checkpoint{Offset: a.Size}
+		a.Checkpoint = completed(a.Checkpoint, a.Size)
 	}
 	return m.saveAsset(id, a)
 }
@@ -587,8 +613,18 @@ func (m *Manager) Issues(id string) ([]Issue, error) {
 }
 func (m *Manager) DestinationBusy(id string) bool {
 	var count int
-	err := m.db.QueryRow(`SELECT count(*) FROM batches WHERE destination=? AND status NOT IN ('complete','complete_with_issues','canceled')`, id).Scan(&count)
+	err := m.db.QueryRow(`SELECT count(*) FROM batches WHERE destination=? AND (cleanup=1 OR status NOT IN ('complete','complete_with_issues','canceled'))`, id).Scan(&count)
 	return err != nil || count > 0
+}
+
+// SetDirectory serializes path changes with batch creation, retaining cleanup's target.
+func (m *Manager) SetDirectory(id, directory string) (Destination, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.DestinationBusy(id) {
+		return Destination{}, errors.New("finish the transfer and its cleanup before changing its save folder")
+	}
+	return m.configs.UpdateDirectory(id, directory)
 }
 func (m *Manager) WaitIdle(ctx context.Context) error {
 	for {

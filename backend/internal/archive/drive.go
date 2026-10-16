@@ -271,7 +271,8 @@ func (s *DriveStore) Step(ctx context.Context, a Asset) (Checkpoint, bool, error
 			if err = s.verify(ctx, a, item); err != nil {
 				return cp, false, err
 			}
-			return Checkpoint{Offset: a.Size}, true, nil
+			cp.Reused = cp.SentBytes == 0
+			return completed(cp, a.Size), true, nil
 		}
 		if s.config.Kind == "onedrive" && a.Size == 0 {
 			response, err := s.request(ctx, "PUT", s.api+"/me/drive/items/"+url.PathEscape(parent)+":/"+url.PathEscape(name)+":/content?%40microsoft.graph.conflictBehavior=fail", bytes.NewReader(nil), map[string]string{"If-None-Match": "*", "Content-Length": "0", "Content-Type": "application/octet-stream"}, true)
@@ -340,19 +341,21 @@ func (s *DriveStore) Step(ctx context.Context, a Asset) (Checkpoint, bool, error
 	}
 	if response.StatusCode == 404 || response.StatusCode == 410 {
 		response.Body.Close()
-		return Checkpoint{}, false, nil
+		return Checkpoint{SentBytes: cp.SentBytes}, false, nil
 	}
 	if s.config.Kind == "gdrive" {
 		if response.StatusCode == 200 || response.StatusCode == 201 {
 			response.Body.Close()
 			// Verify final file metadata through the normal lookup on the next
 			// step, including a final response lost before checkpointing.
-			return Checkpoint{Offset: a.Size}, false, nil
+			cp.SentBytes += max(int64(0), a.Size-cp.Offset)
+			return completed(cp, a.Size), false, nil
 		}
 		if response.StatusCode != 308 {
 			response.Body.Close()
 			return cp, false, RemoteError{s.config.Kind, "resume upload", response.StatusCode}
 		}
+		previousOffset := cp.Offset
 		cp.Offset = 0
 		if r := response.Header.Get("Range"); strings.HasPrefix(r, "bytes=0-") {
 			last, e := strconv.ParseInt(strings.TrimPrefix(r, "bytes=0-"), 10, 64)
@@ -362,6 +365,7 @@ func (s *DriveStore) Step(ctx context.Context, a Asset) (Checkpoint, bool, error
 			}
 			cp.Offset = last + 1
 		}
+		cp.SentBytes += max(int64(0), cp.Offset-previousOffset)
 		response.Body.Close()
 	} else {
 		var state struct {
@@ -374,10 +378,12 @@ func (s *DriveStore) Step(ctx context.Context, a Asset) (Checkpoint, bool, error
 			return cp, false, errors.New("provider upload range requires reconnection")
 		}
 		first, _, _ := strings.Cut(state.Ranges[0], "-")
+		previousOffset := cp.Offset
 		cp.Offset, err = strconv.ParseInt(first, 10, 64)
 		if err != nil {
 			return cp, false, errors.New("invalid provider upload range")
 		}
+		cp.SentBytes += max(int64(0), cp.Offset-previousOffset)
 	}
 	if cp.Offset < 0 || cp.Offset >= a.Size {
 		return cp, false, errors.New("provider upload offset is outside the source")
@@ -398,12 +404,14 @@ func (s *DriveStore) Step(ctx context.Context, a Asset) (Checkpoint, bool, error
 	}
 	defer response.Body.Close()
 	if response.StatusCode == 200 || response.StatusCode == 201 {
-		return Checkpoint{Offset: a.Size}, false, nil
+		cp.SentBytes += count
+		return completed(cp, a.Size), false, nil
 	}
 	if (s.config.Kind == "gdrive" && response.StatusCode != 308) || (s.config.Kind == "onedrive" && response.StatusCode != 202) {
 		return cp, false, RemoteError{s.config.Kind, "upload chunk", response.StatusCode}
 	}
 	cp.Offset += count
+	cp.SentBytes += count
 	return cp, false, nil
 }
 

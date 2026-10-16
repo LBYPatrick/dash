@@ -20,6 +20,7 @@ import (
 	"syscall"
 	"time"
 
+	"dash.local/backend/internal/archivepath"
 	"golang.org/x/sys/unix"
 )
 
@@ -35,6 +36,8 @@ type helper struct {
 	uid, gid int
 	mounts   map[string]*mountedVolume
 	cached   []Volume
+	probeKey string
+	probedAt time.Time
 }
 type mountEntry struct{ root, point, filesystem, source, device string }
 
@@ -275,6 +278,25 @@ func (h *helper) volumes(ctx context.Context) []Volume {
 	if err != nil {
 		return []Volume{}
 	}
+	var signature strings.Builder
+	for _, entry := range entries {
+		if resolved, err := externalBlock(entry.Name()); err == nil {
+			signature.WriteString(resolved)
+			if info, err := os.Stat(filepath.Join("/sys/class/block", entry.Name())); err == nil {
+				if stat, ok := info.Sys().(*syscall.Stat_t); ok {
+					fmt.Fprintf(&signature, ":%d", stat.Ino)
+				}
+			}
+			signature.WriteByte('\n')
+		}
+	}
+	if signature.String() == h.probeKey && !h.probedAt.IsZero() && time.Since(h.probedAt) < 30*time.Second {
+		result := append([]Volume{}, h.cached...)
+		for i := range result {
+			result[i].Mounted = h.mounts[strings.ToLower(result[i].UUID)] != nil
+		}
+		return result
+	}
 	result := []Volume{}
 	counts := map[string]int{}
 	for _, entry := range entries {
@@ -299,6 +321,7 @@ func (h *helper) volumes(ctx context.Context) []Volume {
 		result[i].Available = counts[key] == 1
 	}
 	h.cached = result
+	h.probeKey, h.probedAt = signature.String(), time.Now()
 	return append([]Volume{}, result...)
 }
 func (h *helper) mount(ctx context.Context, uuid string) error {
@@ -378,7 +401,7 @@ func (h *helper) mount(ctx context.Context, uuid string) error {
 		options := fmt.Sprintf("uid=%d,gid=%d,umask=0077,allow_other,default_permissions,nodev,nosuid,noexec,max_read=131072", h.uid, h.gid)
 		if selected.Filesystem == "ntfs" {
 			tool = "ntfs-3g"
-			options += ",norecover,windows_names"
+			options += ",norecover,windows_names,no_detach"
 		}
 		binary := filepath.Join("/data/dash/usb-tools", tool)
 		info, err := os.Lstat(binary)
@@ -389,7 +412,9 @@ func (h *helper) mount(ctx context.Context, uuid string) error {
 		if !ok || stat.Uid != 0 {
 			return errors.New("USB filesystem helper must be root-owned")
 		}
-		command := exec.Command(binary, "-f", "-s", "-o", options, "/proc/self/fd/3", point)
+		// Both bundled implementations run a single-threaded request loop.
+		// exFAT is patched to stay in the foreground; NTFS uses no_detach.
+		command := exec.Command(binary, "-o", options, "/proc/self/fd/3", point)
 		command.ExtraFiles = []*os.File{device}
 		command.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 		command.Stdout = io.Discard
@@ -427,30 +452,63 @@ func (h *helper) mount(ctx context.Context, uuid string) error {
 		_ = h.eject(key)
 		return errors.New("USB mounting stopped because parked state was lost")
 	}
-	// Only create/own Dash's new archive directory. Never chown existing user data.
-	fd, err := unix.Open(point, unix.O_RDONLY|unix.O_DIRECTORY|unix.O_NOFOLLOW|unix.O_CLOEXEC, 0)
+	return nil
+}
+func (h *helper) prepareDirectory(uuid, directory string) error {
+	if h.state() != "parked" {
+		return errors.New("USB directory setup requires confirmed parked state")
+	}
+	if err := archivepath.Validate(directory); err != nil {
+		return err
+	}
+	key := strings.ToLower(uuid)
+	mounted := h.mounts[key]
+	if mounted == nil {
+		return errors.New("USB drive is not mounted")
+	}
+	fd, err := unix.Open(mounted.point, unix.O_RDONLY|unix.O_DIRECTORY|unix.O_NOFOLLOW|unix.O_CLOEXEC, 0)
 	if err != nil {
 		_ = h.eject(key)
 		return err
 	}
-	defer unix.Close(fd)
-	created := unix.Mkdirat(fd, "dash-archive", 0700) == nil
-	archive, err := unix.Openat(fd, "dash-archive", unix.O_RDONLY|unix.O_DIRECTORY|unix.O_NOFOLLOW|unix.O_CLOEXEC, 0)
-	if err != nil {
-		_ = h.eject(key)
-		return errors.New("unsafe USB archive directory")
+	defer func() { _ = unix.Close(fd) }()
+	parts := []string{}
+	if directory != "" {
+		parts = strings.Split(directory, "/")
 	}
-	defer unix.Close(archive)
-	if created {
-		if err = unix.Fchown(archive, h.uid, h.gid); err != nil {
-			_ = h.eject(key)
-			return errors.New("cannot grant access to the new archive directory")
+	parts = append(parts, "dash-archive")
+	for i, part := range parts {
+		if h.state() != "parked" {
+			return errors.New("USB directory setup stopped because parked state was lost")
 		}
-	} else {
-		var stat unix.Stat_t
-		if unix.Fstat(archive, &stat) != nil || stat.Uid != uint32(h.uid) {
-			_ = h.eject(key)
-			return errors.New("existing archive directory is not owned by comma")
+		createErr := unix.Mkdirat(fd, part, 0700)
+		if createErr != nil && !errors.Is(createErr, unix.EEXIST) {
+			return errors.New("USB save folder could not be created")
+		}
+		next, err := unix.Openat(fd, part, unix.O_RDONLY|unix.O_DIRECTORY|unix.O_NOFOLLOW|unix.O_CLOEXEC, 0)
+		if err != nil {
+			return errors.New("USB save folder is unavailable or contains a link")
+		}
+		if createErr == nil {
+			if err = unix.Fchown(next, h.uid, h.gid); err != nil {
+				unix.Close(next)
+				return errors.New("new USB save folder permissions could not be set")
+			}
+			if err = unix.Fsync(next); err == nil {
+				err = unix.Fsync(fd)
+			}
+			if err != nil {
+				unix.Close(next)
+				return errors.New("new USB save folder could not be synchronized")
+			}
+		}
+		unix.Close(fd)
+		fd = next
+		if i == len(parts)-1 {
+			var stat unix.Stat_t
+			if unix.Fstat(fd, &stat) != nil || stat.Uid != uint32(h.uid) {
+				return errors.New("existing archive directory is not owned by comma")
+			}
 		}
 	}
 	return nil
@@ -487,7 +545,8 @@ func (h *helper) handler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var input struct {
-		UUID string `json:"uuid"`
+		UUID      string `json:"uuid"`
+		Directory string `json:"directory"`
 	}
 	if err := json.NewDecoder(io.LimitReader(r.Body, 8192)).Decode(&input); err != nil {
 		w.WriteHeader(400)
@@ -522,8 +581,13 @@ func (h *helper) handler(w http.ResponseWriter, r *http.Request) {
 	case "/mount":
 		if !uuidPattern.MatchString(input.UUID) {
 			err = errors.New("invalid USB volume UUID")
+		} else if err = archivepath.Validate(input.Directory); err != nil {
+			// Reject invalid paths before touching the volume.
 		} else {
 			err = h.mount(ctx, input.UUID)
+			if err == nil {
+				err = h.prepareDirectory(input.UUID, input.Directory)
+			}
 			result = map[string]bool{"mounted": err == nil}
 		}
 	case "/eject":
