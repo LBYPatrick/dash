@@ -369,3 +369,70 @@ func TestCancelDisconnectedDestinationDoesNotBlockNewBatches(t *testing.T) {
 	}
 	waitBatch(t, m, next.ID, "canceled")
 }
+
+func TestDamagedArchiveIdentityFailsClosed(t *testing.T) {
+	root, home, dest := transferFixture(t)
+	var parked atomic.Bool
+	m := startManager(t, root, home, dest, &parked, nil)
+	if _, err := m.db.Exec("UPDATE settings SET value='../../outside' WHERE key='source_uuid'"); err != nil {
+		t.Fatal(err)
+	}
+	m.Close()
+	attempted := false
+	next, err := New(context.Background(), Options{Root: root, Home: home, State: func() string { return "unknown" }, Acquire: func(context.Context) (func(), error) { return func() {}, nil }, Factory: func(context.Context, Config, Source) (Store, error) { attempted = true; return nil, ErrDisconnected }})
+	if err == nil {
+		next.Close()
+		t.Fatal("damaged identity accepted")
+	}
+	if attempted {
+		t.Fatal("destination touched for damaged state")
+	}
+}
+func TestPendingCleanupDoesNotStarveReachableDestinations(t *testing.T) {
+	root, home, dest := transferFixture(t)
+	var parked atomic.Bool
+	m, err := New(context.Background(), Options{Root: root, Home: home, State: func() string {
+		if parked.Load() {
+			return "parked"
+		}
+		return "unknown"
+	}, Acquire: func(context.Context) (func(), error) { return func() {}, nil }, Factory: func(_ context.Context, c Config, s Source) (Store, error) {
+		if c.ID == "offline" {
+			return nil, ErrDisconnected
+		}
+		return NewLocalStore(dest, s, "test")
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer m.Close()
+	ids := map[string]string{}
+	for i, id := range []string{"offline", "online"} {
+		c := Config{ID: id, Name: id, Kind: "usb", VolumeUUID: "DASH-TEST-0001"}
+		if err = m.configs.Save(c); err != nil {
+			t.Fatal(err)
+		}
+		batchID := randomID()
+		ids[id] = batchID
+		if _, err = m.db.Exec("INSERT INTO batches(id,destination,fingerprint,status,message,created,auto,cleanup) VALUES(?,?,?,'canceled','',?,0,1)", batchID, id, fingerprint(c), i); err != nil {
+			t.Fatal(err)
+		}
+	}
+	parked.Store(true)
+	deadline := time.Now().Add(3 * time.Second)
+	for time.Now().Before(deadline) {
+		b, err := m.batch(ids["online"])
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !b.CleanupPending {
+			offline, _ := m.batch(ids["offline"])
+			if !offline.CleanupPending {
+				t.Fatal("offline cleanup forgotten")
+			}
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Fatal("unreachable destination starved later cleanup")
+}

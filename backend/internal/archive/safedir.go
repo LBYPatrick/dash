@@ -143,7 +143,7 @@ func (r contextReader) Read(p []byte) (int, error) {
 }
 func Hash(ctx context.Context, r io.Reader) (string, string, error) {
 	sha, one := sha256.New(), sha1.New()
-	_, err := io.CopyBuffer(io.MultiWriter(sha, one), contextReader{ctx, r}, make([]byte, 256<<10))
+	_, err := io.CopyBuffer(io.MultiWriter(sha, one), contextReader{ctx, r}, make([]byte, CopyBufferBytes))
 	if err != nil {
 		return "", "", err
 	}

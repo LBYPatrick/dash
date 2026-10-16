@@ -26,6 +26,7 @@ usb_high="$(sed -n 's/.*"usbMemoryHighMiB":\([0-9][0-9]*\).*/\1/p' <<< "$setting
 usb_max="$(sed -n 's/.*"usbMemoryMaxMiB":\([0-9][0-9]*\).*/\1/p' <<< "$settings")"
 [[ "$usb_high" =~ ^[1-9][0-9]*$ && "$usb_max" =~ ^[1-9][0-9]*$ && "$usb_max" -ge "$usb_high" ]]
 sed -i "s/^MemoryHigh=.*/MemoryHigh=${usb_high}M/; s/^MemoryMax=.*/MemoryMax=${usb_max}M/" /data/dash/systemd/dash-usb.service
+sync -- /data/dash/systemd/dash-usb.service /data/dash/systemd
 sync -- /data/dash/systemd/dash.service /data/dash/systemd
 install -d -o comma -g comma -m 700 /data/dash/cache
 for directory in /data/dash/usb /data/dash/usb-tools; do

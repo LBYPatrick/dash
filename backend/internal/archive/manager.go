@@ -61,7 +61,15 @@ func New(ctx context.Context, options Options) (*Manager, error) {
 	if err != nil {
 		return nil, err
 	}
-	db, err := sql.Open("sqlite", filepath.Join(options.Home, "transfers.sqlite"))
+	databasePath := filepath.Join(options.Home, "transfers.sqlite")
+	if info, err := os.Lstat(databasePath); err == nil && !info.Mode().IsRegular() {
+		root.Close()
+		return nil, errors.New("unsafe transfer database")
+	} else if err != nil && !errors.Is(err, os.ErrNotExist) {
+		root.Close()
+		return nil, err
+	}
+	db, err := sql.Open("sqlite", databasePath)
 	if err != nil {
 		root.Close()
 		return nil, err
@@ -94,6 +102,12 @@ func New(ctx context.Context, options Options) (*Manager, error) {
 		db.Close()
 		root.Close()
 		return nil, err
+	}
+	if !regexp.MustCompile(`^[a-f0-9]{32}$`).MatchString(m.sourceID) {
+		cancel()
+		db.Close()
+		root.Close()
+		return nil, errors.New("invalid archive identity; transfer state was retained for repair")
 	}
 	_, err = db.Exec(`UPDATE batches SET status=CASE WHEN auto=1 THEN 'waiting_parked' ELSE 'paused' END,message='Interrupted; ready to resume when parked' WHERE status IN ('queued','scanning','running','finalizing')`)
 	if err != nil {
@@ -250,7 +264,22 @@ func (m *Manager) run() {
 func (m *Manager) next() bool {
 	var id string
 	if m.db.QueryRow(`SELECT id FROM batches WHERE status IN ('queued','scanning','running','finalizing','waiting_parked','canceling') ORDER BY created LIMIT 1`).Scan(&id) != nil {
-		if m.db.QueryRow(`SELECT id FROM batches WHERE cleanup=1 AND status IN ('complete','complete_with_issues','canceled') ORDER BY created LIMIT 1`).Scan(&id) != nil || time.Since(m.cleanupTried[id]) < time.Minute {
+		rows, err := m.db.Query(`SELECT id FROM batches WHERE cleanup=1 AND status IN ('complete','complete_with_issues','canceled') ORDER BY created`)
+		if err != nil {
+			return false
+		}
+		for rows.Next() {
+			var candidate string
+			if rows.Scan(&candidate) != nil {
+				break
+			}
+			if time.Since(m.cleanupTried[candidate]) >= time.Minute {
+				id = candidate
+				break
+			}
+		}
+		rows.Close()
+		if id == "" {
 			return false
 		}
 		m.cleanupTried[id] = time.Now()
@@ -384,7 +413,7 @@ func (m *Manager) scan(ctx context.Context, id string) error {
 				continue
 			}
 			count++
-			if count > 100000 {
+			if count > MaxInventoryFiles {
 				return errors.New("archive inventory exceeds its file budget")
 			}
 			sourcePath := folder.Name() + "/" + file.Name()
@@ -476,6 +505,12 @@ func (m *Manager) step(ctx context.Context, id string) error {
 	}
 	if err != nil {
 		return err
+	}
+	folder, filename := path.Split(a.Path)
+	folder = strings.TrimSuffix(folder, "/")
+	match := SessionPattern.FindStringSubmatch(folder)
+	if len(match) != 3 || match[1] != a.Session || a.Key != path.Join("dash-archive/v1", m.sourceID, "sessions", portable(a.Session), "originals", portable(folder), portable(filename)) {
+		return errors.New("archive inventory is invalid; state retained for repair")
 	}
 	source, err := m.source.Open(a.Path)
 	if err != nil {
@@ -587,6 +622,10 @@ func (m *Manager) cancelUploads(ctx context.Context, b Batch, store Store) error
 			rows.Close()
 			return err
 		}
+		if !validRelative(a.Key) || !strings.HasPrefix(a.Key, "dash-archive/v1/"+m.sourceID+"/") {
+			rows.Close()
+			return errors.New("invalid archive cleanup path")
+		}
 		assets = append(assets, a)
 	}
 	err = rows.Err()
@@ -619,6 +658,9 @@ func (m *Manager) finish(ctx context.Context, b Batch, store Store) error {
 	var pendingBody []byte
 	err := m.db.QueryRow(`SELECT key,body FROM publications WHERE batch=? AND status='pending' ORDER BY ordinal LIMIT 1`, b.ID).Scan(&pendingKey, &pendingBody)
 	if err == nil {
+		if !validRelative(pendingKey) || !strings.HasPrefix(pendingKey, "dash-archive/v1/"+m.sourceID+"/") {
+			return errors.New("invalid archive publication path")
+		}
 		if err = store.Put(ctx, pendingKey, pendingBody); err != nil {
 			return err
 		}
@@ -679,7 +721,7 @@ func (m *Manager) finish(ctx context.Context, b Batch, store Store) error {
 	defer tx.Rollback()
 	ordinal := 0
 	publish := func(key string, data []byte) error {
-		if len(data) > 16<<20 {
+		if len(data) > MaxManifestBytes {
 			return errors.New("archive manifest exceeds its memory budget")
 		}
 		ordinal++

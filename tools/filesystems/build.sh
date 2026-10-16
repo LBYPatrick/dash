@@ -20,7 +20,7 @@ cp COPYING /out/licenses/exfat-GPL-2.0.txt
 cd /work/ntfs
 autoreconf -fi
 ./configure --prefix=/opt/dash-fs --exec-prefix=/opt/dash-fs --disable-shared --enable-static --enable-really-static \
-  --with-fuse=internal --disable-ntfsprogs --disable-mount-helper
+  --with-fuse=internal --disable-ntfsprogs --disable-crypto --disable-mount-helper
 make -j2
 make install
 cp /opt/dash-fs/bin/ntfs-3g /out/ntfs-3g

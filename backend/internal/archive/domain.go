@@ -12,7 +12,14 @@ import (
 	"time"
 )
 
-const ChunkBytes int64 = 10 << 20 // S3 >=5 MiB; Google 256 KiB; OneDrive 320 KiB.
+// Fixed archive budgets for comma 3X/4; no device resource discovery.
+const (
+	ChunkBytes        int64 = 10 << 20 // S3 >=5 MiB; Google 256 KiB; OneDrive 320 KiB.
+	CopyBufferBytes         = 256 << 10
+	MaxInventoryFiles       = 100000
+	MaxManifestBytes        = 16 << 20
+	USBReserveBytes         = 16 << 20
+)
 
 var (
 	ErrConflict     = errors.New("destination has a different file; existing data was preserved")

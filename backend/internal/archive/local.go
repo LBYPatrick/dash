@@ -101,13 +101,13 @@ func (s *LocalStore) Step(ctx context.Context, a Asset) (Checkpoint, bool, error
 			return cp, false, err
 		}
 		count := min(ChunkBytes, a.Size-cp.Offset)
-		if uint64(disk.Bavail)*uint64(disk.Bsize) < uint64(count)+(16<<20) {
+		if uint64(disk.Bavail)*uint64(disk.Bsize) < uint64(count)+USBReserveBytes {
 			return cp, false, ErrFull
 		}
 		if _, err = file.Seek(cp.Offset, io.SeekStart); err != nil {
 			return cp, false, err
 		}
-		copied, err := io.CopyBuffer(file, contextReader{ctx, io.NewSectionReader(source.ReaderAt, cp.Offset, count)}, make([]byte, 256<<10))
+		copied, err := io.CopyBuffer(file, contextReader{ctx, io.NewSectionReader(source.ReaderAt, cp.Offset, count)}, make([]byte, CopyBufferBytes))
 		if err != nil {
 			return cp, false, err
 		}
