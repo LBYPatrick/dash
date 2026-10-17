@@ -110,6 +110,29 @@ test('playback-smoke', async () => {
     await expect(
       page.getByRole('button', { name: 'No recorded audio', exact: true }),
     ).toBeDisabled();
+    await camera('qcamera.ts');
+    await page.waitForFunction(
+      () => document.querySelector('video')?.readyState >= 2,
+    );
+    await context.route('**/api/video?*', (route) =>
+      route.fulfill({ status: 507, json: { error: 'recording reserve' } }),
+    );
+    await camera('ecamera.hevc');
+    await expect(
+      page.getByText(
+        'Not enough free space to prepare this camera. Try the low-resolution camera or export directly.',
+        { exact: true },
+      ),
+    ).toBeVisible();
+    await page
+      .locator('.notice--error')
+      .getByRole('button', { name: 'Dismiss', exact: true })
+      .click();
+    await context.unroute('**/api/video?*');
+    await camera('qcamera.ts');
+    await page.waitForFunction(
+      () => document.querySelector('video')?.readyState >= 2,
+    );
     // A failed readiness request has an explicit, dismissible local error.
     await context.route('**/api/playback/prepare?*', (route) =>
       route.fulfill({ status: 503, json: { error: 'test unavailable' } }),

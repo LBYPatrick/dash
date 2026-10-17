@@ -429,7 +429,14 @@ async function initialize() {
       );
   });
   stream.on(Hls.Events.ERROR, (_, data) => {
-    if (!data.fatal || run !== generation) return;
+    if (run !== generation) return;
+    if (data.response?.code === 507) {
+      stream?.stopLoad();
+      preparing.value = '';
+      error.value = t('player.previewStorageFull');
+      return;
+    }
+    if (!data.fatal) return;
     preparing.value = '';
     error.value = t(
       'player.playbackUnavailableTimelineIndexingAndCameraPreparation',

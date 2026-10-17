@@ -343,7 +343,7 @@ func (s *Server) video(w http.ResponseWriter, r *http.Request) {
 		defer release()
 		if _, err := os.Stat(target); err != nil {
 			s.prunePreviews(folder, 256<<20)
-			if err := requireRecordingSpace(folder, outputLimit); err != nil {
+			if err := ensurePreviewSpace(folder, outputLimit); err != nil {
 				fail(w, 507, err)
 				return
 			}
@@ -370,7 +370,11 @@ func (s *Server) video(w http.ResponseWriter, r *http.Request) {
 				var err error
 				input, relative, audioStart, cleanup, err = hevcPreviewWindow(ctx, file, folder, float64(chunk*PreviewChunkSeconds))
 				if err != nil {
-					fail(w, 422, err)
+					status := 422
+					if errors.Is(err, errRecordingReserve) {
+						status = 507
+					}
+					fail(w, status, err)
 					return
 				}
 				defer cleanup()
@@ -433,23 +437,7 @@ func (s *Server) video(w http.ResponseWriter, r *http.Request) {
 	http.ServeFile(w, r, target)
 }
 func (s *Server) prunePreviews(folder string, limit int64) {
-	entries, _ := os.ReadDir(folder)
-	var total int64
-	for _, entry := range entries {
-		if info, err := entry.Info(); err == nil {
-			total += info.Size()
-		}
-	}
-	for _, entry := range entries {
-		if total <= limit {
-			return
-		}
-		if info, err := entry.Info(); err == nil {
-			if os.Remove(filepath.Join(folder, entry.Name())) == nil {
-				total -= info.Size()
-			}
-		}
-	}
+	trimPreviewCache(folder, limit, nil)
 }
 func (s *Server) post(w http.ResponseWriter, r *http.Request) {
 	if r.URL.Path == "/api/simulation/state" {

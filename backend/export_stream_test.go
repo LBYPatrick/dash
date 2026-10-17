@@ -227,6 +227,7 @@ func TestRecordingReserveProtectsFirmwareCleanupFloor(t *testing.T) {
 	for _, test := range []struct{ total, available, want uint64 }{
 		{100 * gib, 10 * gib, 0},
 		{100 * gib, 11 * gib, gib - RecordingReserveMargin},
+		{100 * gib, 10*gib + 100<<20, (100 << 20) - RecordingReserveMargin},
 		{32 * gib, 5 * gib, 0},
 		{32 * gib, 6 * gib, gib - RecordingReserveMargin},
 	} {
