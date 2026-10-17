@@ -71,7 +71,7 @@ func installDeviceRelease(repository, channel, tag string, temporary bool) error
 	}
 	defer unix.Flock(int(lock.Fd()), unix.LOCK_UN)
 	if err := requireRecordingSpace(home, 0); err != nil {
-		return err
+		return fmt.Errorf("insufficient space to stage Dash safely above the recording reserve; free space without deleting original recordings: %w", err)
 	}
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()

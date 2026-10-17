@@ -66,6 +66,9 @@ All notable changes to Dash are documented here using Keep a Changelog.
 
 ### Fixed
 
+- Allow bounded HEVC previews near firmware's normal free-space floor while retaining the recording reserve; report storage exhaustion separately from parked-state failures.
+- Reclaim old derived preview videos before refusing a new camera, preserving packet indexes, metadata and original recordings.
+
 - Keep filled accent controls above text contrast requirements after browser color rounding, and verify USB image tests with production mount options and custom save folders.
 - Keep nested export sheets visually above Settings on desktop, with focus and screen-reader isolation following the same modal order.
 

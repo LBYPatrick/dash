@@ -284,6 +284,7 @@
     "fileDates_other": "폴더 이름에 날짜가 없는 주행 {{count, number}}개는 파일 수정 날짜를 사용합니다."
   },
   "player": {
+    "previewStorageFull": "이 카메라 영상을 준비할 여유 공간이 부족합니다. 저해상도 카메라를 선택하거나 바로 내보내세요.",
     "playbackCouldNotStartRetryAfterThe": "재생을 시작하지 못했습니다. 녹화가 로드된 후 다시 시도하세요.",
     "fullscreenIsUnavailableInThisBrowser": "이 브라우저에서는 전체 화면을 사용할 수 없습니다.",
     "thisBrowserDoesNotSupportRecordingStreams": "이 브라우저는 녹화 스트림을 지원하지 않습니다.",

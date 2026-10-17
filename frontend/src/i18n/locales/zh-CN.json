@@ -284,6 +284,7 @@
     "fileDates_other": "{{count, number}} 个行程的文件夹名不含日期，因此使用文件修改日期。"
   },
   "player": {
+    "previewStorageFull": "可用空间不足，无法准备此摄像头的视频。请切换到低分辨率摄像头或直接导出。",
     "playbackCouldNotStartRetryAfterThe": "无法开始播放，请在录像加载后重试。",
     "fullscreenIsUnavailableInThisBrowser": "此浏览器不支持全屏。",
     "thisBrowserDoesNotSupportRecordingStreams": "此浏览器不支持录像流播放。",

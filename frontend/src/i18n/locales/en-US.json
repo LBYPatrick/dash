@@ -284,6 +284,7 @@
     "fileDates_other": "{{count, number}} drives use file modification dates because their folder names have no date."
   },
   "player": {
+    "previewStorageFull": "Not enough free space to prepare this camera. Try the low-resolution camera or export directly.",
     "playbackCouldNotStartRetryAfterThe": "Playback could not start. Retry after the recording loads.",
     "fullscreenIsUnavailableInThisBrowser": "Fullscreen is unavailable in this browser.",
     "thisBrowserDoesNotSupportRecordingStreams": "This browser does not support recording streams.",

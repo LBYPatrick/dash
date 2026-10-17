@@ -284,6 +284,7 @@
     "fileDates_other": "フォルダー名に日付がない走行 {{count, number}} 件は、ファイル更新日時を使っています。"
   },
   "player": {
+    "previewStorageFull": "このカメラの映像を準備する空き容量が不足しています。低解像度のカメラを選ぶか、直接エクスポートしてください。",
     "playbackCouldNotStartRetryAfterThe": "再生を開始できません。録画の読み込み後に再試行してください。",
     "fullscreenIsUnavailableInThisBrowser": "このブラウザーでは全画面表示を使えません。",
     "thisBrowserDoesNotSupportRecordingStreams": "このブラウザーは録画ストリームに対応していません。",

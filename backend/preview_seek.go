@@ -101,7 +101,7 @@ func hevcPreviewWindow(ctx context.Context, file, cache string, start float64) (
 		err = errors.New("invalid preview packet offsets")
 		return
 	}
-	if err = requireRecordingSpace(cache, end-begin+int64(len(parameters))+PreviewChunkMaxBytes); err != nil {
+	if err = ensurePreviewSpace(cache, end-begin+int64(len(parameters))+PreviewChunkMaxBytes); err != nil {
 		return
 	}
 	window, err := os.CreateTemp(cache, ".hevc-window-*.hevc")

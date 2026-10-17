@@ -7,6 +7,8 @@ import (
 	"golang.org/x/sys/unix"
 )
 
+var errRecordingReserve = errors.New("insufficient space above the recording reserve; download directly instead of caching an export")
+
 func recordingSpaceBudget(total, available uint64) uint64 {
 	reserve := max(uint64(RecordingReserveBytes), total*RecordingReservePercent/100) + RecordingReserveMargin
 	if available <= reserve {
@@ -22,7 +24,7 @@ func requireRecordingSpace(path string, additional int64) error {
 	}
 	budget := recordingSpaceBudget(uint64(disk.Blocks)*uint64(disk.Bsize), uint64(disk.Bavail)*uint64(disk.Bsize))
 	if additional < 0 || budget == 0 || uint64(additional) > budget {
-		return errors.New("insufficient space above the recording reserve; download directly instead of caching an export")
+		return errRecordingReserve
 	}
 	return nil
 }

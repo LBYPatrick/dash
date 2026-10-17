@@ -284,6 +284,7 @@
     "fileDates_other": "{{count, number}} chuyến đi dùng ngày sửa tệp vì tên thư mục không có ngày."
   },
   "player": {
+    "previewStorageFull": "Không đủ dung lượng trống để chuẩn bị video này. Hãy chọn camera độ phân giải thấp hoặc xuất trực tiếp.",
     "playbackCouldNotStartRetryAfterThe": "Không thể phát. Thử lại sau khi bản ghi được tải.",
     "fullscreenIsUnavailableInThisBrowser": "Trình duyệt không hỗ trợ toàn màn hình.",
     "thisBrowserDoesNotSupportRecordingStreams": "Trình duyệt không hỗ trợ luồng bản ghi.",

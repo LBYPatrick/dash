@@ -43,7 +43,9 @@ const (
 	// between checks. Dash must not displace original recordings with caches.
 	RecordingReserveBytes   = 5 << 30
 	RecordingReservePercent = 10
-	RecordingReserveMargin  = 256 << 20
+	// Go writers recheck space every 8 MiB; previews reserve their bounded
+	// output up front. Keep two chunks above the firmware cleanup floor.
+	RecordingReserveMargin = 2 * PreviewChunkMaxBytes
 )
 
 // Set once before workers start. Device mode uses fixed budgets and never
