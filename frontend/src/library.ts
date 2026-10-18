@@ -5,6 +5,12 @@ export interface Entry {
   size: number;
   modified: number;
   duration?: number;
+  native?: {
+    status: string;
+    codec?: string;
+    audio?: boolean;
+    originMonotonic?: number;
+  };
 }
 export interface Listing {
   directories: Entry[];

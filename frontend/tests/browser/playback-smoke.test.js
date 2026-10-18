@@ -42,6 +42,12 @@ test('playback-smoke', async () => {
       }
       await route.fulfill({ response, json: entries });
     });
+    // Deterministic unsupported-client case, independent of host HEVC hardware.
+    await context.addInitScript(() => {
+      const original = MediaSource.isTypeSupported.bind(MediaSource);
+      MediaSource.isTypeSupported = (type) =>
+        /hvc1|hev1/.test(type) ? false : original(type);
+    });
     const page = await context.newPage();
     const errors = [];
     page.on('pageerror', (error) => errors.push(error.message));
@@ -83,8 +89,8 @@ test('playback-smoke', async () => {
       });
     });
     let delay = true;
-    await context.route('**/api/video?*', async (route) => {
-      if (delay) {
+    await context.route('**/api/playback/prepare?*', async (route) => {
+      if (delay && route.request().url().includes('camera=fcamera.hevc')) {
         delay = false;
         await new Promise((resolve) => setTimeout(resolve, 1800));
       }
@@ -101,11 +107,18 @@ test('playback-smoke', async () => {
       () => document.querySelector('video')?.readyState >= 2,
     );
     await expect(page.locator('.notice--error')).toHaveCount(0);
-    await context.unroute('**/api/video?*');
+    await context.unroute('**/api/playback/prepare?*');
     await camera('fcamera.hevc');
-    await page.waitForFunction(
-      () => document.querySelector('video')?.readyState >= 2,
-    );
+    await expect(
+      page.getByText(
+        'This browser cannot play this HEVC recording. Choose qcamera.ts or download the original.',
+        { exact: true },
+      ),
+    ).toBeVisible();
+    await page
+      .locator('.notice--error')
+      .getByRole('button', { name: 'Dismiss', exact: true })
+      .click();
     await expect(page.locator('.player-preparing')).toHaveCount(0);
     await expect(
       page.getByRole('button', { name: 'No recorded audio', exact: true }),
@@ -114,13 +127,16 @@ test('playback-smoke', async () => {
     await page.waitForFunction(
       () => document.querySelector('video')?.readyState >= 2,
     );
-    await context.route('**/api/video?*', (route) =>
-      route.fulfill({ status: 507, json: { error: 'recording reserve' } }),
+    await context.route('**/api/playback/prepare?*', (route) =>
+      route.fulfill({
+        status: 200,
+        json: { ready: false, status: 'unsupported' },
+      }),
     );
     await camera('ecamera.hevc');
     await expect(
       page.getByText(
-        'Not enough free space to prepare this camera. Try the low-resolution camera or export directly.',
+        'This recording is not supported for native HEVC playback. Choose qcamera.ts or download the original.',
         { exact: true },
       ),
     ).toBeVisible();
@@ -128,7 +144,7 @@ test('playback-smoke', async () => {
       .locator('.notice--error')
       .getByRole('button', { name: 'Dismiss', exact: true })
       .click();
-    await context.unroute('**/api/video?*');
+    await context.unroute('**/api/playback/prepare?*');
     await camera('qcamera.ts');
     await page.waitForFunction(
       () => document.querySelector('video')?.readyState >= 2,

@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"math"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -69,8 +68,8 @@ func TestRecordingPlaylistAndOnroadOriginalStreaming(t *testing.T) {
 	}
 	response, _ = http.Get(server.URL + "/api/video?file=" + fixtureDrive + "--0/fcamera.hevc&container=ts&codec=h264")
 	response.Body.Close()
-	if response.StatusCode != 409 {
-		t.Fatal("uncached camera preparation allowed onroad")
+	if response.StatusCode != 410 {
+		t.Fatal("retired preview encoder remains available")
 	}
 	if _, err := videoDuration(context.Background(), video); err != nil {
 		t.Fatal(err)
@@ -82,79 +81,89 @@ func TestRecordingPlaylistAndOnroadOriginalStreaming(t *testing.T) {
 	}
 }
 
-func TestHEVCPreviewChunksAndCachedOnroadPlayback(t *testing.T) {
-	index, parked := fixtureIndex(t)
-	// Independent half-second GOPs, six seconds total. A non-zero chunk must
-	// contain only its requested range, not the decoded prefix.
-	sample := cameraFixture(t, "hevc", false)
-	var data []byte
-	for n := 0; n < 12; n++ {
-		data = append(data, sample...)
+func nativeRecordingBytes(t *testing.T, server *Server, name, camera string) []byte {
+	t.Helper()
+	response := httptest.NewRecorder()
+	server.ServeHTTP(response, httptest.NewRequest("GET", "/api/playlist?drive="+strings.TrimSuffix(name, "--0")+"&camera="+camera, nil))
+	if response.Code != 200 {
+		t.Fatal(response.Code, response.Body.String())
 	}
+	var output bytes.Buffer
+	for _, line := range strings.Split(response.Body.String(), "\n") {
+		path := ""
+		if strings.HasPrefix(line, "#EXT-X-MAP:URI=\"") {
+			path = strings.TrimSuffix(strings.TrimPrefix(line, "#EXT-X-MAP:URI=\""), "\"")
+		} else if strings.HasPrefix(line, "/api/media/fragment?") {
+			path = line
+		}
+		if path == "" {
+			continue
+		}
+		part := httptest.NewRecorder()
+		server.ServeHTTP(part, httptest.NewRequest("GET", path, nil))
+		if part.Code != 200 {
+			t.Fatal(part.Code, part.Body.String())
+		}
+		output.Write(part.Body.Bytes())
+	}
+	return output.Bytes()
+}
+func TestNativeHEVCServesOriginalsOnroadWithoutWorkers(t *testing.T) {
+	index, parked := fixtureIndex(t)
+	sample := cameraFixture(t, "hevc", false)
+	data := bytes.Repeat(sample, 12)
 	name := fixtureDrive + "--0"
-	os.WriteFile(filepath.Join(index.root, name, "fcamera.hevc"), data, 0600)
+	if err := os.WriteFile(filepath.Join(index.root, name, "fcamera.hevc"), data, 0600); err != nil {
+		t.Fatal(err)
+	}
 	if err := index.scan(context.Background()); err != nil {
 		t.Fatal(err)
 	}
 	before, _ := index.snapshot()
 	beforeJSON, _ := json.Marshal(before.Segments)
-	defer func() {
-		after, _ := index.snapshot()
-		afterJSON, _ := json.Marshal(after.Segments)
-		if !bytes.Equal(beforeJSON, afterJSON) {
-			t.Error("preview preparation modified the recording index")
-		}
-		index.mu.Lock()
-		defer index.mu.Unlock()
-		if index.priorityDrive != "" || index.scanning || index.status.Running {
-			t.Error("preview preparation started indexing")
-		}
-	}()
 	server := &Server{ctx: context.Background(), index: index}
-	request := func(path string) *httptest.ResponseRecorder {
-		response := httptest.NewRecorder()
-		server.ServeHTTP(response, httptest.NewRequest("GET", path, nil))
-		return response
-	}
-	response := request("/api/playlist?drive=" + fixtureDrive + "&camera=fcamera.hevc")
+	parked.Store(false)
+	// Every heavy slot is unavailable. Cached native reads must still complete.
+	computeSlot <- struct{}{}
+	defer func() { <-computeSlot }()
+	response := httptest.NewRecorder()
+	server.ServeHTTP(response, httptest.NewRequest("GET", "/api/playlist?drive="+fixtureDrive+"&camera=fcamera.hevc", nil))
 	text := response.Body.String()
-	if response.Code != 200 || !strings.Contains(text, "#EXT-X-TARGETDURATION:4") || !strings.Contains(text, "#EXTINF:4.000000,") || !strings.Contains(text, "#EXTINF:2.000000,") || strings.Count(text, "chunk=") != 2 {
+	if response.Code != 200 || !strings.Contains(text, "#EXT-X-VERSION:7") || strings.Contains(text, "codec=h264") || strings.Count(text, "/api/media/fragment?") != 3 {
 		t.Fatal(text)
 	}
-	for chunk, seconds := range []float64{4, 2} {
-		path := "/api/video?file=" + name + "/fcamera.hevc&container=ts&codec=h264&chunk=" + strconv.Itoa(chunk)
-		response := request(path)
-		if response.Code != 200 {
-			t.Fatal(response.Code, response.Body.String())
-		}
-		filename := filepath.Join(t.TempDir(), "preview.ts")
-		os.WriteFile(filename, response.Body.Bytes(), 0600)
-		duration, err := videoDuration(context.Background(), filename)
-		if err != nil || math.Abs(duration-seconds) > 0.11 {
-			t.Fatal("wrong chunk duration", duration, err)
-		}
-		parked.Store(false)
-		cached := request(path)
-		if cached.Code != 200 || !bytes.Equal(cached.Body.Bytes(), response.Body.Bytes()) {
-			t.Fatal("cached chunk cannot play onroad")
-		}
-		parked.Store(true)
+	result := nativeRecordingBytes(t, server, name, "fcamera.hevc")
+	filename := filepath.Join(t.TempDir(), "native.mp4")
+	os.WriteFile(filename, result, 0600)
+	out, err := exec.Command("ffprobe", "-v", "error", "-select_streams", "v:0", "-show_entries", "stream=codec_name,width,height:format=duration", "-of", "json", filename).CombinedOutput()
+	if err != nil || !strings.Contains(string(out), `"codec_name": "hevc"`) {
+		t.Fatal(err, string(out))
 	}
-	response = request("/api/video?file=" + name + "/fcamera.hevc&container=ts&codec=h264&chunk=999999999999999999")
-	if response.Code != 400 {
-		t.Fatal("unbounded chunk accepted")
+	after, _ := index.snapshot()
+	afterJSON, _ := json.Marshal(after.Segments)
+	if !bytes.Equal(beforeJSON, afterJSON) {
+		t.Fatal("native playback modified recording index")
+	}
+	index.mu.Lock()
+	defer index.mu.Unlock()
+	if index.priorityDrive != "" || index.scanning || index.status.Running {
+		t.Fatal("native playback started indexing")
 	}
 }
 
 func TestReadyPlaybackDoesNotStartOrPrioritizeIndex(t *testing.T) {
 	index, _ := fixtureIndex(t)
-	entry := IndexedSegment{MediaVersion: 1}
+	folder := filepath.Join(index.root, fixtureDrive+"--0")
 	for camera := range cameras {
-		entry.Files = append(entry.Files, FileInfo{Name: camera, Size: 100, Duration: 1})
+		codec := "hevc"
+		if camera == "qcamera.ts" {
+			codec = "h264"
+		}
+		if err := os.WriteFile(filepath.Join(folder, camera), cameraFixture(t, codec, false), 0600); err != nil {
+			t.Fatal(err)
+		}
 	}
-	data, _ := json.Marshal(entry)
-	_, err := index.db.Exec("INSERT INTO segments(name,fingerprint,entry,summary) VALUES(?,?,?,?)", fixtureDrive+"--0", "ready", string(data), string(data))
-	if err != nil {
+	if err := index.scan(context.Background()); err != nil {
 		t.Fatal(err)
 	}
 	ctx, cancel := context.WithCancel(context.Background())
@@ -204,13 +213,8 @@ func TestRecordedAudioSurvivesPreviewAndMP4(t *testing.T) {
 		}
 	}
 	server := &Server{index: index}
-	response := httptest.NewRecorder()
-	server.ServeHTTP(response, httptest.NewRequest("GET", "/api/video?file="+fixtureDrive+"--0/fcamera.hevc&container=ts&codec=h264&chunk=0", nil))
-	if response.Code != 200 {
-		t.Fatal(response.Code, response.Body.String())
-	}
-	preview := filepath.Join(t.TempDir(), "preview.ts")
-	os.WriteFile(preview, response.Body.Bytes(), 0600)
+	preview := filepath.Join(t.TempDir(), "native.mp4")
+	os.WriteFile(preview, nativeRecordingBytes(t, server, fixtureDrive+"--0", "fcamera.hevc"), 0600)
 	assertAudio(preview)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -263,10 +267,8 @@ func TestDeclaredEmptyAACDoesNotBreakVideo(t *testing.T) {
 		t.Fatal(err)
 	}
 	server := &Server{index: index}
-	response := httptest.NewRecorder()
-	server.ServeHTTP(response, httptest.NewRequest("GET", "/api/video?file="+fixtureDrive+"--0/fcamera.hevc&container=ts&codec=h264&chunk=0", nil))
-	if response.Code != 200 {
-		t.Fatal("declared empty AAC broke preview", response.Code, response.Body.String())
+	if len(nativeRecordingBytes(t, server, fixtureDrive+"--0", "fcamera.hevc")) == 0 {
+		t.Fatal("empty AAC broke native video")
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -377,5 +379,106 @@ func TestLateStartingAACIsFoundAndExported(t *testing.T) {
 	first, err := strconv.ParseFloat(strings.TrimSuffix(lines[0], ","), 64)
 	if err != nil || first < 5.5 || first > 6.2 {
 		t.Fatal("late audio shifted earlier", first, err)
+	}
+}
+
+func TestNativeHTTPRangesAndParkedCacheRepair(t *testing.T) {
+	index, parked := fixtureIndex(t)
+	folder := filepath.Join(index.root, fixtureDrive+"--0")
+	if err := os.WriteFile(filepath.Join(folder, "fcamera.hevc"), cameraFixture(t, "hevc", false), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := index.scan(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	snapshot, _ := index.snapshot()
+	var media *NativeMedia
+	for _, file := range snapshot.Segments[fixtureDrive+"--0"].Files {
+		if file.Name == "fcamera.hevc" {
+			media = file.Native
+		}
+	}
+	if media == nil || media.Status != "ready" {
+		t.Fatal("native fixture not prepared")
+	}
+	server := &Server{ctx: context.Background(), index: index}
+	path := "/api/media/fragment?file=" + fixtureDrive + "--0/fcamera.hevc&key=" + media.Key + "&fragment=0"
+	request := func(method, path, rangeValue string) *httptest.ResponseRecorder {
+		t.Helper()
+		response := httptest.NewRecorder()
+		req := httptest.NewRequest(method, path, nil)
+		if rangeValue != "" {
+			req.Header.Set("Range", rangeValue)
+		}
+		server.ServeHTTP(response, req)
+		return response
+	}
+	parked.Store(false)
+	full := request("GET", path, "")
+	if full.Code != 200 {
+		t.Fatal(full.Code, full.Body.String())
+	}
+	partial := request("GET", path, "bytes=31-83")
+	if partial.Code != 206 || !bytes.Equal(partial.Body.Bytes(), full.Body.Bytes()[31:84]) {
+		t.Fatal("virtual byte range changed media", partial.Code)
+	}
+	head := request("HEAD", path, "")
+	if head.Code != 200 || head.Body.Len() != 0 || head.Header().Get("Content-Length") != strconv.Itoa(full.Body.Len()) {
+		t.Fatal("invalid HEAD", head.Code, head.Header())
+	}
+	nativeRequests <- struct{}{}
+	nativeRequests <- struct{}{}
+	busy := request("GET", path, "")
+	<-nativeRequests
+	<-nativeRequests
+	if busy.Code != 503 {
+		t.Fatal("native request concurrency is unbounded")
+	}
+	if response := request("GET", strings.Replace(path, "fragment=0", "fragment=-1", 1), ""); response.Code != 400 {
+		t.Fatal("invalid fragment accepted")
+	}
+	cache := index.nativePath(media.Key)
+	data, err := os.ReadFile(cache)
+	if err != nil {
+		t.Fatal(err)
+	}
+	data[len(data)-1] ^= 0x40
+	if err := os.WriteFile(cache, data, 0600); err != nil {
+		t.Fatal(err)
+	}
+	broken := request("GET", path, "")
+	if broken.Code != 409 {
+		t.Fatal("corrupt packet inventory served")
+	}
+	prepared := request("POST", "/api/playback/prepare?drive="+fixtureDrive+"&camera=fcamera.hevc", "")
+	if !strings.Contains(prepared.Body.String(), `"status":"parkedRequired"`) {
+		t.Fatal("corrupt index triggered onroad work", prepared.Body.String())
+	}
+	index.mu.Lock()
+	running := index.scanning
+	index.mu.Unlock()
+	if running {
+		t.Fatal("media request started indexing")
+	}
+	parked.Store(true)
+	if err := index.scan(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if response := request("GET", path, ""); response.Code != 200 {
+		t.Fatal("parked repair did not recover", response.Code, response.Body.String())
+	}
+	// Atomicity recovers abandoned cache writes without deleting unknown files.
+	orphan := filepath.Join(index.cache, "native/.index-abandoned")
+	unknown := filepath.Join(index.cache, "native/keep.txt")
+	os.WriteFile(orphan, []byte("partial"), 0600)
+	os.WriteFile(unknown, []byte("keep"), 0600)
+	if err := index.scan(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(orphan); !os.IsNotExist(err) {
+		t.Fatal("abandoned native inventory retained")
+	}
+	if _, err := os.Stat(unknown); err != nil {
+		t.Fatal("unrelated cache removed")
 	}
 }

@@ -284,11 +284,16 @@
     "fileDates_other": "フォルダー名に日付がない走行 {{count, number}} 件は、ファイル更新日時を使っています。"
   },
   "player": {
-    "previewStorageFull": "このカメラの映像を準備する空き容量が不足しています。低解像度のカメラを選ぶか、直接エクスポートしてください。",
+    "nativeIndexStorageFull": "このカメラのインデックスを作成する空き容量が不足しています。qcamera.ts を選択するか、空き容量を確保して再試行してください。",
+    "parkToPrepare": "停車中に準備",
+    "prepareHighResolution": "高解像度動画を準備",
+    "indexingCamera": "インデックス作成中",
+    "nativeHEVCUnsupported": "このブラウザではこの HEVC 録画を再生できません。qcamera.ts を選択するか、元のファイルをダウンロードしてください。",
+    "nativeRecordingUnsupported": "この録画はネイティブ HEVC 再生に対応していません。qcamera.ts を選択するか、元のファイルをダウンロードしてください。",
     "playbackCouldNotStartRetryAfterThe": "再生を開始できません。録画の読み込み後に再試行してください。",
     "fullscreenIsUnavailableInThisBrowser": "このブラウザーでは全画面表示を使えません。",
     "thisBrowserDoesNotSupportRecordingStreams": "このブラウザーは録画ストリームに対応していません。",
-    "playbackUnavailableTimelineIndexingAndCameraPreparation": "再生できません。タイムラインの索引とカメラ映像の準備には駐車が必要です。索引作成後に再試行してください。",
+    "playbackUnavailableTimelineIndexingAndCameraPreparation": "録画を読み込めませんでした。再試行するか、qcamera.ts を選択するか、元のファイルをダウンロードしてください。",
     "recordingUnavailableConfirmParkedStateAndRetry": "録画を利用できません。駐車を確認して再試行してください。",
     "driveRecording": "走行の録画",
     "noRecordingAvailable": "録画がありません",

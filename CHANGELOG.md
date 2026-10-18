@@ -6,6 +6,8 @@ All notable changes to Dash are documented here using Keep a Changelog.
 
 ### Added
 
+- Play original HEVC through bounded virtual fMP4/HLS fragments, with parked-only frame/AAC indexes, recorded camera-clock alignment, crash-safe index publication, and explicit browser capability feedback.
+
 - Generate project-local HTTPS certificates with Go, reuse a private local authority on renewal, and document macOS/iPhone trust for PWA and WebCodecs secure contexts.
 
 - Detect attached USB drives automatically in exports and mount on copy, with a selectable relative save folder for every destination and live transfer speed, ETA and reused-byte accounting.
@@ -52,6 +54,8 @@ All notable changes to Dash are documented here using Keep a Changelog.
 - Remove the embedded browser map token from source and local Git history; use ignored `.env` configuration and credential-free OpenStreetMap defaults. Exclude env files from Docker build contexts.
 
 ### Changed
+
+- Remove playback H.264 encoding and the duplicate preview-video cache. Preserve late/sparse recorded audio, prioritize pending high-resolution feeds from session actions, and keep the original road preview available.
 
 - Build and smoke-test static media on native ARM64 and AMD64 CI runners, with verified source-keyed caches and artifact handoff to release packaging.
 

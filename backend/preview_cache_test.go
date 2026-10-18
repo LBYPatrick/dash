@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"strings"
@@ -8,7 +9,7 @@ import (
 	"time"
 )
 
-func TestPreviewEvictionReclaimsOldestWithoutDiscardingIndexes(t *testing.T) {
+func TestLegacyPreviewMigrationPreservesIndexesAndOriginals(t *testing.T) {
 	folder := t.TempDir()
 	old := strings.Repeat("a", 64) + ".ts"
 	recent := strings.Repeat("b", 64) + ".mp4"
@@ -28,8 +29,13 @@ func TestPreviewEvictionReclaimsOldestWithoutDiscardingIndexes(t *testing.T) {
 	if err := os.Symlink(outside, link); err != nil {
 		t.Fatal(err)
 	}
-	trimPreviewCache(folder, 1000, func() bool { _, err := os.Stat(filepath.Join(folder, old)); return os.IsNotExist(err) })
-	for _, name := range []string{recent, "packet.seek.json", "unknown.ts"} {
+	removeLegacyPreviews(context.Background(), folder)
+	for _, name := range []string{old, recent} {
+		if _, err := os.Stat(filepath.Join(folder, name)); !os.IsNotExist(err) {
+			t.Fatal("legacy video was retained", name)
+		}
+	}
+	for _, name := range []string{"packet.seek.json", "unknown.ts"} {
 		if _, err := os.Stat(filepath.Join(folder, name)); err != nil {
 			t.Fatal("unrelated or useful cache removed", name, err)
 		}

@@ -4,6 +4,7 @@ go 1.27.1
 
 require (
 	capnproto.org/go/capnp/v3 v3.1.0-alpha.2
+	github.com/Eyevinn/mp4ff v0.60.0
 	github.com/aws/aws-sdk-go-v2 v1.47.3
 	github.com/aws/aws-sdk-go-v2/credentials v1.20.9
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.114.3

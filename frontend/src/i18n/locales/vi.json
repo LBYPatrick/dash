@@ -284,11 +284,16 @@
     "fileDates_other": "{{count, number}} chuyến đi dùng ngày sửa tệp vì tên thư mục không có ngày."
   },
   "player": {
-    "previewStorageFull": "Không đủ dung lượng trống để chuẩn bị video này. Hãy chọn camera độ phân giải thấp hoặc xuất trực tiếp.",
+    "nativeIndexStorageFull": "Không đủ dung lượng trống để lập chỉ mục camera này. Hãy chọn qcamera.ts hoặc giải phóng dung lượng rồi thử lại.",
+    "parkToPrepare": "Đỗ xe để chuẩn bị",
+    "prepareHighResolution": "Chuẩn bị video độ phân giải cao",
+    "indexingCamera": "Đang lập chỉ mục",
+    "nativeHEVCUnsupported": "Trình duyệt này không phát được bản ghi HEVC này. Hãy chọn qcamera.ts hoặc tải bản gốc.",
+    "nativeRecordingUnsupported": "Bản ghi này không hỗ trợ phát HEVC trực tiếp. Hãy chọn qcamera.ts hoặc tải bản gốc.",
     "playbackCouldNotStartRetryAfterThe": "Không thể phát. Thử lại sau khi bản ghi được tải.",
     "fullscreenIsUnavailableInThisBrowser": "Trình duyệt không hỗ trợ toàn màn hình.",
     "thisBrowserDoesNotSupportRecordingStreams": "Trình duyệt không hỗ trợ luồng bản ghi.",
-    "playbackUnavailableTimelineIndexingAndCameraPreparation": "Chưa thể phát. Lập chỉ mục dòng thời gian và chuẩn bị camera cần xe đỗ. Thử lại sau khi hoàn tất.",
+    "playbackUnavailableTimelineIndexingAndCameraPreparation": "Không tải được bản ghi. Hãy thử lại, chọn qcamera.ts hoặc tải bản gốc.",
     "recordingUnavailableConfirmParkedStateAndRetry": "Bản ghi không khả dụng. Xác nhận xe đã đỗ rồi thử lại.",
     "driveRecording": "Bản ghi chuyến đi",
     "noRecordingAvailable": "Không có bản ghi",

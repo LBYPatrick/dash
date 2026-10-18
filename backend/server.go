@@ -3,7 +3,6 @@ package main
 import (
 	"bytes"
 	"context"
-	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -15,7 +14,6 @@ import (
 	"path/filepath"
 	"regexp"
 	"runtime"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -181,6 +179,8 @@ func (s *Server) getAPI(w http.ResponseWriter, r *http.Request) {
 		s.playlist(w, r)
 	case "/api/video":
 		s.video(w, r)
+	case "/api/media/init", "/api/media/fragment":
+		s.nativeMedia(w, r)
 	default:
 		if strings.HasPrefix(r.URL.Path, "/api/thumbnail/") {
 			name := strings.TrimPrefix(r.URL.Path, "/api/thumbnail/")
@@ -271,173 +271,6 @@ func (s *Server) files(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Disposition", "attachment; filename*=UTF-8''"+url.PathEscape(filepath.Base(file)))
 	}
 	http.ServeFile(w, r, file)
-}
-func (s *Server) video(w http.ResponseWriter, r *http.Request) {
-	file, err := safePath(s.index.root, r.URL.Query().Get("file"))
-	if err != nil || !cameras[filepath.Base(file)] {
-		http.NotFound(w, r)
-		return
-	}
-	info, err := os.Stat(file)
-	if err != nil || info.Size() > 256<<20 {
-		fail(w, 400, errors.New("preview segment missing or exceeds 256 MiB"))
-		return
-	}
-	transport := r.URL.Query().Get("container") == "ts"
-	if transport {
-		w.Header().Set("Content-Type", "video/mp2t")
-	}
-	if transport && strings.HasSuffix(file, ".ts") {
-		http.ServeFile(w, r, file)
-		return
-	}
-	codec := "copy"
-	if r.URL.Query().Get("codec") == "h264" {
-		codec = "h264"
-	}
-	chunk := -1
-	if value := r.URL.Query().Get("chunk"); value != "" {
-		chunk, err = strconv.Atoi(value)
-		if err != nil || chunk < 0 || chunk >= (600+PreviewChunkSeconds-1)/PreviewChunkSeconds || !transport || codec != "h264" || !strings.HasSuffix(file, ".hevc") {
-			fail(w, 400, errors.New("invalid preview chunk"))
-			return
-		}
-	}
-	outputLimit := int64(PreviewPartMaxBytes)
-	if chunk >= 0 {
-		outputLimit = PreviewChunkMaxBytes
-	}
-	companion := ""
-	companionStamp := ""
-	if strings.HasSuffix(file, ".hevc") {
-		candidate, err := safePath(s.index.root, filepath.Join(filepath.Dir(r.URL.Query().Get("file")), "qcamera.ts"))
-		if err == nil {
-			if info, err := os.Stat(candidate); err == nil && info.Size() > 0 {
-				companion = candidate
-				companionStamp = fmt.Sprintf(":%d:%d", info.Size(), info.ModTime().UnixNano())
-			}
-		}
-	}
-	hash := sha256.Sum256([]byte(fmt.Sprintf("%s:%d:%d:%s:%t:chunk-v4-late-audio:%d:%d%s", file, info.Size(), info.ModTime().UnixNano(), codec, transport, chunk, PreviewChunkSeconds, companionStamp)))
-	folder := filepath.Join(s.index.cache, "previews")
-	_ = os.MkdirAll(folder, 0700)
-	extension := ".mp4"
-	if transport {
-		extension = ".ts"
-	}
-	target := filepath.Join(folder, fmt.Sprintf("%x%s", hash, extension))
-	if _, err := os.Stat(target); err != nil {
-		if s.index.state() != "parked" {
-			fail(w, 409, errors.New("preview preparation requires confirmed parked state"))
-			return
-		}
-		ctx, cancel := parkedContext(r.Context(), s.index.state)
-		defer cancel()
-		ctx, timeout := context.WithTimeout(ctx, 3*time.Minute)
-		defer timeout()
-		release, err := acquireCompute(ctx)
-		if err != nil {
-			fail(w, 503, err)
-			return
-		}
-		defer release()
-		if _, err := os.Stat(target); err != nil {
-			s.prunePreviews(folder, 256<<20)
-			if err := ensurePreviewSpace(folder, outputLimit); err != nil {
-				fail(w, 507, err)
-				return
-			}
-			partial := target + ".partial" + extension
-			defer os.Remove(partial)
-			if companion != "" {
-				present, err := recordedAudio(ctx, companion, folder)
-				if ctx.Err() != nil {
-					fail(w, 409, ctx.Err())
-					return
-				}
-				if err != nil || !present {
-					companion = ""
-				}
-			}
-			log.Printf("preview preparing file=%s chunk=%d", r.URL.Query().Get("file"), chunk)
-			args := []string{}
-			if strings.HasSuffix(file, ".hevc") {
-				args = append(args, "-framerate", "20")
-			}
-			input, relative, audioStart := file, float64(max(0, chunk)*PreviewChunkSeconds), 0.0
-			if chunk > 0 {
-				var cleanup func()
-				var err error
-				input, relative, audioStart, cleanup, err = hevcPreviewWindow(ctx, file, folder, float64(chunk*PreviewChunkSeconds))
-				if err != nil {
-					status := 422
-					if errors.Is(err, errRecordingReserve) {
-						status = 507
-					}
-					fail(w, status, err)
-					return
-				}
-				defer cleanup()
-			}
-			args = append(args, audioProbeArgs()...)
-			args = append(args, "-i", input)
-			audioInput := 0
-			if strings.HasSuffix(file, ".hevc") {
-				// AAC is stored with the road preview, independently of the
-				// selected raw camera. Both inputs use their native start time.
-				audioInput = -1
-				if companion != "" {
-					if audioStart > 0 {
-						args = append(args, "-ss", strconv.FormatFloat(audioStart, 'f', 6, 64))
-					}
-					args = append(args, audioProbeArgs()...)
-					args = append(args, "-i", companion)
-					audioInput = 1
-				}
-			}
-			if chunk >= 0 {
-				// Encode only this short range from the nearest independent GOP.
-				args = append(args, "-ss", strconv.FormatFloat(relative, 'f', 6, 64), "-t", strconv.Itoa(PreviewChunkSeconds))
-			}
-			args = append(args, "-map", "0:v:0")
-			if audioInput >= 0 {
-				args = append(args, "-map", fmt.Sprintf("%d:a:0?", audioInput), "-c:a", "copy")
-			} else {
-				args = append(args, "-an")
-			}
-			if codec == "h264" {
-				args = append(args, "-c:v", "libx264", "-threads", strconv.Itoa(MediaThreads), "-preset", "ultrafast", "-crf", "25", "-vf", fmt.Sprintf("scale='min(%d,iw)':'min(%d,ih)':force_original_aspect_ratio=decrease:force_divisible_by=2", PreviewMaxWidth, PreviewMaxHeight), "-pix_fmt", "yuv420p")
-			} else {
-				args = append(args, "-c:v", "copy")
-				if strings.HasSuffix(file, ".hevc") && !transport {
-					args = append(args, "-tag:v", "hvc1")
-				}
-			}
-			args = append(args, "-fs", strconv.FormatInt(outputLimit, 10))
-			if transport {
-				args = append(args, "-f", "mpegts")
-			} else {
-				args = append(args, "-movflags", "+faststart")
-			}
-			args = append(args, partial)
-			if err := runFFmpeg(ctx, args...); err != nil {
-				fail(w, 422, err)
-				return
-			}
-			if info, err := os.Stat(partial); err != nil || info.Size() >= outputLimit {
-				fail(w, 422, errors.New("preview exceeds its storage limit; download the original file"))
-				return
-			}
-			if err := os.Rename(partial, target); err != nil {
-				fail(w, 500, err)
-				return
-			}
-		}
-	}
-	http.ServeFile(w, r, target)
-}
-func (s *Server) prunePreviews(folder string, limit int64) {
-	trimPreviewCache(folder, limit, nil)
 }
 func (s *Server) post(w http.ResponseWriter, r *http.Request) {
 	if r.URL.Path == "/api/simulation/state" {
@@ -709,6 +542,10 @@ func (s *Server) preparePlayback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	total, complete, playable := 0, 0, 0
+	unsupported := false
+	storageRequired := false
+	sessionAudio := false
+	codecs := []string{}
 	for _, folder := range folders {
 		if !folder.IsDir() || !strings.HasPrefix(folder.Name(), drive+"--") || !segmentPattern.MatchString(folder.Name()) {
 			continue
@@ -720,9 +557,40 @@ func (s *Server) preparePlayback(w http.ResponseWriter, r *http.Request) {
 		}
 		complete++
 		for _, file := range entry.Files {
-			if file.Name == camera && file.Size > 0 && file.Duration > 0 {
-				playable++
+			if file.Name != camera || file.Size <= 0 || file.Duration <= 0 {
+				continue
 			}
+			if strings.HasSuffix(camera, ".hevc") {
+				if file.Native == nil {
+					complete--
+					continue
+				}
+				if file.Native.Status == "waitingForSpace" {
+					storageRequired = true
+					continue
+				}
+				if file.Native.Status != "ready" {
+					unsupported = true
+					continue
+				}
+				_, repair := s.index.nativeRepair.Load(file.Native.Key)
+				stat, err := os.Lstat(s.index.nativePath(file.Native.Key))
+				if repair || err != nil || !stat.Mode().IsRegular() {
+					complete--
+					continue
+				}
+				codec := file.Native.Codec
+				if file.Native.Audio {
+					sessionAudio = true
+				}
+				codecs = append(codecs, codec)
+			}
+			playable++
+		}
+	}
+	if sessionAudio {
+		for n := range codecs {
+			codecs[n] += ",mp4a.40.2"
 		}
 	}
 	if total > 0 && complete < total && s.index.state() == "parked" {
@@ -732,8 +600,12 @@ func (s *Server) preparePlayback(w http.ResponseWriter, r *http.Request) {
 		go func() { _ = s.index.scan(s.ctx) }()
 	}
 	state := "unavailable"
-	ready := total > 0 && complete == total && playable > 0
-	if ready {
+	ready := total > 0 && complete == total && playable > 0 && !unsupported && !storageRequired
+	if storageRequired {
+		state = "storageRequired"
+	} else if unsupported {
+		state = "unsupported"
+	} else if ready {
 		state = "ready"
 	} else if total > 0 && complete < total {
 		state = "parkedRequired"
@@ -741,5 +613,5 @@ func (s *Server) preparePlayback(w http.ResponseWriter, r *http.Request) {
 			state = "indexing"
 		}
 	}
-	writeJSON(w, 200, map[string]any{"ready": ready, "status": state, "completed": complete, "total": total})
+	writeJSON(w, 200, map[string]any{"ready": ready, "status": state, "completed": complete, "total": total, "codecs": codecs})
 }

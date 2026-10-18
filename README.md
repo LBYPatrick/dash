@@ -34,7 +34,7 @@ MCAP video uses H.264 with a keyframe in every message for paused Foxglove scrub
 
 Live view and bounded browser recording support firmware-managed WebRTC and a Dash-owned adapter for older sunnypilot builds with installed camera/media libraries. Both require a visible viewer and confirmed parked state. Leaving Live or losing the viewer stops capture. Metadata and statistics depend on the logs actually recorded; unavailable data stays unavailable.
 
-HEVC cameras use short, cached H.264 previews while parked, with visible preparation feedback. Recorded AAC audio follows camera selection and stays in MP4 downloads. Follow remains enabled during GPS gaps, with a small availability indicator. Shelf’s dismissible notifications and eight accent presets apply throughout the interface; blue is the default.
+HEVC cameras play their original compressed footage through native HLS/fMP4. Parked indexing stores compact frame/audio inventories; playback packages source byte ranges without an encoder or a second video cache. Clients need native HEVC support for the recorded profile. The original H.264 road preview remains available. Recorded AAC audio follows camera selection and stays in MP4 downloads. Follow remains enabled during GPS gaps, with a small availability indicator. Shelf’s dismissible notifications and eight accent presets apply throughout the interface; blue is the default.
 
 ## Try it locally
 
