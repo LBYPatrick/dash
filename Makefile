@@ -34,6 +34,10 @@ fixture: ## Prepare synthetic local recordings
 serve: ## Serve the local app at 127.0.0.1:8088
 	.artifacts/dash-backend --root .artifacts/device/recordings --cache .artifacts/device/cache --params .artifacts/device/params --app frontend/dist --listen 127.0.0.1:8088
 
+.PHONY: tls
+tls: ## Generate local HTTPS certificates; set TLS_HOSTS
+	go -C backend run ./cmd/dash-tool tls --hosts "$(or $(TLS_HOSTS),localhost,127.0.0.1,::1)"
+
 build: ## Build the PWA and host backend
 	vp -C frontend run build
 	mkdir -p .artifacts

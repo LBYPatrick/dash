@@ -125,15 +125,36 @@ The player shows one camera at a time with a continuous seek bar, clickable time
 
 ## Local HTTPS and PWA installation
 
-HTTP serves the app and recordings, but browsers require a secure context for service workers on LAN IPs. Supply a certificate valid for your device hostname/IP and trusted by the phone/computer. A certificate warning bypass is not equivalent to a trusted installable PWA. Keep private keys out of this repository.
+HTTP serves the app and recordings, but service workers and WebCodecs require a secure context on LAN IPs. Use HTTPS with a certificate trusted by the phone/computer. A certificate warning bypass is not equivalent to installing a trusted authority. HTTPS exposes WebCodecs where supported; it does not add HEVC codecs to a browser. Dash currently uses HLS playback and parked H.264 previews for HEVC source files.
 
-Put the certificate and key under `/data/dash/tls`, readable by `comma`, with the private key mode `0600`. Set `/data/dash/dash.env`:
+Generate certificates on your build computer with Go. Substitute your device address:
+
+```sh
+make tls TLS_HOSTS=192.168.31.233,localhost,127.0.0.1,::1
+```
+
+The ignored `tls/` folder contains a self-signed local authority (`ca.crt`, `ca.key`) and a 365-day server certificate (`cert.pem`, `key.pem`). Private keys have mode `0600`. Keep `ca.key` on your computer; never deploy it or include these files in releases. Run the same command to renew the server certificate or add a changed LAN IP. The existing authority is reused, so client trust remains valid. Include `127.0.0.1` for verified service health checks.
+
+Copy **only** `ca.crt`, `cert.pem` and `key.pem` into `/data/dash/tls` over SSH. Use directory mode `0700`, private key mode `0600` and owner `comma`. Save these files outside `current/` so OTA updates preserve them. The app's uninstall script removes them with `/data/dash`.
+
+On macOS, import **`ca.crt`** into your login keychain and enable trust for SSL. Alternatively, run this once on your own computer:
+
+```sh
+security add-trusted-cert -r trustRoot -p ssl \
+  -k "$HOME/Library/Keychains/login.keychain-db" tls/ca.crt
+```
+
+On iPhone/iPad, transfer **`ca.crt`** to the device and install its profile in Settings → General → VPN & Device Management. Then enable full trust in Settings → General → About → Certificate Trust Settings. Trust only your own authority. Never transfer either private key to a phone. Each client needs this one-time trust step.
+
+Add this assignment to `/data/dash/dash.env`, preserving any other settings:
 
 ```sh
 DASH_TLS_ARGS="--cert /data/dash/tls/cert.pem --key /data/dash/tls/key.pem"
 ```
 
-Restart the service, then open `https://DEVICE_IP:8088`. Trust your local certificate authority on each client through the normal OS certificate workflow. Dash precaches its interface only; it does not silently copy recordings to browser storage. MapLibre loads OpenStreetMap vector backgrounds automatically without a token; all rendering is on the viewing browser. Tiles require internet access and disclose the viewed area to the tile service. The recorded GPS overlay works when tiles are unavailable. Configure the Shortbread tile service by editing the served `map-config.json`; see [map configuration](maps.md). Dash does not prefetch map tiles or include them in the offline PWA cache.
+While parked, run `sudo systemctl restart dash.service`, then open `https://DEVICE_IP:8088`. The same port now serves HTTPS instead of HTTP. Run `bash /data/dash/verify-service.sh` to verify startup and TLS health. To return to HTTP, remove the TLS assignment and restart Dash while parked.
+
+Dash precaches its interface only; it does not silently copy recordings to browser storage. MapLibre loads OpenStreetMap vector backgrounds automatically without a token; all rendering is on the viewing browser. Tiles require internet access and disclose the viewed area to the tile service. The recorded GPS overlay works when tiles are unavailable. Configure the Shortbread tile service by editing the served `map-config.json`; see [map configuration](maps.md). Dash does not prefetch map tiles or include them in the offline PWA cache.
 
 Dash intentionally has no authentication. Anyone with network access to port 8088 can access recordings and request parked work. Keep it on your trusted hotspot/LAN and do not forward this port publicly. Requests with a foreign browser Origin are refused, but this is not a substitute for network isolation.
 
