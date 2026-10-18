@@ -59,6 +59,25 @@ func TestPhysicalDeviceExports(t *testing.T) {
 			if err != nil || response.StatusCode != 202 {
 				t.Fatal("submit", response.StatusCode, err)
 			}
+			if format == "mcap" && job.Streaming {
+				t.Fatal("MCAP must finish on the device before downloading")
+			}
+			deadline := time.Now().Add(8 * time.Minute)
+			for !job.Streaming && job.Status != "complete" {
+				if job.Status == "failed" || job.Status == "canceled" || time.Now().After(deadline) {
+					t.Fatal("device conversion did not complete", job.Status, job.Message)
+				}
+				time.Sleep(500 * time.Millisecond)
+				response, err = client.Get(origin + "/api/exports/" + job.ID)
+				if err != nil {
+					t.Fatal(err)
+				}
+				err = json.NewDecoder(response.Body).Decode(&job)
+				response.Body.Close()
+				if err != nil || response.StatusCode != 200 {
+					t.Fatal("conversion status", response.StatusCode, err)
+				}
+			}
 			response, err = client.Get(origin + "/api/exports/" + job.ID + "/download")
 			if err != nil {
 				t.Fatal(err)
@@ -67,6 +86,9 @@ func TestPhysicalDeviceExports(t *testing.T) {
 			if response.StatusCode != 200 {
 				data, _ := io.ReadAll(io.LimitReader(response.Body, 4096))
 				t.Fatalf("download %d: %s", response.StatusCode, data)
+			}
+			if !job.Streaming && response.ContentLength != job.Bytes {
+				t.Fatal("completed export has an incorrect download size", response.ContentLength, job.Bytes)
 			}
 			filename := filepath.Join(folder, "session."+format)
 			file, err := os.OpenFile(filename, os.O_CREATE|os.O_TRUNC|os.O_RDWR, 0600)

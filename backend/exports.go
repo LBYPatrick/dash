@@ -178,6 +178,11 @@ func (e *ExportManager) collect(request ExportRequest) ([]ExportAsset, error) {
 	return assets, nil
 }
 func (e *ExportManager) submit(request ExportRequest) (ExportJob, error) {
+	// MCAP needs a finalized footer and indexes before delivery. Ignore the
+	// streaming flag from older PWAs and prepare a complete, retryable file.
+	if request.Format == "mcap" {
+		request.Stream = false
+	}
 	if e.index.state() != "parked" {
 		return ExportJob{}, errors.New("exports require confirmed parked state")
 	}
