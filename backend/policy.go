@@ -27,14 +27,11 @@ const (
 	LiveFPS                 = 10
 	LiveMaxWidth            = 640
 	LiveMaxHeight           = 360
+	NativeRequestLimit      = 2
+	NativeWriteTimeout      = 30 * time.Second
 	LiveLeaseTimeout        = 12 * time.Second
 	// One IDR per message permits arbitrary paused seeks in Foxglove.
 	MCAPKeyframeIntervalFrames = 1
-	PreviewChunkSeconds        = 4
-	PreviewMaxWidth            = 960
-	PreviewMaxHeight           = 540
-	PreviewChunkMaxBytes       = 32 << 20
-	PreviewPartMaxBytes        = 256 << 20
 	DrivingWatchInterval       = 100 * time.Millisecond
 	IndexInterval              = 15 * time.Second
 	ExportClaimTimeout         = 30 * time.Second
@@ -43,9 +40,9 @@ const (
 	// between checks. Dash must not displace original recordings with caches.
 	RecordingReserveBytes   = 5 << 30
 	RecordingReservePercent = 10
-	// Go writers recheck space every 8 MiB; previews reserve their bounded
-	// output up front. Keep two chunks above the firmware cleanup floor.
-	RecordingReserveMargin = 2 * PreviewChunkMaxBytes
+	// Go writers recheck space every 8 MiB. Preserve fixed headroom above
+	// the firmware cleanup floor for bounded writes and app activation.
+	RecordingReserveMargin = 64 << 20
 )
 
 // Set once before workers start. Device mode uses fixed budgets and never

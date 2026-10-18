@@ -284,11 +284,16 @@
     "fileDates_other": "폴더 이름에 날짜가 없는 주행 {{count, number}}개는 파일 수정 날짜를 사용합니다."
   },
   "player": {
-    "previewStorageFull": "이 카메라 영상을 준비할 여유 공간이 부족합니다. 저해상도 카메라를 선택하거나 바로 내보내세요.",
+    "nativeIndexStorageFull": "이 카메라의 인덱스를 만들 여유 공간이 부족합니다. qcamera.ts를 선택하거나 공간을 확보한 후 다시 시도하세요.",
+    "parkToPrepare": "주차 후 준비",
+    "prepareHighResolution": "고해상도 동영상 준비",
+    "indexingCamera": "인덱싱 중",
+    "nativeHEVCUnsupported": "이 브라우저에서는 이 HEVC 녹화를 재생할 수 없습니다. qcamera.ts를 선택하거나 원본을 다운로드하세요.",
+    "nativeRecordingUnsupported": "이 녹화는 기본 HEVC 재생을 지원하지 않습니다. qcamera.ts를 선택하거나 원본을 다운로드하세요.",
     "playbackCouldNotStartRetryAfterThe": "재생을 시작하지 못했습니다. 녹화가 로드된 후 다시 시도하세요.",
     "fullscreenIsUnavailableInThisBrowser": "이 브라우저에서는 전체 화면을 사용할 수 없습니다.",
     "thisBrowserDoesNotSupportRecordingStreams": "이 브라우저는 녹화 스트림을 지원하지 않습니다.",
-    "playbackUnavailableTimelineIndexingAndCameraPreparation": "재생할 수 없습니다. 타임라인 색인과 카메라 준비는 주차 상태에서만 진행됩니다. 색인 완료 후 다시 시도하세요.",
+    "playbackUnavailableTimelineIndexingAndCameraPreparation": "녹화를 불러올 수 없습니다. 다시 시도하거나 qcamera.ts를 선택하거나 원본을 다운로드하세요.",
     "recordingUnavailableConfirmParkedStateAndRetry": "녹화를 사용할 수 없습니다. 주차 상태를 확인하고 다시 시도하세요.",
     "driveRecording": "주행 녹화",
     "noRecordingAvailable": "녹화 없음",

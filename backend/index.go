@@ -24,12 +24,14 @@ var segmentPattern = regexp.MustCompile(`^([a-zA-Z0-9_-]+--[a-zA-Z0-9_-]+)--([0-
 var cameras = map[string]bool{"qcamera.ts": true, "fcamera.hevc": true, "ecamera.hevc": true, "dcamera.hevc": true}
 
 type FileInfo struct {
-	Duration float64 `json:"duration,omitempty"`
-	Name     string  `json:"name"`
-	Size     int64   `json:"size"`
-	Mtime    int64   `json:"mtime"`
+	Native   *NativeMedia `json:"native,omitempty"`
+	Duration float64      `json:"duration,omitempty"`
+	Name     string       `json:"name"`
+	Size     int64        `json:"size"`
+	Mtime    int64        `json:"mtime"`
 }
 type IndexedSegment struct {
+	NativeVersion    int                `json:"nativeVersion,omitempty"`
 	TelemetryVersion int                `json:"telemetryVersion,omitempty"`
 	MediaVersion     int                `json:"mediaVersion,omitempty"`
 	Metadata         telemetry.Metadata `json:"metadata"`
@@ -51,6 +53,7 @@ type IndexSnapshot struct {
 	Segments map[string]IndexedSegment `json:"segments"`
 }
 type Index struct {
+	nativeRepair  sync.Map
 	root, cache   string
 	db            *sql.DB
 	state         StateReader
@@ -304,6 +307,7 @@ func (i *Index) scan(parent context.Context) error {
 		return err
 	}
 	used := map[string]bool{}
+	nativeUsed := map[string]bool{}
 	for rows.Next() {
 		if ctx.Err() != nil {
 			rows.Close()
@@ -313,6 +317,11 @@ func (i *Index) scan(parent context.Context) error {
 		var entry IndexedSegment
 		if rows.Scan(&raw) == nil && json.Unmarshal([]byte(raw), &entry) == nil {
 			used[filepath.Base(entry.Thumbnail)] = true
+			for _, file := range entry.Files {
+				if file.Native != nil && file.Native.Status == "ready" {
+					nativeUsed[file.Native.Key] = true
+				}
+			}
 		}
 	}
 	rows.Close()
@@ -325,6 +334,11 @@ func (i *Index) scan(parent context.Context) error {
 			_ = os.Remove(file)
 		}
 	}
+	if ctx.Err() != nil || i.state() != "parked" {
+		return context.Canceled
+	}
+	i.pruneNative(ctx, nativeUsed)
+	removeLegacyPreviews(ctx, filepath.Join(i.cache, "previews"))
 	finished = true
 	return nil
 }
@@ -359,7 +373,7 @@ func (i *Index) scanSegment(ctx context.Context, name string, generation uint64,
 	var oldHash, oldRaw string
 	_ = i.db.QueryRowContext(ctx, "SELECT fingerprint,summary FROM segments WHERE name=?", name).Scan(&oldHash, &oldRaw)
 	var old IndexedSegment
-	if oldHash == fingerprint && json.Unmarshal([]byte(oldRaw), &old) == nil && old.MediaVersion == 1 && old.TelemetryVersion == 7 {
+	if oldHash == fingerprint && json.Unmarshal([]byte(oldRaw), &old) == nil && old.MediaVersion == 1 && old.TelemetryVersion == 7 && i.nativeComplete(old) {
 		if old.Thumbnail == "" {
 			return nil
 		}
@@ -476,6 +490,9 @@ func (i *Index) scanSegment(ctx context.Context, name string, generation uint64,
 				return ctx.Err()
 			}
 		}
+	}
+	if err := i.prepareNative(ctx, folder, fingerprint, &entry); err != nil {
+		return err
 	}
 	current, err := recordingFingerprint(folder)
 	if err != nil {

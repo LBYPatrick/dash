@@ -82,6 +82,7 @@ watch(
 );
 const preparing = ref('');
 const hasAudio = ref(false);
+let indexedAudio: boolean | undefined;
 const time = ref(0),
   duration = ref(0),
   paused = ref(true),
@@ -244,7 +245,7 @@ watch(rate, (value) => {
 function detectAudio() {
   // HLS codec events belong to the active source. Chromium can retain its
   // cumulative decoded-byte counter after a MediaSource has been replaced.
-  if (stream) return;
+  if (stream || indexedAudio !== undefined) return;
   const element = video.value as
     | (HTMLVideoElement & {
         audioTracks?: { length: number };
@@ -328,6 +329,7 @@ async function initialize() {
   error.value = '';
   preparing.value = '';
   hasAudio.value = false;
+  indexedAudio = undefined;
   const run = generation;
   const source = props.source;
   const element = video.value;
@@ -348,6 +350,16 @@ async function initialize() {
     const status = await response.json();
     if (run !== generation) return;
     if (!status.ready) {
+      if (status.status === 'storageRequired') {
+        preparing.value = '';
+        error.value = t('player.nativeIndexStorageFull');
+        return;
+      }
+      if (status.status === 'unsupported') {
+        preparing.value = '';
+        error.value = t('player.nativeRecordingUnsupported');
+        return;
+      }
       if (status.status === 'unavailable') {
         preparing.value = '';
         error.value = t(
@@ -364,6 +376,34 @@ async function initialize() {
             });
       retry = setTimeout(() => void initialize(), 2000);
       return;
+    }
+    if (Array.isArray(status.codecs)) {
+      if (status.codecs.length) {
+        const recordedAudio = (status.codecs as string[]).some((codec) =>
+          codec.includes('mp4a.'),
+        );
+        indexedAudio = recordedAudio;
+        hasAudio.value = recordedAudio;
+      }
+      for (const codec of new Set<string>(status.codecs)) {
+        const mime = `video/mp4; codecs="${codec}"`;
+        const MediaSourceClass =
+          window.MediaSource ||
+          (window as Window & { ManagedMediaSource?: typeof MediaSource })
+            .ManagedMediaSource;
+        const nativeHLS =
+          element.canPlayType('application/vnd.apple.mpegurl') &&
+          'audioTracks' in element;
+        if (
+          nativeHLS
+            ? !element.canPlayType(mime)
+            : !MediaSourceClass?.isTypeSupported(mime)
+        ) {
+          preparing.value = '';
+          error.value = t('player.nativeHEVCUnsupported');
+          return;
+        }
+      }
     }
     preparing.value = t('player.preparingVideo');
   } catch {
@@ -408,20 +448,13 @@ async function initialize() {
     enableWorker: true,
     startFragPrefetch: true,
     startPosition: position,
-    fragLoadPolicy: {
-      default: {
-        ...Hls.DefaultConfig.fragLoadPolicy.default,
-        maxTimeToFirstByteMs: 185000,
-        maxLoadTimeMs: 210000,
-      },
-    },
     maxBufferLength: 15,
     maxMaxBufferLength: 60,
     backBufferLength: 15,
     maxBufferSize: 32 * 1024 * 1024,
   });
   stream.on(Hls.Events.BUFFER_CODECS, (_, tracks) => {
-    if (run === generation)
+    if (run === generation && indexedAudio === undefined)
       hasAudio.value ||= !!(
         tracks.audio ||
         tracks.audiovideo ||
@@ -430,12 +463,6 @@ async function initialize() {
   });
   stream.on(Hls.Events.ERROR, (_, data) => {
     if (run !== generation) return;
-    if (data.response?.code === 507) {
-      stream?.stopLoad();
-      preparing.value = '';
-      error.value = t('player.previewStorageFull');
-      return;
-    }
     if (!data.fatal) return;
     preparing.value = '';
     error.value = t(

@@ -161,6 +161,9 @@ func (t *Tools) Release(source bool) error {
 		if err = copyTree(media, filepath.Join(stage, "bin")); err != nil {
 			return err
 		}
+		if err = copyFile(t.path("backend/third_party/mp4ff.txt"), filepath.Join(stage, "bin/licenses/mp4ff.txt")); err != nil {
+			return err
+		}
 		filesystems, err := t.BuildFilesystems(arch)
 		if err != nil {
 			return err

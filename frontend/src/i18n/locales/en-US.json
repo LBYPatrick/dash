@@ -284,11 +284,16 @@
     "fileDates_other": "{{count, number}} drives use file modification dates because their folder names have no date."
   },
   "player": {
-    "previewStorageFull": "Not enough free space to prepare this camera. Try the low-resolution camera or export directly.",
+    "nativeIndexStorageFull": "Not enough free space to index this camera. Choose qcamera.ts or free space before retrying.",
+    "parkToPrepare": "Park to prepare",
+    "prepareHighResolution": "Prepare high-resolution video",
+    "indexingCamera": "Indexing",
+    "nativeHEVCUnsupported": "This browser cannot play this HEVC recording. Choose qcamera.ts or download the original.",
+    "nativeRecordingUnsupported": "This recording is not supported for native HEVC playback. Choose qcamera.ts or download the original.",
     "playbackCouldNotStartRetryAfterThe": "Playback could not start. Retry after the recording loads.",
     "fullscreenIsUnavailableInThisBrowser": "Fullscreen is unavailable in this browser.",
     "thisBrowserDoesNotSupportRecordingStreams": "This browser does not support recording streams.",
-    "playbackUnavailableTimelineIndexingAndCameraPreparation": "Playback unavailable. Timeline indexing and camera preparation require parked state. Retry after indexing completes.",
+    "playbackUnavailableTimelineIndexingAndCameraPreparation": "The recording could not be loaded. Retry, choose qcamera.ts, or download the original.",
     "recordingUnavailableConfirmParkedStateAndRetry": "Recording unavailable. Confirm parked state and retry.",
     "driveRecording": "Drive recording",
     "noRecordingAvailable": "No recording available",

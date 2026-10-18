@@ -60,3 +60,17 @@ vp test run --config frontend/browser.config.ts frontend/tests/browser/viewer-sm
 `make build-filesystems MEDIA_ARCH=arm64|amd64` builds pinned static exFAT/NTFS helpers on the Docker build host. `make filesystem-smoke` tests fresh filesystem images in an isolated root mount namespace on native Linux; its host-only packages and requirements are listed in [exports.md](exports.md). `make transfers-smoke` covers the responsive export and authorization flow. The Docker sandbox includes a synthetic USB destination with persistent transfer state.
 
 Go integration checks for Docker media, filesystem images, sandbox limits, OTA and source installation are enabled by their Make targets. Ordinary Go tests keep those workflows disabled. Upstream binary-log regeneration and independent MCAP verification remain optional maintenance tools documented with the [fixture provenance](../scripts/fixtures/README.md); their external schema tooling is not part of the normal development environment.
+
+`make playback-smoke` covers desktop/mobile native preparation, disabled camera choices, browser capability feedback, notifications, and map controls. Native MP4 packaging tests decode synthetic output and compare every video frame against its source. The Go muxer uses the MIT-licensed `mp4ff` package; releases include its notice under `bin/licenses/mp4ff.txt`.
+
+For a short, already-indexed physical session, verify native HTTPS reads without requesting preparation or changing firmware state:
+
+```sh
+DASH_DEVICE_ACCEPTANCE=1 DASH_TEST_URL=https://DEVICE_IP:8088 \
+  DASH_DEVICE_CA="$PWD/tls/ca.crt" DASH_DEVICE_DRIVE=DRIVE_ID \
+  DASH_DEVICE_OUTPUT="$PWD/.artifacts/native-device" \
+  GOMAXPROCS=2 go -C backend test -p 1 -parallel 1 \
+  -run '^TestPhysicalDeviceNativePlayback$' -v .
+```
+
+This check requires confirmed parked state, downloads bounded camera files to the ignored host output folder, and validates them with host FFmpeg. It never installs packages on the device or starts conversion jobs. `DASH_DEVICE_CA` also enables local HTTPS for the existing export acceptance test. To verify a previously downloaded real session archive entirely on the host, set `DASH_NATIVE_RECORDING_ZIP` and run `TestPhysicalRecordingNativePackaging`. Keep all private recordings under ignored `.artifacts/`; never commit them.

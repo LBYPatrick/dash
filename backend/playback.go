@@ -155,43 +155,69 @@ func (s *Server) playlist(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	sort.Slice(clips, func(a, b int) bool { return clips[a].index < clips[b].index })
-	chunked := strings.HasSuffix(camera, ".hevc")
+	native := strings.HasSuffix(camera, ".hevc")
+	var sessionAudio *NativeMedia
+	if native {
+		for _, clip := range clips {
+			for _, file := range snapshot.Segments[clip.name].Files {
+				if file.Name == camera && file.Native != nil && file.Native.Audio {
+					sessionAudio = file.Native
+					break
+				}
+			}
+		}
+	}
 	target := float64(1)
 	for _, clip := range clips {
-		length := clip.duration
-		if chunked {
-			length = min(length, float64(PreviewChunkSeconds))
+		if native {
+			for _, file := range snapshot.Segments[clip.name].Files {
+				if file.Name != camera {
+					continue
+				}
+				if file.Native == nil || file.Native.Status != "ready" {
+					fail(w, 409, errors.New("native HEVC timeline needs parked preparation or this recording is unsupported"))
+					return
+				}
+				for _, duration := range file.Native.Fragments {
+					target = max(target, math.Ceil(duration))
+				}
+			}
+		} else {
+			target = max(target, math.Ceil(clip.duration))
 		}
-		target = max(target, math.Ceil(length))
 	}
 	var result strings.Builder
-	fmt.Fprintf(&result, "#EXTM3U\n#EXT-X-VERSION:3\n#EXT-X-PLAYLIST-TYPE:VOD\n#EXT-X-TARGETDURATION:%.0f\n#EXT-X-MEDIA-SEQUENCE:0\n", target)
-	codec := "copy"
-	if chunked || r.URL.Query().Get("codec") == "h264" {
-		codec = "h264"
+	version := 3
+	if native {
+		version = 7
 	}
-	count := 0
-	for _, clip := range clips {
-		parts := 1
-		if chunked {
-			parts = int(math.Ceil(clip.duration / float64(PreviewChunkSeconds)))
+	fmt.Fprintf(&result, "#EXTM3U\n#EXT-X-VERSION:%d\n#EXT-X-PLAYLIST-TYPE:VOD\n#EXT-X-TARGETDURATION:%.0f\n#EXT-X-MEDIA-SEQUENCE:0\n", version, target)
+	if native {
+		result.WriteString("#EXT-X-INDEPENDENT-SEGMENTS\n")
+	}
+	for number, clip := range clips {
+		if number > 0 {
+			result.WriteString("#EXT-X-DISCONTINUITY\n")
 		}
-		for part := 0; part < parts; part++ {
-			if count > 0 {
-				result.WriteString("#EXT-X-DISCONTINUITY\n")
+		if !native {
+			query := url.Values{"file": {filepath.ToSlash(filepath.Join(clip.name, camera))}, "container": {"ts"}}
+			fmt.Fprintf(&result, "#EXTINF:%.6f,\n/api/video?%s\n", clip.duration, query.Encode())
+			continue
+		}
+		var media *NativeMedia
+		for _, file := range snapshot.Segments[clip.name].Files {
+			if file.Name == camera {
+				media = file.Native
 			}
-			count++
-			if count > 65536 {
-				fail(w, 400, errors.New("recording exceeds preview chunk limit"))
-				return
-			}
-			length := clip.duration
-			query := url.Values{"file": {filepath.ToSlash(filepath.Join(clip.name, camera))}, "container": {"ts"}, "codec": {codec}}
-			if chunked {
-				query.Set("chunk", strconv.Itoa(part))
-				length = min(float64(PreviewChunkSeconds), clip.duration-float64(part*PreviewChunkSeconds))
-			}
-			fmt.Fprintf(&result, "#EXTINF:%.6f,\n/api/video?%s\n", length, query.Encode())
+		}
+		query := url.Values{"file": {filepath.ToSlash(filepath.Join(clip.name, camera))}, "key": {media.Key}}
+		if sessionAudio != nil && !media.Audio {
+			query.Set("silence", fmt.Sprintf("%d:%d", sessionAudio.AudioRate, sessionAudio.AudioChannels))
+		}
+		fmt.Fprintf(&result, "#EXT-X-MAP:URI=\"/api/media/init?%s\"\n", query.Encode())
+		for fragment, duration := range media.Fragments {
+			query.Set("fragment", strconv.Itoa(fragment))
+			fmt.Fprintf(&result, "#EXTINF:%.6f,\n/api/media/fragment?%s\n", duration, query.Encode())
 		}
 	}
 	result.WriteString("#EXT-X-ENDLIST\n")

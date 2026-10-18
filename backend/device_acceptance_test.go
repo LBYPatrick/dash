@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -31,7 +30,7 @@ func TestPhysicalDeviceExports(t *testing.T) {
 	if err := os.MkdirAll(folder, 0700); err != nil {
 		t.Fatal(err)
 	}
-	client := &http.Client{Timeout: 10 * time.Minute}
+	client := physicalClient(t, 10*time.Minute)
 	for _, format := range []string{"zip", "raw", "mp4", "mcap"} {
 		t.Run(format, func(t *testing.T) {
 			response, err := client.Get(origin + "/api/info")

@@ -284,11 +284,16 @@
     "fileDates_other": "{{count, number}} 个行程的文件夹名不含日期，因此使用文件修改日期。"
   },
   "player": {
-    "previewStorageFull": "可用空间不足，无法准备此摄像头的视频。请切换到低分辨率摄像头或直接导出。",
+    "nativeIndexStorageFull": "没有足够的可用空间来索引此摄像头。请选择 qcamera.ts，或释放空间后重试。",
+    "parkToPrepare": "停车后准备",
+    "prepareHighResolution": "准备高分辨率视频",
+    "indexingCamera": "索引中",
+    "nativeHEVCUnsupported": "此浏览器无法播放这段 HEVC 录像。请选择 qcamera.ts 或下载原始文件。",
+    "nativeRecordingUnsupported": "这段录像不支持原生 HEVC 播放。请选择 qcamera.ts 或下载原始文件。",
     "playbackCouldNotStartRetryAfterThe": "无法开始播放，请在录像加载后重试。",
     "fullscreenIsUnavailableInThisBrowser": "此浏览器不支持全屏。",
     "thisBrowserDoesNotSupportRecordingStreams": "此浏览器不支持录像流播放。",
-    "playbackUnavailableTimelineIndexingAndCameraPreparation": "无法播放。时间轴索引与摄像头视频准备需在停车时进行，请在索引完成后重试。",
+    "playbackUnavailableTimelineIndexingAndCameraPreparation": "无法加载录像。请重试、选择 qcamera.ts 或下载原始文件。",
     "recordingUnavailableConfirmParkedStateAndRetry": "录像不可用，请确认车辆已停放并重试。",
     "driveRecording": "行程录像",
     "noRecordingAvailable": "暂无录像",

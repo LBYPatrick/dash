@@ -88,8 +88,8 @@ appearance-smoke: ## Check themes and performance mode
 shelf-smoke: ## Check Shelf components and keyboard flows
 	vp test run --config frontend/browser.config.ts frontend/tests/browser/shelf-smoke.test.js
 
-playback-smoke: ## Check preparation, GPS gaps and notifications
-	vp test run --config frontend/browser.config.ts frontend/tests/browser/playback-smoke.test.js
+playback-smoke: ## Check native readiness, GPS gaps and notifications
+	vp test run --config frontend/browser.config.ts frontend/tests/browser/playback-smoke.test.js frontend/tests/browser/native-preparation-smoke.test.js
 
 viewer-smoke: ## Check playback, seeking and map follow
 	vp test run --config frontend/browser.config.ts frontend/tests/browser/viewer-smoke.test.js

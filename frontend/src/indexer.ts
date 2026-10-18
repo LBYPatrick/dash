@@ -36,6 +36,7 @@ export interface IndexedSegment {
   metadata?: Telemetry;
   fingerprint: string;
   mediaVersion?: number;
+  nativeVersion?: number;
 }
 export interface BackendIndex {
   version: number;
@@ -51,10 +52,17 @@ export interface BackendIndex {
   segments: Record<
     string,
     {
-      files: { name: string; size: number; mtime: number; duration?: number }[];
+      files: {
+        name: string;
+        size: number;
+        mtime: number;
+        duration?: number;
+        native?: Entry['native'];
+      }[];
       thumbnail?: string;
       metadata: Telemetry;
       mediaVersion?: number;
+      nativeVersion?: number;
     }
   >;
 }
@@ -160,6 +168,7 @@ export async function startIndexing(
           entries[segment.url] = {
             fingerprint,
             mediaVersion: indexed.mediaVersion,
+            nativeVersion: indexed.nativeVersion,
             metadata: {
               ...indexed.metadata,
               points: indexEntries.value[segment.url]?.metadata?.points,
@@ -173,6 +182,7 @@ export async function startIndexing(
               name: file.name,
               size: file.size,
               duration: file.duration,
+              native: file.native,
               modified: file.mtime / 1e6,
               url: new URL(encodeURIComponent(file.name), segment.url).href,
             })),
@@ -256,12 +266,25 @@ export function recordingReadiness(
   for (const part of drive.segments) {
     const entry = entries[part.url];
     if (entry?.mediaVersion !== 1) continue;
+    const containerReady = entry.files.some(
+      (file) =>
+        /\.(ts|mp4|webm)$/.test(file.name) &&
+        file.size > 0 &&
+        (file.duration || 0) > 0,
+    );
+    if (
+      !containerReady &&
+      entry.nativeVersion !== 1 &&
+      entry.files.some((file) => file.name.endsWith('.hevc') && file.size > 0)
+    )
+      continue;
     complete++;
     playable ||= entry.files.some(
       (file) =>
         /\.(ts|hevc|mp4|webm)$/.test(file.name) &&
         file.size > 0 &&
-        (file.duration || 0) > 0,
+        (file.duration || 0) > 0 &&
+        (!file.name.endsWith('.hevc') || file.native?.status === 'ready'),
     );
   }
   const indexed =

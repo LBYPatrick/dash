@@ -260,15 +260,21 @@ const timelineSegments = computed<TimelineSegment[]>(() => {
       )
     )
       return [];
+    const file = entry?.files.find((file) => file.name === camera);
+    const origin = file?.native?.originMonotonic;
     const duration =
-      entry?.files.find((file) => file.name === camera)?.duration ||
-      entry?.metadata?.duration ||
-      (demo.value ? 8 : 60);
+      file?.duration || entry?.metadata?.duration || (demo.value ? 8 : 60);
     const part = {
       start: offset,
       duration,
       thumbnail: entry?.thumbnail,
-      metadata: entry?.metadata,
+      metadata:
+        origin && entry?.metadata
+          ? {
+              ...entry.metadata,
+              startMonotonic: origin,
+            }
+          : entry?.metadata,
     };
     offset += duration;
     return [part];
@@ -377,10 +383,10 @@ function readinessLabel(drive: Drive) {
     { completed: state.complete, total: state.total },
   );
 }
-async function prepareNext(drive: Drive) {
+async function prepareNext(drive: Drive, camera = 'qcamera.ts') {
   try {
     const response = await fetch(
-      `/api/playback/prepare?${new URLSearchParams({ drive: drive.id, camera: 'qcamera.ts' })}`,
+      `/api/playback/prepare?${new URLSearchParams({ drive: drive.id, camera })}`,
       { method: 'POST' },
     );
     if (!response.ok) throw new Error();
@@ -471,6 +477,21 @@ const playable = computed(() => {
         : a.name.localeCompare(b.name),
   );
 });
+function cameraPreparing(name: string) {
+  return (
+    !demo.value &&
+    name.endsWith('.hevc') &&
+    (active.value?.segments || []).some((part) => {
+      const file = indexEntries.value[part.url]?.files.find(
+        (file) => file.name === name,
+      );
+      return file && file.size > 0 && !file.native;
+    })
+  );
+}
+const pendingNativeCamera = computed(
+  () => playable.value.find((file) => cameraPreparing(file.name))?.name || '',
+);
 const totalSegments = computed(() =>
   drives.value.reduce((sum, drive) => sum + drive.segments.length, 0),
 );
@@ -1246,6 +1267,25 @@ onBeforeUnmount(() => {
             </div>
             <SessionActions ref="actionMenu">
               <button
+                v-if="pendingNativeCamera"
+                type="button"
+                :disabled="
+                  indexStatus.driving !== 'parked' ||
+                  indexStatus.priority === active.id
+                "
+                @click="
+                  prepareNext(active, pendingNativeCamera);
+                  actionMenu?.close();
+                "
+              >
+                <ArrowUpRight :size="16" />
+                {{
+                  indexStatus.priority === active.id
+                    ? t('app.queuedNext')
+                    : t('player.prepareHighResolution')
+                }}
+              </button>
+              <button
                 @click="
                   actionMenu?.close();
                   exportDialog?.open('mp4');
@@ -1427,7 +1467,10 @@ onBeforeUnmount(() => {
                               value: demo
                                 ? file.url
                                 : recordingAddress(activeId, file.name),
-                              label: file.name,
+                              label: cameraPreparing(file.name)
+                                ? `${file.name} · ${indexStatus.driving === 'parked' ? t('player.indexingCamera') : t('player.parkToPrepare')}`
+                                : file.name,
+                              disabled: cameraPreparing(file.name),
                             }))
                           "
                       /></label>
