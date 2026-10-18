@@ -6,6 +6,8 @@ All notable changes to Dash are documented here using Keep a Changelog.
 
 ### Added
 
+- Generate project-local HTTPS certificates with Go, reuse a private local authority on renewal, and document macOS/iPhone trust for PWA and WebCodecs secure contexts.
+
 - Detect attached USB drives automatically in exports and mount on copy, with a selectable relative save folder for every destination and live transfer speed, ETA and reused-byte accounting.
 
 - Add durable whole-library original archives to USB (native ext4 and bundled static exFAT/NTFS), S3-compatible storage, Google Drive and OneDrive, with parked cancellation, checkpoint recovery, immutable protobuf manifests and safe eject.

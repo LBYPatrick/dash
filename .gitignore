@@ -9,6 +9,8 @@ backend/cache/
 !.env.example
 *.key
 *.pem
+/tls/*
+!/tls/README.md
 
 __pycache__/
 .vitest/

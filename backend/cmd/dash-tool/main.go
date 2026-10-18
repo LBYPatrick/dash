@@ -23,6 +23,14 @@ func run() error {
 	}
 	args := os.Args[2:]
 	switch os.Args[1] {
+	case "tls":
+		f := flag.NewFlagSet("tls", flag.ContinueOnError)
+		destination := f.String("destination", "tls", "local certificate directory")
+		hosts := f.String("hosts", "localhost,127.0.0.1,::1", "comma-separated device IP addresses and DNS names")
+		if err := f.Parse(args); err != nil {
+			return err
+		}
+		return tool.LocalTLS(*destination, *hosts)
 	case "fixture":
 		return tool.Fixture()
 	case "sandbox-up":

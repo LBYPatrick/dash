@@ -50,6 +50,13 @@ expect_failure() {
   if verify; then cat "$fixture/result.log" >&2; echo 'Readiness verification incorrectly accepted broken registration' >&2; exit 1; fi
 }
 verify
+# TLS flags must reach the readiness client without evaluating shell syntax.
+printf '#!/bin/bash\nprintf "%%s\\n" "$@" >> "$DASH_VERIFY_ROOT/calls"\n' > "$app/releases/test/dash-backend"
+printf 'DASH_TLS_ARGS="--cert /data/dash/tls/cert.pem --key /data/dash/tls/key.pem"\nUNRELATED=$(touch /tmp/dash-env-must-not-run)\n' > "$app/dash.env"
+verify
+[[ "$(cat "$DASH_VERIFY_ROOT/calls")" == *--cert* ]]
+[[ "$(cat "$DASH_VERIFY_ROOT/calls")" == */data/dash/tls/cert.pem* ]]
+rm "$app/dash.env"
 export DASH_VERIFY_ENABLED=false
 expect_failure
 export DASH_VERIFY_ENABLED=true

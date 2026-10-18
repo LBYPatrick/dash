@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"flag"
 	"log"
@@ -28,7 +29,7 @@ func main() {
 	cache := flag.String("cache", "/data/dash/cache", "Disposable SQLite, preview and export cache")
 	params := flag.String("params", "/data/params/d", "Firmware params directory; unknown state disables compute")
 	app := flag.String("app", "dist", "Required built Vue PWA directory")
-	address := flag.String("listen", "127.0.0.1:8088", "HTTP listen address")
+	address := flag.String("listen", "127.0.0.1:8088", "HTTP or HTTPS listen address")
 	cert := flag.String("cert", "", "Trusted HTTPS certificate")
 	key := flag.String("key", "", "HTTPS private key")
 	firmware := flag.String("firmware", "/data/openpilot", "Firmware directory, used to detect managed WebRTC support")
@@ -149,14 +150,8 @@ func main() {
 		log.Fatal("managed updates require the installed supervisor")
 	}
 	if *healthCheck {
-		client := &http.Client{Timeout: 2 * time.Second}
-		response, err := client.Get("http://127.0.0.1:8088/api/info")
-		if err != nil {
+		if err := checkBackendHealth(*address, *cert); err != nil {
 			log.Fatal(err)
-		}
-		response.Body.Close()
-		if response.StatusCode != http.StatusOK {
-			log.Fatal("backend not ready")
 		}
 		return
 	}
@@ -281,6 +276,18 @@ func main() {
 		}
 	}()
 	httpServer := &http.Server{Addr: *address, Handler: server, ReadHeaderTimeout: 5 * time.Second, IdleTimeout: 45 * time.Second, MaxHeaderBytes: 32 << 10}
+	// Validate TLS before publishing readiness. A missing key must never mark an
+	// updated release healthy, even briefly.
+	if (*cert == "") != (*key == "") {
+		log.Fatal("HTTPS requires both --cert and --key")
+	}
+	if *cert != "" {
+		pair, err := tls.LoadX509KeyPair(*cert, *key)
+		if err != nil {
+			log.Fatal(err)
+		}
+		httpServer.TLSConfig = &tls.Config{MinVersion: tls.VersionTLS12, Certificates: []tls.Certificate{pair}}
+	}
 	go func() {
 		<-ctx.Done()
 		shutdown, stop := context.WithTimeout(context.Background(), 5*time.Second)
@@ -302,7 +309,7 @@ func main() {
 		defer os.Remove(*readyFile)
 	}
 	if *cert != "" {
-		err = httpServer.ServeTLS(listener, *cert, *key)
+		err = httpServer.ServeTLS(listener, "", "")
 	} else {
 		err = httpServer.Serve(listener)
 	}

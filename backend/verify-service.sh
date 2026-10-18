@@ -25,7 +25,20 @@ tag="$(sed -n 's/.*"tag": *"\([a-zA-Z0-9.+_-]*\)".*/\1/p' <<< "$marker")"
 [[ "$child" =~ ^[1-9][0-9]*$ ]] || exit 1
 kill -0 "$child"
 [[ "$(readlink /data/dash/current)" == "releases/$tag" && ! -e /data/dash/activation.json ]] || exit 1
-/data/dash/current/dash-backend --health-check
+tls_args=()
+if [[ -f /data/dash/dash.env ]]; then
+  # Read only the documented systemd TLS assignment. Never source/evaluate an
+  # environment file as shell code, or include unrelated destination secrets.
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    if [[ "$line" == DASH_TLS_ARGS=* ]]; then
+      tls_value="${line#DASH_TLS_ARGS=}"
+      tls_value="${tls_value#\"}"; tls_value="${tls_value%\"}"
+      tls_value="${tls_value#\'}"; tls_value="${tls_value%\'}"
+      read -r -a tls_args <<< "$tls_value"
+    fi
+  done < /data/dash/dash.env
+fi
+/data/dash/current/dash-backend --health-check ${tls_args[@]+"${tls_args[@]}"}
 /data/dash/current/dash-backend --resource-settings
 if [[ -f /data/dash/systemd/dash-usb.service ]]; then
   systemctl is-active --quiet dash-usb.service
