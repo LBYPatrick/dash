@@ -21,6 +21,7 @@ const status = ref(''),
   error = ref(''),
   busy = ref(false),
   download = ref('');
+const streamingDownload = ref(false);
 watch([format, camera, h264], () => {
   download.value = '';
   status.value = '';
@@ -70,7 +71,7 @@ async function run() {
         format: format.value,
         camera: camera.value,
         h264: h264.value,
-        stream: true,
+        stream: format.value !== 'mcap',
       }),
       signal,
     });
@@ -81,6 +82,7 @@ async function run() {
         job.error ? backendMessage(job.error) : t('export.couldNotStartExport'),
       );
     jobId = job.id;
+    streamingDownload.value = job.streaming === true;
     const startDownload = () => {
       const link = document.createElement('a');
       link.href = `/api/exports/${job.id}/download`;
@@ -131,6 +133,14 @@ async function run() {
         : (e as Error).message;
   } finally {
     if (controller === current) busy.value = false;
+  }
+}
+function downloadAgain(event: MouseEvent) {
+  // Completed device files can be downloaded again without conversion.
+  // Streaming exports are single-use, so only those need a new job.
+  if (streamingDownload.value) {
+    event.preventDefault();
+    void run();
   }
 }
 onBeforeUnmount(cancel);
@@ -218,7 +228,7 @@ defineExpose({ open });
             class="button primary full-width"
             :href="download"
             download
-            @click.prevent="run"
+            @click="downloadAgain"
             ><Download :size="16" />{{ t('export.downloadAgain') }}</a
           ><button
             v-else

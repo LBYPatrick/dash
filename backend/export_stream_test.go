@@ -13,8 +13,6 @@ import (
 	"strings"
 	"testing"
 	"time"
-
-	"github.com/foxglove/mcap/go/mcap"
 )
 
 func TestStreamExportsCompleteSessionWithoutOutputFiles(t *testing.T) {
@@ -48,7 +46,7 @@ func TestStreamExportsCompleteSessionWithoutOutputFiles(t *testing.T) {
 		manager.downloadStream(w, r, strings.TrimPrefix(r.URL.Path, "/"))
 	}))
 	defer server.Close()
-	for _, format := range []string{"zip", "raw", "mp4", "mcap"} {
+	for _, format := range []string{"zip", "raw", "mp4"} {
 		t.Run(format, func(t *testing.T) {
 			job, err := manager.submit(ExportRequest{Drive: fixtureDrive, Segments: []int{2}, Format: format, Camera: "qcamera.ts", Stream: true})
 			if err != nil {
@@ -96,16 +94,6 @@ func TestStreamExportsCompleteSessionWithoutOutputFiles(t *testing.T) {
 				output, err := exec.Command("ffprobe", "-v", "error", "-show_entries", "stream=codec_name:format=duration", "-of", "csv=p=0", path).Output()
 				if err != nil || !strings.Contains(string(output), "h264") || !strings.Contains(string(output), "aac") {
 					t.Fatalf("invalid streamed video/audio: %s %v", output, err)
-				}
-			case "mcap":
-				reader, err := mcap.NewReader(bytes.NewReader(data))
-				if err != nil {
-					t.Fatal(err)
-				}
-				defer reader.Close()
-				info, err := reader.Info()
-				if err != nil || len(info.AttachmentIndexes) != 3 || info.Statistics.MessageCount == 0 {
-					t.Fatal("incomplete MCAP footer, attachments, or messages", err)
 				}
 			}
 			entries, _ := os.ReadDir(manager.folder)
@@ -206,7 +194,7 @@ func TestStreamFailureAbortsIncompleteDownload(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	manager, _ := newExports(ctx, index)
-	job, err := manager.submit(ExportRequest{Drive: fixtureDrive, Format: "mcap", Stream: true})
+	job, err := manager.submit(ExportRequest{Drive: fixtureDrive, Format: "mp4", Camera: "fcamera.hevc", Stream: true})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -218,7 +206,7 @@ func TestStreamFailureAbortsIncompleteDownload(t *testing.T) {
 	}
 	defer response.Body.Close()
 	if _, err := io.Copy(io.Discard, response.Body); err == nil {
-		t.Fatal("incomplete MCAP was delivered as a successful download")
+		t.Fatal("incomplete MP4 was delivered as a successful download")
 	}
 	state, _ := manager.snapshot(job.ID)
 	if state.Status != "failed" {
