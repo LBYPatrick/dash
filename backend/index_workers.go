@@ -5,9 +5,9 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"image/jpeg"
 	"os"
 	"path/filepath"
-	"strconv"
 	"sync"
 )
 
@@ -63,22 +63,20 @@ func recordingFingerprint(folder string) (string, error) {
 // Never expose an in-progress JPEG under the committed thumbnail name. A crash
 // can leave only an unreferenced temp file; the next completed scan removes it.
 func writeIndexThumbnail(ctx context.Context, camera, target string) error {
+	frame, err := sampleThumbnail(ctx, camera)
+	if err != nil {
+		return err
+	}
 	file, err := os.CreateTemp(filepath.Dir(target), ".index-thumb-*.jpg")
 	if err != nil {
 		return err
 	}
 	temporary := file.Name()
-	file.Close()
 	defer os.Remove(temporary)
-	err = runFFmpeg(ctx, "-threads", strconv.Itoa(IndexMediaThreads), "-filter_threads", "1", "-i", camera, "-frames:v", "1", "-vf", "scale=320:-2", "-q:v", "5", "-threads", "1", temporary)
-	if err != nil {
-		return err
+	err = jpeg.Encode(file, frame, &jpeg.Options{Quality: 80})
+	if err == nil {
+		err = file.Sync()
 	}
-	file, err = os.OpenFile(temporary, os.O_RDWR, 0600)
-	if err != nil {
-		return err
-	}
-	err = file.Sync()
 	closeErr := file.Close()
 	if err != nil {
 		return err

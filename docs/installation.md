@@ -121,6 +121,8 @@ The road preview streams original H.264 transport-stream files directly. High-re
 
 Recorded AAC is indexed from companion road TS packets. Its transport timestamps and recorded camera clocks preserve late microphone starts; empty declared tracks remain silent and unavailable. Constant AAC silence fills playback clock gaps only when the session contains recorded sound, keeping track configuration stable across silent parts without encoding. Original files and exported audio remain unchanged.
 
+Thumbnails sample up to 13 small frames from the opening 6.5 seconds. Dash prefers an early stable exposure and avoids black startup frames and washed-out flashes. Night footage keeps its real exposure. Sampling uses one bounded FFmpeg process inside the parked index workers. Existing usable thumbnails stay cached; poor legacy thumbnails refresh once while parked without rebuilding telemetry or native HEVC indexes. Sampling limits live in `backend/policy.go`.
+
 The player shows one camera at a time with a continuous seek bar, clickable timestamp entry (`seconds`, `m:ss`, or `h:mm:ss`) and playback speed control. Its Viewer options toggle cached road snapshots and recorded core engagement status. Select another camera in the player controls. On desktop, drag the sidebar boundary or the divider between video and map/metadata to resize panels; the browser remembers the split. Double-click to animate a reset, or press Enter for a keyboard reset; arrow keys and Home/End also resize. Mobile keeps Video / Map & data tabs. The map marks the playback position and follows it; panning/zooming or Full route pauses follow, and Follow resumes it. No GPS is inferred across missing intervals. Exports always include every available part of the session; there are no range selectors. Raw video downloads preserve the selected camera’s original parts in an uncompressed ZIP. MP4 joins that camera into one file; ZIP and MCAP include all original assets.
 
 ## Local HTTPS and PWA installation
@@ -152,11 +154,13 @@ Add this assignment to `/data/dash/dash.env`, preserving any other settings:
 DASH_TLS_ARGS="--cert /data/dash/tls/cert.pem --key /data/dash/tls/key.pem"
 ```
 
-While parked, run `sudo systemctl restart dash.service`, then open `https://DEVICE_IP:8088`. The same port now serves HTTPS instead of HTTP. Run `bash /data/dash/verify-service.sh` to verify startup and TLS health. To return to HTTP, remove the TLS assignment and restart Dash while parked.
+While parked, run `sudo systemctl restart dash.service`, then open `http://DEVICE_IP:8088`. With TLS configured, this entry point redirects automatically to `https://DEVICE_IP:8443`, preserving the path and query. Port 8088 serves redirects only; the PWA and API use HTTPS on port 8443. You can also open the HTTPS address directly. To use another HTTPS port, add `--https-listen 0.0.0.0:PORT` inside `DASH_TLS_ARGS`. Run `bash /data/dash/verify-service.sh` to verify startup and TLS health. Both ports must bind before Dash reports readiness, and systemd stops both listeners together. To return to HTTP, remove the TLS assignment and restart Dash while parked.
+
+Upgrading from the earlier single-port TLS build changes the secure origin from `https://DEVICE_IP:8088` to `https://DEVICE_IP:8443`. Update HTTPS bookmarks and reinstall an existing PWA from the new address. Browser-local appearance preferences and saved drives belong to their original origin; recordings and device settings are unaffected. Plain HTTP bookmarks on port 8088 continue to work.
 
 Dash precaches its interface only; it does not silently copy recordings to browser storage. MapLibre loads OpenStreetMap vector backgrounds automatically without a token; all rendering is on the viewing browser. Tiles require internet access and disclose the viewed area to the tile service. The recorded GPS overlay works when tiles are unavailable. Configure the Shortbread tile service by editing the served `map-config.json`; see [map configuration](maps.md). Dash does not prefetch map tiles or include them in the offline PWA cache.
 
-Dash intentionally has no authentication. Anyone with network access to port 8088 can access recordings and request parked work. Keep it on your trusted hotspot/LAN and do not forward this port publicly. Requests with a foreign browser Origin are refused, but this is not a substitute for network isolation.
+Dash intentionally has no authentication. Anyone with network access to the app port (8088 without TLS, 8443 with TLS) can access recordings and request parked work. Keep it on your trusted hotspot/LAN and do not forward these ports publicly. Requests with a foreign browser Origin are refused, but this is not a substitute for network isolation.
 
 ## Firmware live view
 

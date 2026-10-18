@@ -246,6 +246,7 @@ func TestMediaIntegration(t *testing.T) {
 	}
 	script := `set -eu
 /media/ffmpeg -v error -nostdin -y -max_alloc 33554432 -threads 8 -filter_threads 8 -i /test/preview.ts -frames:v 1 -vf scale=160:-2 /test/thumb.jpg
+/media/ffmpeg -v error -nostdin -y -max_alloc 33554432 -threads 4 -filter_threads 1 -probesize 1048576 -analyzeduration 1000000 -i /test/preview.ts -map 0:v:0 -an -sn -dn -t 6.5 -frames:v 13 -vf 'fps=2:round=up:eof_action=pass,scale=320:240:force_original_aspect_ratio=decrease:force_divisible_by=2' -c:v mjpeg -q:v 5 -threads 1 -f image2pipe /test/samples.mjpg
 /media/ffmpeg -v error -nostdin -y -max_alloc 33554432 -threads 8 -i /test/preview.ts -c:v copy -an /test/preview.mp4
 /media/ffmpeg -v error -nostdin -y -max_alloc 33554432 -threads 8 -filter_threads 8 -r 20 -i /test/road.hevc -an -c:v libx264 -threads 8 -preset ultrafast -bf 0 -pix_fmt yuv420p -vf scale=160:-2 -f mpegts /test/converted.ts
 /media/ffmpeg -v error -nostdin -y -i /test/preview.ts -an -c:v copy -bsf:v h264_metadata=aud=insert -f h264 /test/video.h264
@@ -254,6 +255,7 @@ for file in preview.mp4 converted.ts video.h264 video.hevc; do
  /media/ffprobe -v error -threads 1 -count_packets -select_streams v:0 -show_entries stream=nb_read_packets -of csv=p=0 "/test/$file" | grep -qx 10
 done
 test -s /test/thumb.jpg
+test -s /test/samples.mjpg
 `
 	writeText(t, filepath.Join(root, "verify.sh"), script)
 	architectures := []string{"arm64", "amd64"}

@@ -31,6 +31,7 @@ type FileInfo struct {
 	Mtime    int64        `json:"mtime"`
 }
 type IndexedSegment struct {
+	ThumbnailVersion int                `json:"thumbnailVersion,omitempty"`
 	NativeVersion    int                `json:"nativeVersion,omitempty"`
 	TelemetryVersion int                `json:"telemetryVersion,omitempty"`
 	MediaVersion     int                `json:"mediaVersion,omitempty"`
@@ -373,7 +374,7 @@ func (i *Index) scanSegment(ctx context.Context, name string, generation uint64,
 	var oldHash, oldRaw string
 	_ = i.db.QueryRowContext(ctx, "SELECT fingerprint,summary FROM segments WHERE name=?", name).Scan(&oldHash, &oldRaw)
 	var old IndexedSegment
-	if oldHash == fingerprint && json.Unmarshal([]byte(oldRaw), &old) == nil && old.MediaVersion == 1 && old.TelemetryVersion == 7 && i.nativeComplete(old) {
+	if oldHash == fingerprint && json.Unmarshal([]byte(oldRaw), &old) == nil && old.MediaVersion == 1 && old.TelemetryVersion == 7 && old.ThumbnailVersion == ThumbnailVersion && i.nativeComplete(old) {
 		if old.Thumbnail == "" {
 			return nil
 		}
@@ -395,7 +396,7 @@ func (i *Index) scanSegment(ctx context.Context, name string, generation uint64,
 	i.mu.Unlock()
 	unchanged := oldHash == fingerprint && old.MediaVersion == 1 && old.TelemetryVersion == 7
 	if unchanged {
-		// Full telemetry is needed only when an existing thumbnail is missing.
+		// Reuse full telemetry during independent thumbnail/native migrations.
 		// Ordinary inventory checks read the much smaller summary column.
 		if err := i.db.QueryRowContext(ctx, "SELECT entry FROM segments WHERE name=?", name).Scan(&oldRaw); err != nil {
 			return err
@@ -410,6 +411,7 @@ func (i *Index) scanSegment(ctx context.Context, name string, generation uint64,
 	}
 	entry.MediaVersion = 1
 	entry.TelemetryVersion = 7
+	entry.ThumbnailVersion = ThumbnailVersion
 	var camera string
 	var logPaths []string
 	for _, file := range entry.Files {
@@ -471,12 +473,13 @@ func (i *Index) scanSegment(ctx context.Context, name string, generation uint64,
 		}
 	}
 	if camera != "" && oldHash == fingerprint && old.Thumbnail != "" {
-		if info, err := os.Stat(filepath.Join(i.cache, filepath.Base(old.Thumbnail))); err == nil && info.Mode().IsRegular() && info.Size() > 0 {
+		cached := filepath.Join(i.cache, filepath.Base(old.Thumbnail))
+		if info, err := os.Stat(cached); err == nil && info.Mode().IsRegular() && info.Size() > 0 && (old.ThumbnailVersion == ThumbnailVersion || existingThumbnailUsable(cached)) {
 			entry.Thumbnail = old.Thumbnail
 		}
 	}
 	if camera != "" && entry.Thumbnail == "" {
-		digest := sha256.Sum256([]byte(name + fingerprint))
+		digest := sha256.Sum256([]byte(fmt.Sprintf("%s%s:thumbnail-v%d", name, fingerprint, ThumbnailVersion)))
 		thumbnail := fmt.Sprintf("%x.jpg", digest)
 		target := filepath.Join(i.cache, thumbnail)
 		job, cancel := context.WithTimeout(ctx, 30*time.Second)
@@ -489,10 +492,28 @@ func (i *Index) scanSegment(ctx context.Context, name string, generation uint64,
 			if ctx.Err() != nil {
 				return ctx.Err()
 			}
+			if oldHash == fingerprint && old.Thumbnail != "" {
+				cached := filepath.Join(i.cache, filepath.Base(old.Thumbnail))
+				if info, err := os.Stat(cached); err == nil && info.Mode().IsRegular() && info.Size() > 0 {
+					entry.Thumbnail = old.Thumbnail
+				}
+			}
 		}
 	}
-	if err := i.prepareNative(ctx, folder, fingerprint, &entry); err != nil {
-		return err
+	if unchanged && i.nativeComplete(old) {
+		entry.NativeVersion = old.NativeVersion
+		for n := range entry.Files {
+			for _, previous := range old.Files {
+				if previous.Name == entry.Files[n].Name {
+					entry.Files[n].Native = previous.Native
+					break
+				}
+			}
+		}
+	} else {
+		if err := i.prepareNative(ctx, folder, fingerprint, &entry); err != nil {
+			return err
+		}
 	}
 	current, err := recordingFingerprint(folder)
 	if err != nil {

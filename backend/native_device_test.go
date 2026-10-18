@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"image/jpeg"
 	"io"
 	"os"
 	"os/exec"
@@ -61,6 +62,21 @@ func TestPhysicalRecordingNativePackaging(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	thumbnail := snapshot.Segments[fixtureDrive+"--0"].Thumbnail
+	if thumbnail == "" {
+		t.Fatal("real recording did not produce an exposure-aware thumbnail")
+	}
+	thumbnailFile, err := os.Open(filepath.Join(index.cache, filepath.Base(thumbnail)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	thumbnailFrame, err := jpeg.Decode(thumbnailFile)
+	thumbnailFile.Close()
+	if err != nil {
+		t.Fatal(err)
+	}
+	exposure := measureThumbnail(thumbnailFrame)
+	t.Logf("real thumbnail: %dx%d, median=%.0f, upper=%.0f, clipped=%.3f", thumbnailFrame.Bounds().Dx(), thumbnailFrame.Bounds().Dy(), exposure.median, exposure.upper, exposure.clipped)
 	parked.Store(false)
 	server := &Server{index: index, ctx: context.Background()}
 	for _, file := range snapshot.Segments[fixtureDrive+"--0"].Files {
