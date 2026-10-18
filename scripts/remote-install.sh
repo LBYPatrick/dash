@@ -31,7 +31,7 @@ args=(--channel "$channel" --repo "$repository")
 if "$runtime"; then args+=(--runtime); fi
 if [[ -n "$target" ]]; then
   [[ "$target" =~ ^comma@[a-zA-Z0-9._-]+$ ]] || { echo 'Use --target comma@HOST' >&2; exit 2; }
-  ssh_options=(-o BatchMode=yes -o ConnectTimeout=10)
+  ssh_options=(-o BatchMode=yes -o ConnectTimeout=10 -o ServerAliveInterval=5 -o ServerAliveCountMax=3)
   if [[ -n "$identity" ]]; then
     [[ -f "$identity" ]] || { echo 'SSH identity file is missing' >&2; exit 2; }
     ssh_options+=(-i "$identity" -o IdentitiesOnly=yes)

@@ -1,6 +1,6 @@
 #!/bin/bash
 set -euo pipefail
-options=(-o BatchMode=yes -o ConnectTimeout=10)
+options=(-o BatchMode=yes -o ConnectTimeout=10 -o ServerAliveInterval=5 -o ServerAliveCountMax=3)
 if [[ "${1:-}" == --identity ]]; then
   [[ $# -ge 3 && -f "$2" ]] || { echo 'Missing SSH identity or target'; exit 2; }
   options+=(-i "$2" -o IdentitiesOnly=yes)
