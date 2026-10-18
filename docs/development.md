@@ -66,7 +66,7 @@ Go integration checks for Docker media, filesystem images, sandbox limits, OTA a
 For a short, already-indexed physical session, verify native HTTPS reads without requesting preparation or changing firmware state:
 
 ```sh
-DASH_DEVICE_ACCEPTANCE=1 DASH_TEST_URL=https://DEVICE_IP:8088 \
+DASH_DEVICE_ACCEPTANCE=1 DASH_TEST_URL=https://DEVICE_IP:8443 \
   DASH_DEVICE_CA="$PWD/tls/ca.crt" DASH_DEVICE_DRIVE=DRIVE_ID \
   DASH_DEVICE_OUTPUT="$PWD/.artifacts/native-device" \
   GOMAXPROCS=2 go -C backend test -p 1 -parallel 1 \

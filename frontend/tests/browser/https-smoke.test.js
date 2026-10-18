@@ -29,8 +29,16 @@ test.skipIf(process.env.DASH_TLS_ACCEPTANCE !== '1')(
       const page = await browser.newPage();
       const errors = [];
       page.on('pageerror', (error) => errors.push(error.message));
-      const response = await page.goto(origin);
+      const entry = process.env.DASH_HTTP_ENTRY_URL || origin;
+      const response = await page.goto(entry);
       assert.equal(response.status(), 200);
+      assert.equal(new URL(page.url()).origin, new URL(origin).origin);
+      if (process.env.DASH_HTTP_ENTRY_URL) {
+        assert.equal(
+          response.request().redirectedFrom()?.url(),
+          new URL(entry).href,
+        );
+      }
       await page.waitForFunction(() => document.querySelector('main'));
       const capabilities = await page.evaluate(async () => {
         const config = {

@@ -13,6 +13,12 @@ const (
 	ProbeThreads            = 1
 	IndexWorkers            = 2
 	IndexMediaThreads       = MediaThreads / IndexWorkers
+	ThumbnailVersion        = 1
+	ThumbnailSamples        = 13
+	ThumbnailFPS            = 2
+	ThumbnailWidth          = 320
+	ThumbnailHeight         = 240
+	ThumbnailOutputLimit    = 2 << 20
 	HeavyJobLimit           = 1
 	GoHeapTargetMiB         = 96
 	SupervisorHeapTargetMiB = 24

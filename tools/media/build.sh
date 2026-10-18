@@ -21,7 +21,7 @@ PKG_CONFIG_PATH=/opt/dash-media/lib/pkgconfig ./configure \
   --enable-decoder=h264,hevc,aac,wrapped_avframe --enable-parser=h264,hevc,aac \
   --enable-encoder=libx264,mjpeg,rawvideo,wrapped_avframe \
   --enable-demuxer=mov,mpegts,hevc,h264,concat --enable-indev=lavfi \
-  --enable-muxer=mp4,mpegts,hevc,h264,image2,null \
+  --enable-muxer=mp4,mpegts,hevc,h264,image2,image2pipe,null \
   --enable-protocol=file,pipe \
   --enable-filter=scale,format,fps,setsar,setpts,null,color,testsrc2 \
   --enable-bsf=h264_mp4toannexb,hevc_mp4toannexb,h264_metadata,hevc_metadata,aac_adtstoasc,extract_extradata
