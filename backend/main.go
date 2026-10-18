@@ -27,7 +27,8 @@ func main() {
 	params := flag.String("params", "/data/params/d", "Firmware params directory; unknown state disables compute")
 	app := flag.String("app", "dist", "Required built Vue PWA directory")
 	address := flag.String("listen", "127.0.0.1:8088", "HTTP listen address without TLS; with TLS only its bind host is used")
-	httpsAddress := flag.String("https-listen", "", "HTTPS-only listen address; defaults to the HTTP bind host on port 443")
+	httpsAddress := flag.String("https-listen", "", "HTTPS listen address; defaults to the HTTP bind host on port 443")
+	redirectAddress := flag.String("http-redirect-listen", "", "HTTP redirect address with TLS; defaults to the HTTPS bind host on port 80")
 	cert := flag.String("cert", "", "Trusted HTTPS certificate")
 	key := flag.String("key", "", "HTTPS private key")
 	firmware := flag.String("firmware", "/data/openpilot", "Firmware directory, used to detect managed WebRTC support")
@@ -281,7 +282,7 @@ func main() {
 			}
 		}
 	}()
-	web, listenErr := openWebService(*address, *httpsAddress, *cert, *key, server)
+	web, listenErr := openWebService(*address, *httpsAddress, *redirectAddress, *cert, *key, server)
 	if listenErr != nil {
 		log.Fatal(listenErr)
 	}
