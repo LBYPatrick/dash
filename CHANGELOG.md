@@ -66,6 +66,8 @@ All notable changes to Dash are documented here using Keep a Changelog.
 
 ### Fixed
 
+- Bound unresponsive SSH connections during remote install, inspection and uninstall so a device losing power cannot leave the host waiting indefinitely.
+
 - Allow bounded HEVC previews near firmware's normal free-space floor while retaining the recording reserve; report storage exhaustion separately from parked-state failures.
 - Reclaim old derived preview videos before refusing a new camera, preserving packet indexes, metadata and original recordings.
 

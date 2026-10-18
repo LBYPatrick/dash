@@ -37,7 +37,7 @@ case "$DASH_CHANNEL" in main|nightly|dev) ;; *) echo 'Invalid channel'; exit 2 ;
 if [[ ! "$DASH_REPOSITORY" =~ ^[a-zA-Z0-9_-][a-zA-Z0-9_.-]*/[a-zA-Z0-9_-][a-zA-Z0-9_.-]*$ || ( -n "$DASH_RELEASE" && ! "$DASH_RELEASE" =~ ^[a-zA-Z0-9][a-zA-Z0-9.+_-]{0,127}$ ) ]]; then echo 'Invalid repository or release tag'; exit 2; fi
 DASH_PROJECT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$DASH_PROJECT"
-DASH_SSH_OPTIONS=(-o BatchMode=yes -o ConnectTimeout=10)
+DASH_SSH_OPTIONS=(-o BatchMode=yes -o ConnectTimeout=10 -o ServerAliveInterval=5 -o ServerAliveCountMax=3)
 case "$DASH_GOARCH" in arm64|amd64) ;; *) echo 'Unsupported architecture'; exit 2 ;; esac
 if [[ -n "$DASH_IDENTITY" ]]; then
   [[ -f "$DASH_IDENTITY" ]] || { echo 'SSH identity file is missing'; exit 2; }

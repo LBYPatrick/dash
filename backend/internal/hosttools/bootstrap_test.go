@@ -45,6 +45,7 @@ curl() {
   while (( $# )); do case "$1" in https:*) url="$1"; shift ;; -o) output="$2"; shift 2 ;; *) shift ;; esac; done
   case "$url" in */bootstrap.sh) cp "$DASH_BOOTSTRAP_FIXTURE/bootstrap.sh" "$output" ;; */dash-bootstrap-linux-arm64) cp "$DASH_BOOTSTRAP_FIXTURE/binary" "$output" ;; *) return 99 ;; esac
 }
+
 export -f uname id curl
 `
 				entry := filepath.Join(directory, "entry.sh")
@@ -67,5 +68,36 @@ export -f uname id curl
 				}
 			})
 		}
+	}
+}
+
+func TestDeviceSSHCommandsDetectLostConnections(t *testing.T) {
+	root, err := ProjectRoot()
+	require(t, err)
+	for _, scenario := range []struct {
+		name string
+		args []string
+	}{
+		{"install-backend.sh", []string{"--check", "comma@fixture"}},
+		{"remote-install.sh", []string{"--target", "comma@fixture"}},
+		{"uninstall-backend.sh", []string{"comma@fixture"}},
+	} {
+		t.Run(scenario.name, func(t *testing.T) {
+			directory := t.TempDir()
+			capture := filepath.Join(directory, "arguments")
+			require(t, os.WriteFile(filepath.Join(directory, "ssh"), []byte("#!/bin/bash\nprintf '%s\\n' \"$@\" > \"$DASH_SSH_CAPTURE\"\nexit 67\n"), 0700))
+			command := exec.Command("bash", append([]string{filepath.Join(root, "scripts", scenario.name)}, scenario.args...)...)
+			command.Env = append(os.Environ(), "PATH="+directory+":"+os.Getenv("PATH"), "DASH_SSH_CAPTURE="+capture)
+			if err = command.Run(); err == nil {
+				t.Fatal("installer ignored SSH failure")
+			}
+			data, err := os.ReadFile(capture)
+			require(t, err)
+			for _, option := range []string{"BatchMode=yes", "ConnectTimeout=10", "ServerAliveInterval=5", "ServerAliveCountMax=3"} {
+				if !strings.Contains(string(data), "\n"+option+"\n") {
+					t.Fatalf("missing connection bound %s", option)
+				}
+			}
+		})
 	}
 }
