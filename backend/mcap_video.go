@@ -189,7 +189,7 @@ func (e *ExportManager) mcapVideos(ctx context.Context, writer *mcap.Writer, job
 	channels := map[string]uint16{}
 	for _, asset := range assets {
 		camera := filepath.Base(asset.Path)
-		if _, ok := cameraTopics[camera]; !ok || asset.Size == 0 {
+		if _, ok := cameraTopics[camera]; !ok || camera == "qcamera.ts" || asset.Size == 0 {
 			continue
 		}
 		if len(channels) == 0 {

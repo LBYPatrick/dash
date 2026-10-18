@@ -9,9 +9,11 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
+	dashv2 "dash.local/backend/internal/mcaptypes/dashv2"
 	foxglove "dash.local/backend/internal/mcaptypes/foxglove"
 	"github.com/foxglove/mcap/go/mcap"
 	"google.golang.org/protobuf/proto"
@@ -110,6 +112,20 @@ func TestPhysicalDeviceExports(t *testing.T) {
 					t.Fatal(err)
 				}
 				defer reader.Close()
+				metadata, err := reader.Info()
+				if err != nil {
+					t.Fatal(err)
+				}
+				for _, attachment := range metadata.AttachmentIndexes {
+					if strings.HasSuffix(attachment.Name, "/qcamera.ts") {
+						t.Fatal("MCAP retained the low-resolution preview attachment")
+					}
+				}
+				for _, channel := range metadata.Channels {
+					if channel.Topic == "/dash/camera/preview/video" || channel.Metadata["source"] == "qcamera.ts" {
+						t.Fatal("MCAP retained a preview video channel")
+					}
+				}
 				iterator, err := reader.Messages()
 				if err != nil {
 					t.Fatal(err)
@@ -137,6 +153,12 @@ func TestPhysicalDeviceExports(t *testing.T) {
 						}
 						frames++
 					} else if schema != nil {
+						if schema.Name == "dash.v2.CameraFrameIndex" {
+							var frame dashv2.CameraFrameIndex
+							if e := proto.Unmarshal(message.Data, &frame); e != nil || frame.Camera == "preview" {
+								t.Fatal("MCAP retained a structured preview frame index", e)
+							}
+						}
 						if schema.Encoding != "protobuf" || channel.MessageEncoding != "protobuf" {
 							t.Fatal("untyped telemetry schema", schema.Name)
 						}

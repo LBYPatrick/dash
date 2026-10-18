@@ -28,7 +28,7 @@ Dash turns your device's recordings into a searchable drive library. Connect ove
 
 Desktop offers resizable library and video/map panels. Mobile keeps playback controls available across Video and Map tabs, with trip details in a sheet. Light, dark, and system themes include an opaque performance mode and reduced-motion support. Settings also offers English, 日本語, 简体中文, 한국어, Tiếng Việt, or Follow system; language changes apply immediately.
 
-MCAP video uses H.264 with a keyframe in every message for paused Foxglove scrubbing. Exports preserve recorded frame timing and resolution, and include original files as attachments. Downloads stream directly to your browser without storing a large output file on the device. MCAP conversion increases download size and processing time; previously downloaded MCAPs need to be exported again.
+MCAP video uses H.264 with a keyframe in every message for paused Foxglove scrubbing. Exports preserve recorded frame timing and resolution, and attach original high-resolution videos and logs. MCAP omits the redundant `qcamera.ts` preview. Downloads stream directly to your browser without storing a large output file on the device. MCAP conversion increases download size and processing time; previously downloaded MCAPs need to be exported again.
 
 **Archive all recordings** to USB (exFAT, ext4 or NTFS), S3-compatible storage, Google Drive or OneDrive. USB drives appear automatically and mount when copying starts. Choose a save folder and follow transferred/total bytes, speed and ETA. Transfers retain originals, checkpoint progress across restarts, verify completed copies and stop onroad or when driving state is unknown. Open Export recordings beside the library or Export destinations in Settings. Cloud accounts are optional; their tokens remain private on the backend. See [archive setup and recovery](docs/exports.md), including CD OAuth registration and the remaining physical USB/account acceptance requirements.
 
@@ -77,7 +77,7 @@ Use `make sandbox-logs` to follow logs and `make sandbox-down` to stop it. Docke
 
 ## Install on your device
 
-For installable PWA and WebCodecs APIs on a LAN address, use [trusted local HTTPS](docs/installation.md#local-https-and-pwa-installation). Run `make tls TLS_HOSTS=DEVICE_IP,localhost,127.0.0.1,::1` to generate project-local certificates with Go. With TLS configured, port 8088 redirects automatically to HTTPS on port 8443. Private keys stay out of Git and release bundles.
+For installable PWA and WebCodecs APIs on a LAN address, use [trusted local HTTPS](docs/installation.md#local-https-and-pwa-installation). Run `make tls TLS_HOSTS=DEVICE_IP,localhost,127.0.0.1,::1` to generate project-local certificates with Go. With TLS configured, open **`https://DEVICE_IP`**: Dash serves HTTPS only on port 443. Systemd grants the unprivileged `comma` service only the low-port binding capability. Private keys stay out of Git and release bundles.
 
 Dash installs alongside sunnypilot over SSH. A firmware merge is not required. Installation, native recording playback and exports have been exercised on a physical sunnypilot device. Firmware camera/API compatibility can vary; see the [live-view requirements](docs/installation.md#firmware-live-view).
 

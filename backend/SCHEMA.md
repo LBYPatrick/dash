@@ -1,6 +1,6 @@
 # Dash telemetry and MCAP v2
 
-Dash streams a supported subset of sunnypilot's unpacked Cap'n Proto recordings into its own structures. No comma schema package or Python is needed on the device. Original files remain untouched and are retained as MCAP attachments. See [the pinned upstream audit and native fixtures](../scripts/fixtures/README.md).
+Dash streams a supported subset of sunnypilot's unpacked Cap'n Proto recordings into its own structures. No comma schema package or Python is needed on the device. Original high-resolution videos and logs are retained as MCAP attachments; the redundant `qcamera.ts` preview is omitted. Source files remain untouched. See [the pinned upstream audit and native fixtures](../scripts/fixtures/README.md).
 
 ## Recording input and display summaries
 
@@ -38,7 +38,7 @@ Repeated initData identity is emitted at its current part's start and retains it
 
 ## Camera frames
 
-`qcamera.ts` → `preview`; `fcamera.hevc` → `road`; `ecamera.hevc` → `wide_road`; `dcamera.hevc` → `driver`. Missing cameras create no video channel. Each message uses `frame_id: dash_<camera>_optical`, a Protobuf timestamp, binary data and `h264` format. No JSON or base64 video is generated.
+`fcamera.hevc` → `road`; `ecamera.hevc` → `wide_road`; `dcamera.hevc` → `driver`. MCAP omits `qcamera.ts`, its preview video channel and structured preview frame indexes. Original telemetry logs remain attached unchanged. Missing cameras create no video channel. Each message uses `frame_id: dash_<camera>_optical`, a Protobuf timestamp, binary data and `h264` format. No JSON or base64 video is generated.
 
 When EncodeIdx exists, frames are matched by presentation order and timestamped with recorded `timestampEof`, matching the logger's media PTS. This preserves dropped-frame timing gaps and per-camera offsets. Encoder segment numbers are not assumed to match directory numbers. Duplicate, incomplete, nonmonotonic or overlapping recorded indexes fail the export rather than claiming guessed synchronization. The first recorded frame can have a nonzero presentation index because loggerd waits for a keyframe.
 

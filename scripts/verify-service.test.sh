@@ -24,6 +24,10 @@ case "$1" in
       --property=FragmentPath) echo "$DASH_VERIFY_ROOT/etc/systemd/system/dash.service" ;;
       --property=KillMode) echo control-group ;;
       --property=Restart) echo on-failure ;;
+      --property=User) echo "${DASH_VERIFY_USER:-comma}" ;;
+      --property=NoNewPrivileges) echo "${DASH_VERIFY_NO_NEW_PRIVILEGES:-yes}" ;;
+      --property=AmbientCapabilities) echo "${DASH_VERIFY_AMBIENT:-cap_net_bind_service}" ;;
+      --property=CapabilityBoundingSet) echo "${DASH_VERIFY_BOUNDING:-cap_net_bind_service}" ;;
       --property=MainPID) echo 123 ;;
       *) exit 2 ;;
     esac ;;
@@ -50,6 +54,19 @@ expect_failure() {
   if verify; then cat "$fixture/result.log" >&2; echo 'Readiness verification incorrectly accepted broken registration' >&2; exit 1; fi
 }
 verify
+# The backend stays unprivileged with exactly the narrow port-binding capability.
+export DASH_VERIFY_USER=root
+expect_failure
+unset DASH_VERIFY_USER
+export DASH_VERIFY_NO_NEW_PRIVILEGES=no
+expect_failure
+unset DASH_VERIFY_NO_NEW_PRIVILEGES
+export DASH_VERIFY_AMBIENT=cap_sys_admin
+expect_failure
+unset DASH_VERIFY_AMBIENT
+export DASH_VERIFY_BOUNDING='cap_net_bind_service cap_sys_admin'
+expect_failure
+unset DASH_VERIFY_BOUNDING
 # TLS flags must reach the readiness client without evaluating shell syntax.
 printf '#!/bin/bash\nprintf "%%s\\n" "$@" >> "$DASH_VERIFY_ROOT/calls"\n' > "$app/releases/test/dash-backend"
 printf 'DASH_TLS_ARGS="--cert /data/dash/tls/cert.pem --key /data/dash/tls/key.pem"\nUNRELATED=$(touch /tmp/dash-env-must-not-run)\n' > "$app/dash.env"

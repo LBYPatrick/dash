@@ -20,6 +20,7 @@ import (
 func TestStreamExportsCompleteSessionWithoutOutputFiles(t *testing.T) {
 	index, _ := fixtureIndex(t)
 	_ = cameraFixture(t, "h264", false) // Verify optional media tools are present.
+	road := cameraFixture(t, "hevc", false)
 	videoPath := filepath.Join(t.TempDir(), "audio.ts")
 	if output, err := exec.Command("ffmpeg", "-v", "error", "-f", "lavfi", "-i", "color=c=green:s=160x96:r=20", "-f", "lavfi", "-i", "sine=frequency=440:sample_rate=16000", "-t", "0.5", "-c:v", "libx264", "-threads", "1", "-c:a", "aac", "-f", "mpegts", videoPath).CombinedOutput(); err != nil {
 		t.Fatalf("audio fixture: %v %s", err, output)
@@ -34,6 +35,9 @@ func TestStreamExportsCompleteSessionWithoutOutputFiles(t *testing.T) {
 			t.Fatal(err)
 		}
 		if err := os.WriteFile(filepath.Join(folder, "qcamera.ts"), video, 0600); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(folder, "fcamera.hevc"), road, 0600); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -196,7 +200,7 @@ func TestStreamFailureAbortsIncompleteDownload(t *testing.T) {
 	if _, err := exec.LookPath("ffprobe"); err != nil {
 		t.Skip("ffprobe unavailable")
 	}
-	if err := os.WriteFile(filepath.Join(index.root, fixtureDrive+"--0/qcamera.ts"), []byte("invalid video"), 0600); err != nil {
+	if err := os.WriteFile(filepath.Join(index.root, fixtureDrive+"--0/fcamera.hevc"), []byte("invalid video"), 0600); err != nil {
 		t.Fatal(err)
 	}
 	ctx, cancel := context.WithCancel(context.Background())

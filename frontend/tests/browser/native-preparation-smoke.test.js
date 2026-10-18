@@ -28,7 +28,7 @@ test('native camera preparation keeps the viewer usable', async () => {
         for (const entry of Object.values(snapshot.segments)) {
           if (pending)
             for (const file of entry.files)
-              if (file.name === 'fcamera.hevc') delete file.native;
+              if (file.name.endsWith('.hevc')) delete file.native;
         }
         await route.fulfill({ response, json: snapshot });
       });
@@ -114,6 +114,13 @@ test('native camera preparation keeps the viewer usable', async () => {
           exact: true,
         }),
       ).toBeDisabled();
+      // Closed popovers remain painted during their exit transition. Audit
+      // the settled UI rather than text while it is fading toward transparent.
+      await page.waitForFunction(() =>
+        [...document.querySelectorAll('.menulist')].every(
+          (menu) => getComputedStyle(menu).display === 'none',
+        ),
+      );
       const audit = await new AxeBuilder({ page })
         .withTags(['wcag2a', 'wcag2aa', 'wcag21aa'])
         .analyze();
@@ -124,6 +131,16 @@ test('native camera preparation keeps the viewer usable', async () => {
           )
           .map((item) => item.id),
         [],
+        JSON.stringify(
+          audit.violations.map((violation) => ({
+            id: violation.id,
+            nodes: violation.nodes.map((node) => ({
+              target: node.target,
+              html: node.html,
+              summary: node.failureSummary,
+            })),
+          })),
+        ),
       );
       assert(
         await page.evaluate(
