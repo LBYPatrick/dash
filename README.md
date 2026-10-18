@@ -77,7 +77,7 @@ Use `make sandbox-logs` to follow logs and `make sandbox-down` to stop it. Docke
 
 ## Install on your device
 
-For installable PWA and WebCodecs APIs on a LAN address, use [trusted local HTTPS](docs/installation.md#local-https-and-pwa-installation). Run `make tls TLS_HOSTS=DEVICE_IP,localhost,127.0.0.1,::1` to generate project-local certificates with Go. Private keys stay out of Git and release bundles.
+For installable PWA and WebCodecs APIs on a LAN address, use [trusted local HTTPS](docs/installation.md#local-https-and-pwa-installation). Run `make tls TLS_HOSTS=DEVICE_IP,localhost,127.0.0.1,::1` to generate project-local certificates with Go. With TLS configured, port 8088 redirects automatically to HTTPS on port 8443. Private keys stay out of Git and release bundles.
 
 Dash installs alongside sunnypilot over SSH. A firmware merge is not required. Installation, native recording playback and exports have been exercised on a physical sunnypilot device. Firmware camera/API compatibility can vary; see the [live-view requirements](docs/installation.md#firmware-live-view).
 
