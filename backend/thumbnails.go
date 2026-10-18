@@ -95,13 +95,16 @@ func selectThumbnail(exposures []thumbnailExposure) int {
 	return best
 }
 
-type thumbnailBuffer struct{ bytes.Buffer }
+type thumbnailBuffer struct{ value bytes.Buffer }
+
+func (b *thumbnailBuffer) Bytes() []byte { return b.value.Bytes() }
+func (b *thumbnailBuffer) Len() int      { return b.value.Len() }
 
 func (b *thumbnailBuffer) Write(data []byte) (int, error) {
 	if b.Len()+len(data) > ThumbnailOutputLimit {
 		return 0, errors.New("thumbnail sample output exceeds budget")
 	}
-	return b.Buffer.Write(data)
+	return b.value.Write(data)
 }
 
 // JPEG decoders can read ahead into the next image. Delimit each encoded frame

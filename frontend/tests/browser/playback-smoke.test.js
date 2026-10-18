@@ -52,6 +52,11 @@ test('playback-smoke', async () => {
     const errors = [];
     page.on('pageerror', (error) => errors.push(error.message));
     await page.goto(origin);
+    await expect(
+      page.getByRole('combobox', { name: 'Camera', exact: true }),
+    ).toContainText('fcamera.hevc');
+    await page.getByRole('combobox', { name: 'Camera', exact: true }).click();
+    await page.getByRole('option', { name: 'qcamera.ts', exact: true }).click();
     await page.waitForFunction(
       () => document.querySelector('video')?.readyState >= 2,
     );

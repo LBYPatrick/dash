@@ -166,6 +166,6 @@ func installDeviceRelease(repository, channel, tag string, temporary bool) error
 	if err = runInstallScript("activate-install.sh"); err != nil {
 		return fmt.Errorf("activation: %w", err)
 	}
-	fmt.Println("Installed. Open http://DEVICE_IP:8088 on the same network.")
+	fmt.Println("Installed. Open https://DEVICE_IP with TLS configured, otherwise http://DEVICE_IP:8088.")
 	return nil
 }

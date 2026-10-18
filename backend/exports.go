@@ -517,7 +517,7 @@ func (e *ExportManager) mcapTo(ctx context.Context, job *ExportJob, request Expo
 	if err := mcapTelemetrySchemas(writer); err != nil {
 		return err
 	}
-	if err := writer.WriteMetadata(&mcap.Metadata{Name: "dash.drive", Metadata: map[string]string{"id": request.Drive, "recordings": "Typed Protobuf messages at recorded rates, with original video/log attachments. Video uses EncodeIdx EOF timing when complete; otherwise disclosed presentation-offset estimates.", "timeBasis": "GPS UTC mapped to log monotonic time; without GPS, one shared session file-time estimate. Asset LogTime is capture start; filesystem dates appear only in attachment CreateTime and Asset.modified_time_nanoseconds."}}); err != nil {
+	if err := writer.WriteMetadata(&mcap.Metadata{Name: "dash.drive", Metadata: map[string]string{"id": request.Drive, "recordings": "Typed Protobuf messages at recorded rates, with original high-resolution video/log attachments. qcamera.ts preview video and structured preview frame indexes are omitted. Video uses EncodeIdx EOF timing when complete; otherwise disclosed presentation-offset estimates.", "timeBasis": "GPS UTC mapped to log monotonic time; without GPS, one shared session file-time estimate. Asset LogTime is capture start; filesystem dates appear only in attachment CreateTime and Asset.modified_time_nanoseconds."}}); err != nil {
 		return err
 	}
 	sequence := uint32(0)
@@ -540,6 +540,15 @@ func (e *ExportManager) mcapTo(ctx context.Context, job *ExportJob, request Expo
 	if err != nil {
 		return err
 	}
+	// Preview TS still helps resolve the recording clock, but is redundant with
+	// the high-resolution cameras and must not appear in MCAP attachments.
+	included := make([]ExportAsset, 0, len(assets))
+	for _, asset := range assets {
+		if filepath.Base(asset.Path) != "qcamera.ts" {
+			included = append(included, asset)
+		}
+	}
+	assets = included
 	for i, asset := range assets {
 		if ctx.Err() != nil {
 			return ctx.Err()

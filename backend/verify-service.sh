@@ -13,6 +13,10 @@ wants="$(dirname "$fragment")/multi-user.target.wants/dash.service"
 [[ -x /data/dash/boot-state.sh && -f /run/dash/boot-validated && ! -L /run/dash/boot-validated && "$(cat /run/dash/boot-validated)" == validated ]] || exit 1
 [[ "$(systemctl show dash.service --property=KillMode --value)" == control-group ]] || exit 1
 [[ "$(systemctl show dash.service --property=Restart --value)" == on-failure ]] || exit 1
+[[ "$(systemctl show dash.service --property=User --value)" == comma ]] || exit 1
+[[ "$(systemctl show dash.service --property=NoNewPrivileges --value)" == yes ]] || exit 1
+[[ "$(systemctl show dash.service --property=AmbientCapabilities --value)" == cap_net_bind_service ]] || exit 1
+[[ "$(systemctl show dash.service --property=CapabilityBoundingSet --value)" == cap_net_bind_service ]] || exit 1
 # A fresh marker binds readiness to our running supervisor and child. Do not
 # probe global /proc, memory, controller availability, CPU topology or affinity.
 ready=/data/dash/cache/supervisor-ready.json
@@ -50,4 +54,5 @@ if [[ -f /data/dash/systemd/dash-usb.service ]]; then
   [[ -S /run/dash-usb/control.sock ]]
 fi
 echo 'Verified Dash readiness, boot-readable unit and enablement, supervised process identity, restart policy and process-group cleanup.'
+echo 'Verified comma user, NoNewPrivileges and only CAP_NET_BIND_SERVICE for standard HTTPS.'
 echo 'CPU uses the fixed app thread budget without quotas or affinity. Memory limits are requested through systemd; unsupported kernel controls are not probed.'

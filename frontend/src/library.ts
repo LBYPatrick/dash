@@ -12,6 +12,29 @@ export interface Entry {
     originMonotonic?: number;
   };
 }
+
+const CAMERA_PRIORITY = [
+  'fcamera.hevc',
+  'ecamera.hevc',
+  'dcamera.hevc',
+  'qcamera.ts',
+];
+
+export function compareCameras(a: Entry, b: Entry): number {
+  const rank = (name: string) => {
+    const index = CAMERA_PRIORITY.indexOf(name);
+    return index < 0 ? CAMERA_PRIORITY.length : index;
+  };
+  return rank(a.name) - rank(b.name) || a.name.localeCompare(b.name);
+}
+
+export function preferredCamera(files: Entry[]): Entry | undefined {
+  return [...files]
+    .sort(compareCameras)
+    .find(
+      (file) => !file.name.endsWith('.hevc') || file.native?.status === 'ready',
+    );
+}
 export interface Listing {
   directories: Entry[];
   files: Entry[];

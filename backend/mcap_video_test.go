@@ -49,7 +49,7 @@ func cameraFixture(t *testing.T, codec string, bframes bool) []byte {
 	return data
 }
 
-func TestMCAPVideoAllCamerasAndSegments(t *testing.T) {
+func TestMCAPVideoHighResolutionCamerasAndSegments(t *testing.T) {
 	index, _ := fixtureIndex(t)
 	// Both inputs include B frames, so the exported messages must be converted
 	// to a no-lookahead stream, not merely relabeled as Foxglove messages.
@@ -95,8 +95,13 @@ func TestMCAPVideoAllCamerasAndSegments(t *testing.T) {
 	if span := time.Duration(info.Statistics.MessageEndTime - info.Statistics.MessageStartTime); span > 61*time.Second {
 		t.Fatalf("file modification dates stretched unindexed recording: %s", span)
 	}
-	if len(info.AttachmentIndexes) != 9 {
-		t.Fatal("original camera/log attachments missing")
+	if len(info.AttachmentIndexes) != 7 {
+		t.Fatal("high-resolution camera/log attachments missing")
+	}
+	for _, attachment := range info.AttachmentIndexes {
+		if strings.HasSuffix(attachment.Name, "/qcamera.ts") {
+			t.Fatal("low-resolution preview attached to MCAP")
+		}
 	}
 	messages, err := reader.Messages()
 	if err != nil {
@@ -136,7 +141,10 @@ func TestMCAPVideoAllCamerasAndSegments(t *testing.T) {
 		counts[channel.Topic]++
 		streams[channel.Topic] = append(streams[channel.Topic], value.Data...)
 	}
-	for _, topic := range []string{"/dash/camera/preview/video", "/dash/camera/road/video", "/dash/camera/wide_road/video", "/dash/camera/driver/video"} {
+	if counts["/dash/camera/preview/video"] != 0 {
+		t.Fatal("low-resolution preview video included in MCAP")
+	}
+	for _, topic := range []string{"/dash/camera/road/video", "/dash/camera/wide_road/video", "/dash/camera/driver/video"} {
 		if counts[topic] != 20 {
 			t.Fatalf("%s: got %d frames, expected both complete parts", topic, counts[topic])
 		}
@@ -257,7 +265,7 @@ func TestAccessUnitParametersAndLimits(t *testing.T) {
 
 func TestInvalidMCAPVideoRemovesPartialExport(t *testing.T) {
 	index, _ := fixtureIndex(t)
-	if err := os.WriteFile(filepath.Join(index.root, fixtureDrive+"--0", "qcamera.ts"), []byte("corrupt"), 0600); err != nil {
+	if err := os.WriteFile(filepath.Join(index.root, fixtureDrive+"--0", "fcamera.hevc"), []byte("corrupt"), 0600); err != nil {
 		t.Fatal(err)
 	}
 	manager, _ := newExports(context.Background(), index)

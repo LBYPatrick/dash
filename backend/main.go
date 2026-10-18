@@ -26,8 +26,8 @@ func main() {
 	cache := flag.String("cache", "/data/dash/cache", "Disposable SQLite, preview and export cache")
 	params := flag.String("params", "/data/params/d", "Firmware params directory; unknown state disables compute")
 	app := flag.String("app", "dist", "Required built Vue PWA directory")
-	address := flag.String("listen", "127.0.0.1:8088", "HTTP entry point; redirects to HTTPS when certificates are configured")
-	httpsAddress := flag.String("https-listen", "", "HTTPS listen address; defaults to the HTTP host on port 8443")
+	address := flag.String("listen", "127.0.0.1:8088", "HTTP listen address without TLS; with TLS only its bind host is used")
+	httpsAddress := flag.String("https-listen", "", "HTTPS-only listen address; defaults to the HTTP bind host on port 443")
 	cert := flag.String("cert", "", "Trusted HTTPS certificate")
 	key := flag.String("key", "", "HTTPS private key")
 	firmware := flag.String("firmware", "/data/openpilot", "Firmware directory, used to detect managed WebRTC support")
@@ -287,9 +287,6 @@ func main() {
 	}
 	defer web.Close()
 	log.Printf("dash-backend on %s; state=%s; heavy jobs=1; Go heap target=%d MiB; media threads=%d", web.app.Addr, index.state(), GoHeapTargetMiB, MediaThreads)
-	if web.redirect != nil {
-		log.Printf("HTTP entry point %s redirects to HTTPS on %s", web.redirect.Addr, web.app.Addr)
-	}
 	if *readyFile != "" {
 		if *updateHome == "" || filepath.Dir(*readyFile) != filepath.Join(*updateHome, "cache") {
 			log.Fatal("invalid internal readiness path")

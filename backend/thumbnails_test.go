@@ -7,6 +7,7 @@ import (
 	"image"
 	"image/color"
 	"image/jpeg"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -56,6 +57,10 @@ func TestThumbnailExposureSelection(t *testing.T) {
 	var bounded thumbnailBuffer
 	if _, err := bounded.Write(make([]byte, ThumbnailOutputLimit+1)); err == nil || bounded.Len() != 0 {
 		t.Fatal("thumbnail output exceeded its hard byte budget")
+	}
+	bounded = thumbnailBuffer{}
+	if _, err := io.Copy(&bounded, io.LimitReader(bytes.NewReader(make([]byte, ThumbnailOutputLimit+1)), ThumbnailOutputLimit+1)); err == nil || bounded.Len() > ThumbnailOutputLimit {
+		t.Fatal("io.Copy bypassed the thumbnail output budget")
 	}
 }
 

@@ -229,7 +229,7 @@ func mcapLogTelemetry(ctx context.Context, writer *mcap.Writer, segment int, pat
 				return err
 			}
 		}
-		if frame := record.Frame; frame != nil {
+		if frame := record.Frame; frame != nil && frame.Camera != "preview" {
 			if err := message(6, timestamp, &dashv2.CameraFrameIndex{Timestamp: stamp, LogMonotonicNanoseconds: record.MonotonicNS, Segment: part, Camera: frame.Camera, FrameId: frame.FrameID, EncodeId: frame.EncodeID, EncoderSegment: frame.EncoderSegment, PresentationIndex: frame.PresentationIndex, EncodeIndex: frame.EncodeIndex, StartOfFrameNanoseconds: frame.StartNS, EndOfFrameNanoseconds: frame.EndNS, Flags: frame.Flags, EncodedBytes: frame.Bytes}); err != nil {
 				return err
 			}

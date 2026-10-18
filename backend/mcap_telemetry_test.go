@@ -134,7 +134,7 @@ func TestNativeMCAPRecordedRateAndBinarySchemas(t *testing.T) {
 			if kind == "qlog" {
 				vehicles, gps = 680, 68
 			}
-			for topic, want := range map[string]int{"/dash/VehicleState": vehicles, "/dash/Engagement": vehicles, "/dash/Position": gps, "/dash/GpsState": gps, "/dash/CameraFrameIndex": 68 * 20 * 4, "/dash/SegmentBoundary": 4} {
+			for topic, want := range map[string]int{"/dash/VehicleState": vehicles, "/dash/Engagement": vehicles, "/dash/Position": gps, "/dash/GpsState": gps, "/dash/CameraFrameIndex": 68 * 20 * 3, "/dash/SegmentBoundary": 4} {
 				if counts[topic] != want {
 					t.Fatalf("%s got %d want %d (%s)", topic, counts[topic], want, kind)
 				}

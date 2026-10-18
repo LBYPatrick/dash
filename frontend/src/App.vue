@@ -81,6 +81,8 @@ import {
   groupDrives,
   recordingDate,
   listFolder,
+  compareCameras,
+  preferredCamera,
   type Drive,
   type Entry,
 } from './library';
@@ -469,13 +471,7 @@ const playable = computed(() => {
         available.set(file.name, file);
     }
   }
-  return [...available.values()].sort((a, b) =>
-    a.name === 'qcamera.ts'
-      ? -1
-      : b.name === 'qcamera.ts'
-        ? 1
-        : a.name.localeCompare(b.name),
-  );
+  return [...available.values()].sort(compareCameras);
 });
 function cameraPreparing(name: string) {
   return (
@@ -564,9 +560,20 @@ async function loadFiles() {
     const listing = await listFolder(segment.value.url, request.signal);
     if (request.signal.aborted) return;
     files.value = listing.files;
-    const preview =
-      playable.value.find((file) => file.name === 'qcamera.ts') ||
-      playable.value[0];
+    const preview = preferredCamera(
+      playable.value.filter(
+        (file) =>
+          !file.name.endsWith('.hevc') ||
+          (active.value?.segments || []).every((part) => {
+            const source = indexEntries.value[part.url]?.files.find(
+              (candidate) => candidate.name === file.name,
+            );
+            return (
+              !source || source.size <= 0 || source.native?.status === 'ready'
+            );
+          }),
+      ),
+    );
     selectedSource.value =
       preview && active.value
         ? recordingAddress(active.value.id, preview.name)

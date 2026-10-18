@@ -42,6 +42,9 @@ TasksAccounting=yes
 TasksMax=128
 LimitNOFILE=1024
 NoNewPrivileges=yes
+# Bind HTTPS on 443 as comma. No root backend or file capabilities are needed.
+CapabilityBoundingSet=CAP_NET_BIND_SERVICE
+AmbientCapabilities=CAP_NET_BIND_SERVICE
 PrivateTmp=yes
 ProtectSystem=strict
 ProtectHome=yes

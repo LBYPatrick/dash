@@ -72,5 +72,5 @@ scp "${DASH_SSH_OPTIONS[@]}" backend/systemd/dash-usb.service "$DASH_TARGET:/dat
 scp "${DASH_SSH_OPTIONS[@]}" "$DASH_STAGING/startup-mode" "$DASH_TARGET:/data/dash/.startup.new"
 scp "${DASH_SSH_OPTIONS[@]}" "$DASH_STAGING/update.json" "$DASH_TARGET:/data/dash/.update.new"
 ssh "${DASH_SSH_OPTIONS[@]}" "$DASH_TARGET" bash -s < backend/activate-install.sh
-echo "Installed. Open http://${DASH_TARGET#*@}:8088 on the same LAN or device hotspot."
+echo "Installed. Open https://${DASH_TARGET#*@} with TLS configured, otherwise http://${DASH_TARGET#*@}:8088."
 echo 'Lifecycle: sudo systemctl {start|stop|restart|status} dash.service'

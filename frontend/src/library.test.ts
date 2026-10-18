@@ -4,9 +4,32 @@ import {
   parseListing,
   formatBytes,
   recordingDate,
+  preferredCamera,
+  type Entry,
 } from './library';
 import { distanceKm } from './indexer';
 describe('recording inventory', () => {
+  it('prefers the ready front camera and falls back when it is unavailable', () => {
+    const camera = (name: string, status?: string): Entry => ({
+      name,
+      url: name,
+      size: 1,
+      modified: 0,
+      ...(status ? { native: { status } } : {}),
+    });
+    const preview = camera('qcamera.ts');
+    const front = camera('fcamera.hevc', 'ready');
+    const wide = camera('ecamera.hevc', 'ready');
+    expect(preferredCamera([preview, wide, front])?.name).toBe('fcamera.hevc');
+    expect(preferredCamera([preview, wide])?.name).toBe('ecamera.hevc');
+    expect(preferredCamera([preview, camera('fcamera.hevc')])?.name).toBe(
+      'qcamera.ts',
+    );
+    expect(
+      preferredCamera([preview, camera('fcamera.hevc', 'unsupported')])?.name,
+    ).toBe('qcamera.ts');
+    expect(preferredCamera([])).toBeUndefined();
+  });
   it('groups sparse timestamp and boot-id segments numerically', () => {
     const base = 'http://device:8088/files/';
     const listing = parseListing(
